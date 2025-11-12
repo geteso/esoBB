@@ -455,7 +455,12 @@ function ajax()
 			list($memberId, $account, $deleteMember) = $this->eso->db->fetchRow("SELECT p.memberId, account, deleteMember FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId");
 			if (($error = $this->canDeletePost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($error);
 
-			else $this->deletePostForever($postId);
+			else {
+				if ($this->deletePostForever($postId)) {
+					// Return updated post count so JavaScript can update pagination
+					return array("postCount" => $this->conversation["posts"]);
+				}
+			}
 			break;
 
 		// Edit a post.
@@ -1134,9 +1139,18 @@ function deletePostForever($postId)
 	// Exclude the post from the post count. (For some reason, subtracting 1 from an unsigned integer doesn't work.)
 	$posts = $this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}posts
 	WHERE conversationId={$this->conversation["id"]} AND postId!=$postId ORDER BY time");
+	$time = time();
 	if ($posts > 0) {
-		$query = "UPDATE {$config["tablePrefix"]}conversations SET posts=$posts WHERE conversationId={$this->conversation["id"]}";
+		$query = "UPDATE {$config["tablePrefix"]}conversations SET posts=$posts, lastActionTime=$time WHERE conversationId={$this->conversation["id"]}";
 		$this->eso->db->query($query);
+		// Update the conversation array with the new post count
+		$this->conversation["posts"] = $posts;
+		$this->conversation["lastActionTime"] = $time;
+	} else {
+		$query = "UPDATE {$config["tablePrefix"]}conversations SET posts=0, lastActionTime=$time WHERE conversationId={$this->conversation["id"]}";
+		$this->eso->db->query($query);
+		$this->conversation["posts"] = 0;
+		$this->conversation["lastActionTime"] = $time;
 	}
 
 	// Delete the post (actually delete it.)

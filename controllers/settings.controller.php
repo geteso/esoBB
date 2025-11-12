@@ -65,8 +65,10 @@ function init()
 		and $this->eso->validateToken(@$_POST["token"])
 		and $this->changeUsername()) {
 		$this->eso->message("changesSaved");
-		// Update the username session variable.
-		$_SESSION["user"] == $_POST["settingsUsername"]["submit"];
+		// Update the username in session and user object.
+		$newName = substr($_POST["settingsUsername"]["name"], 0, 31);
+		$_SESSION["user"]["name"] = $newName;
+		$this->eso->user["name"] = $newName;
 		redirect("settings");
 	}
 	

@@ -120,7 +120,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}tags (
 // Create the actions table.
 $queries[] = "DROP TABLE IF EXISTS {$config["tablePrefix"]}actions";
 $queries[] = "CREATE TABLE {$config["tablePrefix"]}actions (
-	ip char(32) NOT NULL,
+	ip int unsigned NOT NULL,
 	memberId int unsigned default NULL,
 	action varchar(63) NOT NULL,
 	time int unsigned NOT NULL

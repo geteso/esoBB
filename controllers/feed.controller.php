@@ -20,25 +20,28 @@
 if (!defined("IN_ESO")) exit;
 
 /**
- * Feed controller: builds a list of items to be outputted as an RSS
+ * Feed controller: builds a list of items to be outputted as an Atom
  * feed.
  */
 class feed extends Controller {
 
 // Feed data variables, outputted in the view.
 var $items = array();
-var $pubDate = "";
+var $updated = "";
 var $title = "";
-var $description = "";
+var $subtitle = "";
 var $link = "";
+var $id = "";
 
 function init()
 {
 	global $language, $config, $messages;
 	
 	// Change the root view so that the wrapper is not outputted.
+	// Set both the eso view and the controller view to bypass the wrapper
 	$this->eso->view = "feed.view.php";
-	header("Content-type: text/xml; charset={$language["charset"]}");
+	$this->view = "feed.view.php";
+	header("Content-type: application/atom+xml; charset={$language["charset"]}");
 	
 	if ($return = $this->callHook("init")) return;
 	
@@ -62,7 +65,7 @@ function init()
 				
 				// Still not logged in?  Ask them again.
 				if (!$this->eso->user) {
-					header('WWW-Authenticate: Basic realm="esoBB RSS feed"');
+					header('WWW-Authenticate: Basic realm="esoBB Atom feed"');
 				    header('HTTP/1.0 401 Unauthorized');
 					$this->eso->fatalError($messages["cannotViewConversation"]["message"]);
 				}
@@ -79,17 +82,20 @@ function init()
 			// Set the title, link, description, etc.
 			$this->title = "{$conversation["title"]} - {$config["forumTitle"]}";
 			$this->link = $config["baseURL"] . makeLink($conversation["id"], $conversation["slug"]);
-			$this->description = $conversation["tags"];
-			$this->pubDate = date("D, d M Y H:i:s O", $conversation["lastActionTime"]);
+			$this->subtitle = $conversation["tags"];
+			$this->id = $config["baseURL"] . makeLink("feed", "conversation", $conversation["id"]);
+			$this->updated = date("Y-m-d\TH:i:s\Z", $conversation["lastActionTime"]);
 			
 			// Fetch the 20 most recent posts in the conversation.
 			$result = $this->eso->db->query("SELECT postId, name, content, time FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE conversationId={$conversation["id"]} AND deleteMember IS NULL ORDER BY time DESC LIMIT 20");
 			while (list($id, $member, $content, $time) = $this->eso->db->fetchRow($result)) {
 				$this->items[] = array(
 					"title" => $member,
-					"description" => sanitizeHTML($this->format($content)),
+					"content" => $this->format($content),
 					"link" => $config["baseURL"] . makeLink("post", $id),
-					"date" => date("D, d M Y H:i:s O", $time)
+					"id" => $config["baseURL"] . makeLink("post", $id),
+					"author" => $member,
+					"updated" => date("Y-m-d\TH:i:s\Z", $time)
 				);
 			}
 		
@@ -104,16 +110,19 @@ function init()
 			while (list($postId, $title, $member, $content, $time) = $this->eso->db->fetchRow($result)) {
 				$this->items[] = array(
 					"title" => "$member - $title",
-					"description" => sanitizeHTML($this->format($content)),
+					"content" => $this->format($content),
 					"link" => $config["baseURL"] . makeLink("post", $postId),
-					"date" => date("D, d M Y H:i:s O", $time)
+					"id" => $config["baseURL"] . makeLink("post", $postId),
+					"author" => $member,
+					"updated" => date("Y-m-d\TH:i:s\Z", $time)
 				);
 			}
 			
 			// Set the title, link, description, etc.
 			$this->title = "{$language["Recent posts"]} - {$config["forumTitle"]}";
 			$this->link = $config["baseURL"];
-			$this->pubDate = !empty($this->items[0]) ? $this->items[0]["date"] : "";
+			$this->id = $config["baseURL"] . makeLink("feed");
+			$this->updated = !empty($this->items[0]) ? $this->items[0]["updated"] : date("Y-m-d\TH:i:s\Z");
 	}
 }
 
@@ -131,9 +140,11 @@ function format($post)
 	$post = preg_replace("/<a([^>]*) href='(?!http|ftp|mailto)([^']*)'/i", "<a$1 href='{$config["baseURL"]}$2'", $post);
 	$post = preg_replace("/<img([^>]*) src='(?!http|ftp|mailto)([^']*)'/i", "<img$1 src='{$config["baseURL"]}$2'", $post);
 
-	// Remove zero-width joiners because RSS 2.0 doesn't recognize them.
+	// Remove zero-width joiners.
 //	$post = preg_replace("/[\x{200B}-\x{200D}\x{FEFF}]/u", "", $post);
-	$post = htmlentities($post, ENT_XML1);
+	// For Atom with type="html" in CDATA, we only need to escape the CDATA end marker
+	// The HTML content can remain as-is since CDATA will protect it
+	$post = str_replace(']]>', ']]&gt;', $post);
 
 	return $post;
 }

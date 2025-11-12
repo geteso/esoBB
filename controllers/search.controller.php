@@ -414,19 +414,20 @@ function doSearch($search = "")
 			}
 		}
 		
-		// However, if we don't have a record in the session, use the MySQL searches table.
+		// However, if we don't have a record in the session, use the MySQL actions table.
 		else {
 			// Get the user's IP address.
 			$ip = cookieIp();
+			$memberId = $this->eso->user ? $this->eso->user["memberId"] : 0;
 			// Have they performed >= $config["searchesPerMinute"] searches in the last minute?
-			if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}searches WHERE ip='" . $ip . "' AND searchTime>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) {
+			if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='search' AND time>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) {
 				$this->eso->message("waitToSearch", true, 60);
 				return;
 			}
-			// Log this search in the searches table.
-			$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}searches (ip, searchTime) VALUES ('" . $ip . "', UNIX_TIMESTAMP())");
-			// Proactively clean the searches table of searches older than 60 seconds.
-			$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}searches WHERE searchTime<UNIX_TIMESTAMP()-60");
+			// Log this search in the actions table.
+			$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}actions (ip, memberId, action, time) VALUES ($ip, $memberId, 'search', UNIX_TIMESTAMP())");
+			// Proactively clean the actions table of searches older than 60 seconds.
+			$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}actions WHERE action='search' AND time<UNIX_TIMESTAMP()-60");
 		}
 		
 		// Log this search in the session array.
@@ -548,7 +549,7 @@ function ajax()
 				// Otherwise, check the database.
 				} else {
 					$ip = cookieIp();
-					if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}searches WHERE ip='" . $ip . "' AND searchTime>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) return array("newActivity" => false);
+					if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='search' AND time>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) return array("newActivity" => false);
 				}
 			}
 			

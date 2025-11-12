@@ -948,9 +948,11 @@ changeAvatarAlignment: function(alignment) {
 // Check if there are any new posts in the conversation, and update the conversation display as appropriate.
 checkForNewPosts: function() {
 	if (Conversation.editingPosts > 0) return;
+	// Ensure postCount is a valid number before using it
+	var postCount = parseInt(Conversation.postCount) || 0;
 	Ajax.request({
 		"url": eso.baseURL + "ajax.php?controller=conversation",
-		"post": "action=getNewPosts&id=" + Conversation.id + "&lastActionTime=" + Conversation.lastActionTime + (Conversation.startFrom + eso.postsPerPage >= Conversation.postCount ? "&oldPostCount=" + Conversation.postCount : ""),
+		"post": "action=getNewPosts&id=" + Conversation.id + "&lastActionTime=" + Conversation.lastActionTime + (Conversation.startFrom + eso.postsPerPage >= postCount && postCount > 0 ? "&oldPostCount=" + postCount : ""),
 		"background": true,
 		"success": function() {
 			
@@ -972,6 +974,30 @@ checkForNewPosts: function() {
 			Conversation.postCount = this.result.postCount;
 			Conversation.lastActionTime = this.result.lastActionTime;
 			var newPosts = Conversation.postCount - oldPostCount;
+			
+			// Handle permanently deleted posts (when postCount decreases)
+			if (newPosts < 0) {
+				// When posts are permanently deleted, we need to reload the current view
+				// because we don't know which specific post was deleted and indices may have shifted
+				// Remove posts beyond the new count from cache
+				for (var i = Conversation.postCount; i < oldPostCount; i++) {
+					delete Conversation.posts[i];
+				}
+				// Clear the current view range to force reload with correct indices
+				var currentViewStart = Conversation.startFrom;
+				var currentViewEnd = Math.min(Conversation.startFrom + eso.postsPerPage, Conversation.postCount);
+				for (var i = currentViewStart; i < currentViewEnd; i++) {
+					delete Conversation.posts[i];
+				}
+				// Adjust startFrom if we're now past the end
+				if (Conversation.startFrom >= Conversation.postCount && Conversation.postCount > 0) {
+					Conversation.startFrom = Math.max(0, Conversation.postCount - eso.postsPerPage);
+					window.location.hash = Conversation.startFrom;
+				}
+				// Reload the current view to get posts with correct indices
+				Conversation.reloadPosts(Conversation.startFrom, null, false);
+				return; // Don't continue with normal new posts handling
+			}
 			
 			// If there are no new posts, set a longer timeout to check again. Otherwise, reset the timeout length.
 			if (!newPosts) Conversation.setReloadTimeout(Conversation.autoReloadInterval *= eso.autoReloadIntervalMultiplier);
@@ -1689,27 +1715,149 @@ deletePostForever: function(postId) {
 	else if (!confirm(eso.language["confirmDeletePost"])) return false;
 	else Conversation.editingPosts = 0;
 
-	// Reload the posts on this page so we can redisplay them when needed.
-	Conversation.reloadPosts(Conversation.startFrom, null, true);
+	// Find the post index in the array
+	var postIndex = -1;
+	for (var i in Conversation.posts) {
+		if (Conversation.posts[i].id == postId) {
+			postIndex = parseInt(i);
+			break;
+		}
+	}
+	
+	// If post not found in array, it might be outside current view - just make the request
+	if (postIndex == -1) {
+		Ajax.request({
+			"url": eso.baseURL + "ajax.php?controller=conversation",
+			"post": "action=deletePostForever&postId=" + postId,
+			"success": function() {
+				if (this.messages) return;
+				// Update post count from server response
+				if (this.result && typeof this.result.postCount != "undefined") {
+					Conversation.postCount = this.result.postCount;
+				}
+				// Reload to reflect changes
+				Conversation.reloadPosts(Conversation.startFrom, null, false);
+			}
+		});
+		return;
+	}
+	
+	// Store the current view range before deletion
+	var currentStart = Conversation.startFrom;
+	var currentEnd = Math.min(Conversation.startFrom + eso.postsPerPage, Conversation.postCount);
+	
+	// Get the post element and its height before deletion for animation
+	var postElement = getById("p" + postId);
+	var oldHeight = postElement ? postElement.offsetHeight : 0;
 	
 	// Make the ajax request.
 	Ajax.request({
 		"url": eso.baseURL + "ajax.php?controller=conversation",
 		"post": "action=deletePostForever&postId=" + postId,
 		"success": function() {
-			if (this.messages) return;
+			if (this.messages) {
+				// If there was an error, reload to restore the post
+				Conversation.reloadPosts(Conversation.startFrom, null, false);
+				return;
+			}
+			
+			// Function to process deletion after animation (or immediately if no animation)
+			var processDeletion = function() {
+				// Update post count from server response
+				var oldPostCount = Conversation.postCount;
+				if (this.result && typeof this.result.postCount != "undefined" && this.result.postCount !== null) {
+					Conversation.postCount = parseInt(this.result.postCount) || 0;
+				} else {
+					// Fallback: decrement by 1, but ensure it's a valid number
+					Conversation.postCount = Math.max(0, (parseInt(Conversation.postCount) || 0) - 1);
+				}
 
-			// Remove the post from the DOM.
-			var postElement = getById("p" + postId);
-			if (postElement) postElement.parentNode.removeChild(postElement);
+				// Ensure postCount is always a valid number
+				if (isNaN(Conversation.postCount) || Conversation.postCount < 0) {
+					Conversation.postCount = 0;
+				}
 
-			// Remove the post from the Conversation.posts array.
-			Conversation.posts = Conversation.posts.filter(post => post?.id !== postId);
+				// Remove the post from the array
+				delete Conversation.posts[postIndex];
+				
+				// Shift all posts after the deleted one down by 1
+				// Posts are indexed by their position in the conversation (0, 1, 2, ...)
+				// When we delete post at index N, all posts after N need to shift to N, N+1, N+2, etc.
+				// We need to process in reverse order to avoid overwriting posts before moving them
+				var maxIndex = -1;
+				for (var i in Conversation.posts) {
+					var idx = parseInt(i);
+					if (!isNaN(idx) && idx > maxIndex) maxIndex = idx;
+				}
+				
+				// Shift posts down by 1, processing from highest to lowest index
+				if (maxIndex >= postIndex) {
+					for (var i = maxIndex; i > postIndex; i--) {
+						if (typeof Conversation.posts[i] != "undefined") {
+							Conversation.posts[i - 1] = Conversation.posts[i];
+							delete Conversation.posts[i];
+						}
+					}
+				}
 
-			// Update the post count and re-render.
-			Conversation.postCount = Conversation.posts.length;
-//			Conversation.displayPosts();
-			Conversation.reloadPosts(Conversation.startFrom, null, false);
+				// Adjust startFrom if we're now past the end
+				if (Conversation.startFrom >= Conversation.postCount && Conversation.postCount > 0) {
+					Conversation.startFrom = Math.max(0, Conversation.postCount - eso.postsPerPage);
+					window.location.hash = Conversation.startFrom;
+				}
+
+				// Check if we need to fetch a post to fill a gap at the end of the current view
+				var maxPost = Math.min(Conversation.startFrom + eso.postsPerPage, Conversation.postCount);
+				var lastVisibleIndex = maxPost - 1;
+				var needToFetch = false;
+				
+				// If the deleted post was in the current view and we're not at the very end
+				if (postIndex >= currentStart && postIndex < currentEnd && lastVisibleIndex < Conversation.postCount - 1) {
+					// Check if we now have a gap at the last position of the current view
+					if (typeof Conversation.posts[lastVisibleIndex] == "undefined") {
+						needToFetch = true;
+					}
+				}
+
+				// If we need to fetch a post to fill the gap
+				if (needToFetch && lastVisibleIndex < Conversation.postCount) {
+					Ajax.request({
+						"url": eso.baseURL + "ajax.php?controller=conversation",
+						"success": function() {
+							if (posts = this.result) {
+								for (var i in posts) Conversation.posts[i] = posts[i];
+							}
+							Conversation.displayPosts();
+						},
+						"post": "action=getPosts&id=" + Conversation.id + "&start=" + lastVisibleIndex + "&end=" + lastVisibleIndex
+					});
+				} else {
+					// Re-render with the updated posts array
+					Conversation.displayPosts();
+				}
+			};
+			
+			// Animate the post shrinking before removing it
+			if (postElement && oldHeight > 0) {
+				postElement.style.overflow = "hidden";
+				var animationComplete = false;
+				var self = this; // Store reference to the AJAX response
+				(postElement.animation = new Animation(function(height, final) {
+					postElement.style.height = height + "px";
+					if (final && !animationComplete) {
+						animationComplete = true;
+						// Remove the post from DOM after animation completes
+						if (postElement.parentNode) postElement.parentNode.removeChild(postElement);
+						postElement.style.height = "";
+						// Continue with the rest of the deletion logic
+						processDeletion.call(self);
+					}
+				}, {begin: oldHeight, end: 0})).start();
+			} else {
+				// If we couldn't get height or element, remove immediately and process
+				if (postElement) postElement.parentNode.removeChild(postElement);
+				processDeletion.call(this);
+			}
 		}
 	});
 },

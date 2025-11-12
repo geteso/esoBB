@@ -59,11 +59,22 @@ $eso->init();
 // Initialize the controller.
 $eso->controller->init();
 
+// Check if this is a feed request (Atom feed).
+$isFeed = ($eso->view == "feed.view.php" or $eso->controller->view == "feed.view.php");
+
 // Show the page.
-header("Content-type: text/html; charset={$language["charset"]}");
-if (!empty($config["gzipOutput"]) or !ob_start("ob_gzhandler")) ob_start();
-$eso->render();
-ob_flush();
+if (!$isFeed) {
+	header("Content-type: text/html; charset={$language["charset"]}");
+	if (!empty($config["gzipOutput"]) or !ob_start("ob_gzhandler")) ob_start();
+	$eso->render();
+	ob_flush();
+} else {
+	// For feeds, render the controller directly to bypass the HTML wrapper
+	// The feed controller already set the proper content-type header
+	if (ob_get_level()) ob_end_clean();
+	$eso->controller->render();
+	exit;
+}
 
 // Clear messages from the session.
 $_SESSION["messages"] = array();
