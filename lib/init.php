@@ -82,18 +82,29 @@ require PATH_LIBRARY."/database.php";
 require PATH_LIBRARY."/classes.php";
 require PATH_LIBRARY."/formatter.php";
 
+// Define the session save path.
+session_save_path(PATH_ROOT."/sessions");
+ini_set('session.gc_probability', 1);
+
+if (session_id()) {
+	// Destroy sessions that are started longer ago than sessionExpire.
+	if (time() - $_SESSION["time"] > $config["sessionExpire"] 
+	// Prevent session highjacking: check the current IP address against the one that initiated the session.
+	or $_SERVER["REMOTE_ADDR"] != $_SESSION["ip"] 
+	// Check the current user agent against the one that initiated the session.
+	or md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]) {
+		session_unset();
+		session_destroy();
+	}
 // Start a session if one does not already exist.
-if (!session_id()) {
+} else {
 	session_name("{$config["cookieName"]}_Session");
 	session_start();
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
+	$_SESSION["time"] = time();
+	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
 	if (empty($_SESSION["token"])) regenerateToken();
 }
-
-// Prevent session highjacking: check the current IP address against the one that initiated the session.
-if ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]) session_destroy();
-// Check the current user agent against the one that initiated the session.
-if (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]) session_destroy();
 
 // Undo register_globals.
 undoRegisterGlobals();

@@ -74,7 +74,37 @@ function init()
 
 	// Log out if necessary.
 	if (@$_GET["q1"] == "logout") $this->logout();
-		
+	// If the user is logged in...
+	elseif (isset($_SESSION["user"])) {
+		$ip = cookieIp();
+		// Make sure the user data exists in the members table.
+		$memberExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId={$_SESSION["user"]["memberId"]}", 0);
+		// Also make sure this device exists in the logins table: first try by cookie if cookie exists, otherwise by IP
+		$whereClause = "";
+		if (isset($_COOKIE[$config["cookieName"]])) {
+			$whereClause = "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND memberId={$_SESSION["user"]["memberId"]}";
+		} else {
+			$whereClause = "cookie IS NULL AND ip=$ip AND memberId={$_SESSION["user"]["memberId"]}";
+		}
+		$loginExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE $whereClause", 0);
+		// If not found by cookie/IP, try finding any record for this memberId and IP (in case cookie expired)
+		if (!$loginExists) {
+			$loginExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId={$_SESSION["user"]["memberId"]}", 0);
+			if ($loginExists) {
+				$whereClause = "ip=$ip AND memberId={$_SESSION["user"]["memberId"]}";
+			}
+		}
+		// Check if session has expired based on lastTime
+		$lastTime = $loginExists ? $this->db->result("SELECT lastTime FROM {$config["tablePrefix"]}logins WHERE $whereClause", 0) : 0;
+		// If member doesn't exist, login record doesn't exist, or session has expired, logout
+		if ($_SESSION["user"]["memberId"] != $memberExists or !$loginExists or ($lastTime and (time() - $lastTime > $config["sessionExpire"]))) {
+			$this->logout();
+		} else {
+			// Update lastTime to track activity
+			$this->db->query("UPDATE {$config["tablePrefix"]}logins SET lastTime=UNIX_TIMESTAMP() WHERE $whereClause");
+		}
+	}
+	
 	// Attempt to log in, and user assign data to the user array.
 	if ($this->login(@$_POST["login"]["name"], @$_POST["login"]["password"])) {
 		$this->user = $_SESSION["user"] + array(
@@ -97,15 +127,6 @@ function init()
 
 	// Only do the following for non-ajax requests.
 	if (!defined("AJAX_REQUEST")) {
-
-		// Check for updates, but only for the root admin.
-//		if ($this->user["memberId"] == $config["rootAdmin"]) {
-			// How long ago was the last update check? If it was any more than 1 day ago, check again now.
-//			if (file_exists("config/lastUpdateCheck.php")) include "config/lastUpdateCheck.php";
-//			if (!isset($lastUpdateCheck) or time() - $lastUpdateCheck >= 86400) {
-//				if ($latestVersion = $this->checkForUpdates()) $this->message("updatesAvailable", false, $latestVersion);
-//			}
-//		}
 
 		// If the user IS NOT logged in, add the login form and 'Join us' link to the bar.
 		if (!$this->user) {
@@ -178,20 +199,14 @@ function login($name = false, $password = false, $hash = false)
 	}
 	
 	// Otherwise attempt to get the member ID and password hash from a cookie.
-	elseif ($hash === false) {
-		$cookie = @$_COOKIE[$config["cookieName"]];
-		if ($config["hashingMethod"] == "bcrypt") {
-			$memberId = substr($cookie, 0, strlen($cookie) - 60);
-			$hash = substr($cookie, -60);
-		}
-		else {
-			$memberId = substr($cookie, 0, strlen($cookie) - 32);
-			$hash = substr($cookie, -32);
-		}
+	$memberId = false;
+	if ($hash === false and isset($_COOKIE[$config["cookieName"]])) {
+		$memberId = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'", 0);
+		if ($memberId) $hash = $this->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId={$memberId}", 0);
 	}
 	
 	// If we successfully have a name or member ID, and a hash, then we attempt to login.
-	if (($name or $memberId = (int)$memberId) and $hash !== false) {
+	if (($name or ($memberId = (int)$memberId)) and $hash !== false) {
 		
 		// Construct the query components to select user data from the members table.
 		$components = array(
@@ -200,15 +215,11 @@ function login($name = false, $password = false, $hash = false)
 			"where" => array($name ? "name='" . $this->db->escape($name) . "'" : "memberId=$memberId", "password='" . $this->db->escape($hash) . "'")
 		);
 		
-		// Get the user's IP address, and validate it against the cookie IP address if they're logging in via cookie.
-		// Do some back-and-forth conversion so we only use the first three parts of the IP (the last will be 0.)
-		$ip = cookieIp();
-		if (isset($cookie)) $components["where"][] = "cookieIP='" . $ip . "'";
-		
 		$this->callHook("beforeLogin", array(&$components));
 
 		// If we're counting logins per minute, impose some flood control measures.
-		if (!isset($cookie) and $config["loginsPerMinute"] > 0) {
+		if ($config["loginsPerMinute"] > 0) {
+			$ip = cookieIp();
 
 			// If we have a record of their logins in the session, check how many logins they've performed in the last
 			// minute.
@@ -226,17 +237,15 @@ function login($name = false, $password = false, $hash = false)
 
 			// However, if we don't have a record in the session, use the MySQL logins table.
 			else {
-				// Get the user's IP address.
-//				$ip = (int)ip2long($_SESSION["ip"]);
 				// Have they performed >= $config["loginsPerMinute"] logins in the last minute?
-				if ($this->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip='" . $ip . "' AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
+				if ($this->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId=0 AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
 					$this->message("waitToLogin", true, 60);
 					return;
 				}
-				// Log this attempt in the logins table.
-				$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, loginTime) VALUES ('" . $ip . "', UNIX_TIMESTAMP())");
-				// Proactively clean the logins table of logins older than 60 seconds.
-				$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE loginTime<UNIX_TIMESTAMP()-60");
+				// Log this attempt in the logins table (using memberId=0 for anonymous login attempts).
+				$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, memberId, loginTime) VALUES ($ip, 0, UNIX_TIMESTAMP())");
+				// Proactively clean the logins table of login attempts older than 60 seconds.
+				$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=0 AND loginTime<UNIX_TIMESTAMP()-60");
 			}
 
 			// Log this attempt in the session array.
@@ -260,12 +269,12 @@ function login($name = false, $password = false, $hash = false)
 
 			if ($data["account"] == "Unvalidated") {
 				// If sendEmail is enabled and we're requiring email verification to login, show a message with a link to resend a verification email.
-				if (!empty($config["sendEmail"]) and $config["registrationEmailApproval"] == "strict" and !$data["emailVerified"]) {
+				if (!empty($config["sendEmail"]) and !empty($config["requireEmailApproval"]) and !$data["emailVerified"]) {
 					$this->message("accountNotYetVerified", false, makeLink("join", "sendVerification", $data["memberId"]));
 					return false;
 				// If we're manually approving accounts, show a message that says to wait for approval.
 				// Even if this forum doesn't require verification, accounts that were made before that change will need approval.
-				} elseif ($config["registrationManualApproval"] == "strict") {
+				} elseif (!empty($config["requireManualApproval"])) {
 					$this->message("waitForApproval", false);
 					return false;
 				}
@@ -275,14 +284,32 @@ function login($name = false, $password = false, $hash = false)
 			$_SESSION["user"] = $this->user = $data;
 			
 			// Regenerate the session ID and token.
-//			session_regenerate_id();
 			regenerateToken();
-			
-			// If the "remember me" box was checked, set a cookie, and set the cookieIP field in the database.
-//			if (@$_POST["login"]["rememberMe"]) {
+
+			// Set any necessary cookies and update the logins table.
 			if (@$_POST["login"]) {
-				$this->db->query("UPDATE {$config["tablePrefix"]}members SET cookieIP='" . $ip . "' WHERE memberId={$_SESSION["user"]["memberId"]}");
-				setcookie($config["cookieName"], $_SESSION["user"]["memberId"] . sanitizeForHTTP($hash), time() + $config["cookieExpire"], "/", $config["cookieDomain"]);
+				$ip = cookieIp();
+				$userAgent = md5($_SERVER["HTTP_USER_AGENT"]);
+				$rememberMe = true;
+				// If there already exists a record for this cookie or IP address, update it accordingly.
+				$existingRecord = $this->db->result("SELECT cookie FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'" : "cookie IS NULL AND ip=$ip") . " AND memberId={$_SESSION["user"]["memberId"]}", 0);
+				if ($existingRecord) {
+					$this->db->query("UPDATE {$config["tablePrefix"]}logins SET ip=$ip, userAgent='" . $this->db->escape($userAgent) . "', lastTime=UNIX_TIMESTAMP() WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'" : "cookie IS NULL AND ip=$ip") . " AND memberId={$_SESSION["user"]["memberId"]}");
+				// Otherwise, the cookie is either expired or doesn't exist.
+				} else {
+					// If the user chooses to "remember" their credentials, set a new cookie.
+					$newCookie = null;
+					if ($rememberMe) {
+						$newCookie = md5(rand());
+						setcookie($config["cookieName"], sanitizeForHTTP($newCookie), time() + $config["cookieExpire"], "/", $config["cookieDomain"]);
+					// Clean up the database of any recorded (expired) cookie if there is one.
+					} elseif (isset($_COOKIE[$config["cookieName"]])) {
+						$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL AND memberId={$data["memberId"]}");
+						setcookie($config["cookieName"], "", -1, "/");
+					}
+					// Record this in the logins table.
+					$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (" . ($newCookie ? "'" . $this->db->escape($newCookie) . "'" : "NULL") . ", $ip, '" . $this->db->escape($userAgent) . "', {$data["memberId"]}, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())");
+				}
 			}
 			
 			if (!defined("AJAX_REQUEST")) refresh();
@@ -304,14 +331,17 @@ function login($name = false, $password = false, $hash = false)
 function logout()
 {
 	global $config;
+	$memberId = isset($_SESSION["user"]["memberId"]) ? $_SESSION["user"]["memberId"] : 0;
+	$ip = cookieIp();
 	
 	// Destroy session data and regenerate the unique token.
 	unset($_SESSION["user"]);
 	regenerateToken();
 
-	// Eat the cookie. OM NOM NOM
+	// Delete the login record from the logins table.
+	$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL" : "cookie IS NULL AND ip=$ip") . " AND memberId={$memberId}");
 	if (isset($_COOKIE[$config["cookieName"]])) setcookie($config["cookieName"], "", -1, "/");
-	
+
 	$this->callHook("logout");
 
 	// Redirect to the home page.

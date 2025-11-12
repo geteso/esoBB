@@ -43,6 +43,10 @@ require PATH_LIBRARY."/functions.php";
 require PATH_LIBRARY."/classes.php";
 require PATH_LIBRARY."/database.php";
 
+// Define the session save path.
+session_save_path(PATH_ROOT."/sessions");
+ini_set('session.gc_probability', 1);
+
 // Start a session if one does not already exist.
 if (!session_id()) session_start();
 

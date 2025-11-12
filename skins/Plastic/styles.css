@@ -50,7 +50,7 @@ img.avatar, div.avatar img {-webkit-filter:drop-shadow(0 1px 0 rgba(255,255,255,
 #wrapper {border-top:0; border-bottom:0; border-left:1px solid; border-right:1px solid; border-image:linear-gradient(to bottom, #c1c1c1, #fff); border-image-slice:1; background:#fff}
 
 /* Tags & gambits */
-#tagArea {border:1px dashed #ccc}
+#tagArea {text-shadow:0 1px 0 #fff}
 #tags a {color:#777}
 #gambits a {color:#00f}
 
@@ -63,11 +63,12 @@ img.avatar, div.avatar img {-webkit-filter:drop-shadow(0 1px 0 rgba(255,255,255,
 
 /* Messages */
 #messages {box-shadow:0 2px 5px 0 rgba(0,0,0,0.5)}
+#messages .msg #debugInfo {padding:5px; background:rgba(255,255,255,0.5); text-shadow:#fff 0 1px}
 .msg .close {border:1px solid #000; color:#000; text-decoration:none}
 .msg .close:hover {background:#fff; color:#000; text-decoration:none}
 .msg .close:active {background:#aaa}
 .msg {background:#ddd; text-shadow:rgba(255,255,255,0.5) 0 1px; box-shadow:inset 0 -1px 0 rgba(0, 0, 0, 0.2)}
-.info {background:#fad163}
+.info {background:linear-gradient(to bottom, #fde5a5, #fad163)}
 .success {background:#cf0}
 .warning {background:linear-gradient(to bottom, #e36c63, #c00); color:#fff; text-shadow:rgba(0,0,0,0.3) 0 -1px; box-shadow:inset 0 -1px 0 rgba(0, 0, 0, 0.3)}
 .warning a, .warning a:hover {color:#fff; text-decoration:underline}
@@ -125,7 +126,7 @@ a.star0:active, a.star1:active {color:#e4b600}
 /* Pagination */
 .pg {background:#fff}
 .pg li {border:1px solid #bbb; box-shadow:inset 0 1px 3px #ccc; text-shadow:#fff 0 1px}
-.pg li.middle {border-width:1px 0; clip-path:border-box}
+.pg li.middle {border-width:1px 0; clip-path:inset(0 0)}
 .pg li a {color:#000; border-right:1px solid #ccc; box-sizing:border-box}
 .pg li a:last-child {border-right:0}
 .pg li a.disabled {color:#888}

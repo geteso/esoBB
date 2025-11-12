@@ -91,6 +91,7 @@ a.s5 {font-size:90%}
 
 /* Messages */
 #messages .msg {margin:0}
+#messages .msg #debugInfo {margin:5px 0 0}
 .msg .close {float:right; padding:0 5px; margin:-2px -4px 0 5px}
 .msg {line-height:1.4; margin:0 0 1em 0; padding:5px 10px}
 .msg code {background:none}
@@ -161,7 +162,7 @@ small.tags:empty {margin:0}
 /* Pagination */
 .pg {font-size:95%; line-height:20px; margin:0 0 10px; display:flex; flex-direction:row; overflow:hidden; padding:0; text-align:center; -webkit-user-select:none; -ms-user-select:none; user-select:none}
 .pg li {list-style-type:none; box-sizing:border-box}
-.pg li.middle {cursor:pointer; margin:0 -1px; width:100%; flex:1; min-width:0}
+.pg li.middle {cursor:pointer; margin:0 -1px; width:100%; flex:1; min-width:0; z-index:1}
 .pg li a {padding:0 10px}
 .pg li a.disabled, .pg li a.disabled:hover, .pg li a.disabled:active {cursor:default; cursor:not-allowed}
 .pg .viewing {cursor:E-resize; cursor:col-resize; margin-top:-1px; position:relative; white-space:nowrap}

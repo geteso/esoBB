@@ -126,10 +126,10 @@ function init()
 	
 	// If the form has been submitted, validate it and add the member into the database.
 	if (isset($_POST["join"]) and $this->addMember()) {
-		if (!empty($config["sendEmail"]) && !empty($config["registrationEmailApproval"])) {
+		if (!empty($config["sendEmail"]) && !empty($config["requireEmailApproval"])) {
 			$this->eso->message("verifyEmail", false);
 			redirect("");
-		} elseif (!empty($config["registrationManualApproval"])) {
+		} elseif (!empty($config["requireManualApproval"])) {
 			$this->eso->message("waitForApproval", false);
 			redirect("");
 		} else {
@@ -208,14 +208,14 @@ function addMember()
 			// Get the user's IP address.
 			$ip = cookieIp();
 			// Have they performed >= $config["loginsPerMinute"] logins in the last minute?
-			if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip='" . $ip . "' AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
+			if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId=0 AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
 				$this->eso->message("waitToLogin", true, 60);
 				return;
 			}
-			// Log this attempt in the logins table.
-			$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, loginTime) VALUES ('" . $ip . "', UNIX_TIMESTAMP())");
-			// Proactively clean the logins table of logins older than 60 seconds.
-			$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE loginTime<UNIX_TIMESTAMP()-60");
+			// Log this attempt in the logins table (using memberId=0 for anonymous login attempts).
+			$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, memberId, loginTime) VALUES ($ip, 0, UNIX_TIMESTAMP())");
+			// Proactively clean the logins table of login attempts older than 60 seconds.
+			$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=0 AND loginTime<UNIX_TIMESTAMP()-60");
 		}
 
 		// Log this attempt in the session array.

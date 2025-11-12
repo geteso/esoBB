@@ -29,6 +29,16 @@ define("AJAX_REQUEST", 1);
 // Basic page initialization.
 require "lib/init.php";
 
+// Start output buffering if gzip is enabled and client accepts it.
+// Must be done after init.php loads $config, but before any output.
+if (!ob_get_level()) {
+	if (!empty($config["gzipOutput"]) and isset($_SERVER["HTTP_ACCEPT_ENCODING"]) and strpos($_SERVER["HTTP_ACCEPT_ENCODING"], "gzip") !== false) {
+		if (!ob_start("ob_gzhandler")) ob_start();
+	} else {
+		ob_start();
+	}
+}
+
 // Set up the action controller.
 if (isset($_GET["controller"])) {
 	$eso->action = strtolower($_GET["controller"]);
@@ -94,9 +104,8 @@ if (count($_SESSION["messages"])) {
 
 // Output the array.
 header("Content-type: text/plain; charset={$language["charset"]}");
-if (!empty($config["gzipOutput"]) and !ob_start("ob_gzhandler")) ob_start();
 echo json($result);
-ob_flush();
+ob_end_flush();
 
 // Clear the messages array.
 $_SESSION["messages"] = array();

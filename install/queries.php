@@ -97,7 +97,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}members (
 	emailOnPrivateAdd tinyint(1) NOT NULL default '1',
 	emailOnStar tinyint(1) NOT NULL default '1',
 	disableJSEffects tinyint(1) NOT NULL default '0',
-	disableLinkAlerts tinyint(1) NOT NULL default '0',
+	disableLinkAlerts tinyint(1) NOT NULL default '1',
 	markedAsRead int unsigned default NULL,
 	lastSeen int unsigned default NULL,
 	lastAction varchar(191) default NULL,
@@ -126,17 +126,21 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}actions (
 	time int unsigned NOT NULL
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 
-// Create the cookies table.
-$queries[] = "DROP TABLE IF EXISTS {$config["tablePrefix"]}cookies";
-$queries[] = "CREATE TABLE {$config["tablePrefix"]}cookies (
-	cookie char(32) NOT NULL,
-	cookieIP char(32) default NULL,
+// Create the logins table.
+$queries[] = "DROP TABLE IF EXISTS {$config["tablePrefix"]}logins";
+$queries[] = "CREATE TABLE {$config["tablePrefix"]}logins (
+	loginId int unsigned NOT NULL AUTO_INCREMENT,
+	cookie char(32) default NULL,
+	ip int unsigned NOT NULL,
 	userAgent varchar(191) default NULL,
 	memberId int unsigned NOT NULL,
 	action varchar(63) NOT NULL default 'login',
 	firstTime int unsigned default NULL,
 	lastTime int unsigned default NULL,
-	PRIMARY KEY  (cookie, memberId)
+	loginTime int unsigned default NULL,
+	PRIMARY KEY  (loginId),
+	KEY memberId_lastTime (memberId, lastTime),
+	KEY cookie (cookie)
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 
 // Create the account for the administrator.

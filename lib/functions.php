@@ -239,14 +239,10 @@ function makeLink()
 
 function cookieIp()
 {
-	if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-		$ip = $_SERVER['HTTP_CLIENT_IP'];
-	} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-		$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-	} else {
-		$ip = $_SERVER['REMOTE_ADDR'];
-	}
-	return md5($ip);
+	$ip = htmlspecialchars($_SERVER["REMOTE_ADDR"]);
+	// A fix for web servers that are not fully IPv6 compatible.
+	if (strpos($ip, "::")) $ip = substr($ip, strrpos($ip, ":")+1);
+	return ip2long($ip);
 }
 
 // Generate a link to the current page. To get a form to submit to the same page: <form action='curLink()'.
@@ -261,7 +257,7 @@ function curLink()
 }
 
 // Send a HTTP Location header to redirect to a specific page. (Uses the same argument syntax as makeLink().)
-function redirect()
+function redirect($return = false)
 {
 	global $config;
 	$args = func_get_args();
@@ -293,6 +289,8 @@ function validateName(&$name)
 {
 	global $eso, $config;
 	$reservedNames = $config["reservedNames"];
+
+	if (!empty($eso)) $eso->callHook("beforeValidateName", array(&$name));
 
 	// Make sure the name isn't a reserved word.
 	if (in_array(strtolower($name), $reservedNames)) return "nameTaken";

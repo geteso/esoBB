@@ -693,7 +693,9 @@ function url($match, $state)
 	$external = "";
 	$link = $protocol . $match;
 	// If the URL doesn't match the forum's baseURL, it should be considered an external link.
-	if (parse_url($link, PHP_URL_HOST) !== parse_url($config["baseURL"], PHP_URL_HOST)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
+	$linkHost = parse_url($link, PHP_URL_HOST);
+	$baseHost = parse_url($config["baseURL"], PHP_URL_HOST);
+	if ($linkHost !== false and $baseHost !== false and strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
 	$this->formatter->output .= "<a href='$link'$external>$match</a>$after";
 	return true;
 }
@@ -715,7 +717,11 @@ function link($match, $state)
 			if (!preg_match("`^((?:https?|ftp|feed)://|mailto:)`i", $link)) $protocol = "https://";
 			$external = "";
 			// If the URL doesn't match the forum's baseURL, it should be considered an external link.
-			if (preg_match("`^((?:https?|file|ftp|feed)://)`i", $protocol.$link) and parse_url($link, PHP_URL_HOST) !== parse_url($config["baseURL"], PHP_URL_HOST)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
+			if (preg_match("`^((?:https?|file|ftp|feed)://)`i", $protocol.$link)) {
+				$linkHost = parse_url($link, PHP_URL_HOST);
+				$baseHost = parse_url($config["baseURL"], PHP_URL_HOST);
+				if ($linkHost !== false and $baseHost !== false and strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
+			}
 			$this->formatter->output .= "<a href='$protocol$link'" . $external . (isset($title) ? " title=$quote$title$quote" : "") . ">";
 			break;
 		case LEXER_EXIT:

@@ -101,6 +101,7 @@ $defaultConfig = array(
 "cookieName" => "",
 "cookieDomain" => "", // Sets a custom cookie domain. Set it to .yourdomain.com to have the cookie set across all subdomains. Keep blank to use baseURL.
 "cookieExpire" => 2592000, // Amount of time by which cookies are kept. (2592000 seconds = 30 days.)
+"sessionExpire" => 604800, // Amount of time by which sessions are kept. (604800 seconds = 1 week.)
 
 // URL settings.
 "useFriendlyURLs" => true, // ex. example.com/index.php/conversation/1

@@ -28,7 +28,7 @@ if(!defined("IN_ESO"))exit;
 <div>
 <input id='searchText' name='search' type='text' class='text' value='<?php echo @$_SESSION["search"];?>' spellcheck='false'/>
 <div class='fr'>
-<a id='reset' href='<?php echo makeLink("search","");?>'>x</a>
+<a id='reset' href<?php echo $this->eso->action=="search" ? "='" . makeLink("search","") . "'" : " onclick='document.getElementById(&quot;searchText&quot;).value = &quot;&quot;; return false'";?>>x</a>
 <?php echo $this->eso->skin->button(array("id"=>"submit","name"=>"submit","value"=>$language["Search"],"class"=>"big"));?>
 <?php if($this->eso->action=="search" and $this->eso->user):?>
 <?php echo $this->eso->skin->button(array("id"=>"new","name"=>"new","value"=>$language["Start a conversation"],"class"=>"big"));?>
