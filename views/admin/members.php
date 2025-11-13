@@ -39,11 +39,11 @@ if ($this->eso->user["admin"]):?>
 <li><label class='checkbox'><?php echo $language["Allow registration"]; ?></label>
 <input type='checkbox' class='checkbox' name='registrationOpen' value='1'<?php echo !empty($config["registrationOpen"]) ? " checked='checked'" : ""; ?>/></li>
 
-<li><label><?php echo $language["Require approval"]; ?><br/></label>
-<div><select name='registrationRequireApproval'><?php
-foreach ($this->registrationSettings as $k => $v)
-echo "<option value='$k'" . ($config["registrationRequireApproval"] == $k ? " selected='selected'" : "") . ">$v</option>";	
-?></select></div></li>
+<?php if(!empty($config["sendEmail"])):?><li><label><?php echo $language["Require email approval"]; ?><br/></label>
+<input type='checkbox' class='checkbox' name='requireEmailApproval' value='1'<?php echo !empty($config["requireEmailApproval"]) ? " checked='checked'" : ""; ?>/></li><?php endif;?>
+
+<li><label><?php echo $language["Require manual approval"]; ?><br/></label>
+<input type='checkbox' class='checkbox' name='requireManualApproval' value='1'<?php echo !empty($config["requireManualApproval"]) ? " checked='checked'" : ""; ?>/></li>
 
 <li><label></label> <span class='button'><input type='submit' name='saveMembersSettings' value='<?php echo $language["Save changes"]; ?>'/></span></li>
 

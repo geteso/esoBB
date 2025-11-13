@@ -312,11 +312,13 @@ function getConversationIDs($search = "")
 			// If condition is a callable, use it directly; otherwise evaluate as legacy string (deprecated)
 			if (is_callable($condition)) {
 				$matches = call_user_func($condition, $term);
-			} else {
+			} elseif (is_string($condition) && !empty(trim($condition))) {
 				// Legacy eval() support - deprecated but maintained for backward compatibility
 				// $term is sanitized user input, but eval() is still dangerous
 				// This should be migrated to callbacks
-				$matches = eval($condition);
+				$matches = @eval($condition);
+			} else {
+				$matches = false;
 			}
 			if ($matches) {
 				call_user_func_array($function, array(&$this, $term, $negate));

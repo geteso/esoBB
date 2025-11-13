@@ -528,7 +528,7 @@ doRequest: function(request) {
 			}
 			
 			// Make the result into a nice JSON array. If there's a syntax error, disconnect the ajax system.
-			try {request.json = eval("(" + request.http.responseText + ")");}
+			try {request.json = JSON.parse(request.http.responseText);}
 			catch (e) {
 				Ajax.disconnect(request);
 				return false;

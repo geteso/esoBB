@@ -42,7 +42,13 @@ if (is_numeric($q1)) {
 $eso->action = in_array($q1, $eso->allowedActions) ? $q1 : $eso->action = "search";
 
 // Include and set up the controller corresponding to the chosen action.
-require "controllers/$eso->action.controller.php";
+// Sanitize the action name to prevent directory traversal
+$controllerFile = dirname(__FILE__) . "/controllers/" . sanitizeFileName($eso->action) . ".controller.php";
+if (!file_exists($controllerFile) || !in_array($eso->action, $eso->allowedActions)) {
+	$eso->action = "search";
+	$controllerFile = dirname(__FILE__) . "/controllers/search.controller.php";
+}
+require $controllerFile;
 $className = str_replace("-", "", $eso->action);
 $eso->controller = new $className;
 $eso->controller->eso =& $eso;

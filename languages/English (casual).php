@@ -255,7 +255,8 @@ $language = array(
 "registrationManual" => "by manual approval",
 "Remember me" => "Remember me",
 "restore" => "restore",
-"Require approval" => "Validate new members",
+"Require email approval" => "Require email approval",
+"Require manual approval" => "Require manual approval",
 "RSS" => "RSS",
 
 "Sample captcha image" => "Sample captcha image",

@@ -37,7 +37,7 @@ $defaultConfig = array(
 "characterEncoding" => "utf8mb4",
 "connectionOptions" => "",
 "storageEngine" => "MyISAM",
-"hashingMethod" => "md5",
+"hashingMethod" => "bcrypt",
 
 // Basic forum details.
 "forumTitle" => "",

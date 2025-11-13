@@ -301,11 +301,52 @@ function login($name = false, $password = false, $hash = false)
 					if ($rememberMe) {
 						// Generate cryptographically secure cookie value (32 hex characters = 128 bits entropy)
 						$newCookie = bin2hex(random_bytes(16));
-						setcookie($config["cookieName"], sanitizeForHTTP($newCookie), time() + $config["cookieExpire"], "/", $config["cookieDomain"]);
+						// Set cookie with security flags: Secure (if HTTPS), HttpOnly, SameSite
+						// Using individual parameters for PHP 7.2.x compatibility (array syntax requires PHP 7.3.0+)
+						$expires = time() + $config["cookieExpire"];
+						$path = "/";
+						$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+						$secure = !empty($config["https"]); // Only send over HTTPS if enabled
+						$httponly = true; // Prevent JavaScript access (XSS protection)
+						// SameSite requires PHP 7.3.0+ or manual header setting for PHP 7.2.x
+						if (PHP_VERSION_ID >= 70300) {
+							setcookie($config["cookieName"], sanitizeForHTTP($newCookie), array(
+								"expires" => $expires,
+								"path" => $path,
+								"domain" => $domain,
+								"secure" => $secure,
+								"httponly" => $httponly,
+								"samesite" => "Lax"
+							));
+						} else {
+							// PHP 7.2.x compatibility: set cookie and add SameSite via header
+							setcookie($config["cookieName"], sanitizeForHTTP($newCookie), $expires, $path, $domain, $secure, $httponly);
+							// Set SameSite attribute manually for PHP 7.2.x
+							header("Set-Cookie: {$config["cookieName"]}=" . sanitizeForHTTP($newCookie) . "; Expires=" . gmdate("D, d M Y H:i:s", $expires) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
+						}
 					// Clean up the database of any recorded (expired) cookie if there is one.
 					} elseif (isset($_COOKIE[$config["cookieName"]])) {
 						$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL AND memberId={$data["memberId"]}");
-						setcookie($config["cookieName"], "", -1, "/");
+						// Delete cookie with same security flags
+						$expires = -1;
+						$path = "/";
+						$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+						$secure = !empty($config["https"]);
+						$httponly = true;
+						if (PHP_VERSION_ID >= 70300) {
+							setcookie($config["cookieName"], "", array(
+								"expires" => $expires,
+								"path" => $path,
+								"domain" => $domain,
+								"secure" => $secure,
+								"httponly" => $httponly,
+								"samesite" => "Lax"
+							));
+						} else {
+							// PHP 7.2.x compatibility
+							setcookie($config["cookieName"], "", $expires, $path, $domain, $secure, $httponly);
+							header("Set-Cookie: {$config["cookieName"]}=; Expires=" . gmdate("D, d M Y H:i:s", 0) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
+						}
 					}
 					// Record this in the logins table.
 					$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (" . ($newCookie ? "'" . $this->db->escape($newCookie) . "'" : "NULL") . ", $ip, '" . $this->db->escape($userAgent) . "', {$data["memberId"]}, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())");
@@ -360,7 +401,28 @@ function logout()
 
 	// Delete the login record from the logins table.
 	$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL" : "cookie IS NULL AND ip=$ip") . " AND memberId={$memberId}");
-	if (isset($_COOKIE[$config["cookieName"]])) setcookie($config["cookieName"], "", -1, "/");
+	if (isset($_COOKIE[$config["cookieName"]])) {
+		// Delete cookie with same security flags as when it was set
+		$expires = -1;
+		$path = "/";
+		$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+		$secure = !empty($config["https"]);
+		$httponly = true;
+		if (PHP_VERSION_ID >= 70300) {
+			setcookie($config["cookieName"], "", array(
+				"expires" => $expires,
+				"path" => $path,
+				"domain" => $domain,
+				"secure" => $secure,
+				"httponly" => $httponly,
+				"samesite" => "Lax"
+			));
+		} else {
+			// PHP 7.2.x compatibility
+			setcookie($config["cookieName"], "", $expires, $path, $domain, $secure, $httponly);
+			header("Set-Cookie: {$config["cookieName"]}=; Expires=" . gmdate("D, d M Y H:i:s", 0) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
+		}
+	}
 
 	$this->callHook("logout");
 

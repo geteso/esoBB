@@ -150,7 +150,10 @@ function processRequestURI($requestURI)
 function generateRandomString($numOfChars, $possibleChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890~!@#%^&*()_+=-{}[]:;<,>.?/`")
 {
 	$salt = "";
-	for ($i = 0; $i < $numOfChars; $i++) $salt .= $possibleChars[rand(0, strlen($possibleChars) - 1)];
+	$maxIndex = strlen($possibleChars) - 1;
+	for ($i = 0; $i < $numOfChars; $i++) {
+		$salt .= $possibleChars[random_int(0, $maxIndex)];
+	}
 	return $salt;
 }
 
@@ -180,29 +183,9 @@ function undoRegisterGlobals()
 // Encodes JSON (JavaScript Object Notation) representations of values and returns a JSON string.
 function json($array)
 {
-	// Loop through the array and check if the keys are all consecutive integers starting from 0.
-	// If they are, we can use the JavaScript array syntax ['foo', 'bar'] rather than the object notation syntax.
-	$noKeys = true;
-	for ($i = 0, reset($array); $i < count($array); $i++, next($array)) {
-		if (key($array) !== $i) {
-			$noKeys = false;
-			break;
-		}
-	}
-	// Now loop through the array again, this time adding each key/value's string representation to the $json array.
-	$json = array();
-	foreach ($array as $k => $v) {
-		if (is_array($v)) $value = json($v);
-		elseif (is_string($v)) $value = "'" . str_replace(array("\r", "\n"), "\\n", addslashes($v)) . "'";
-		elseif (is_bool($v)) $value = $v ? "true" : "false";
-		elseif (is_null($v)) $value = "null";
-		elseif (!is_object($v) and !is_resource($v)) $value = $v;
-		else continue;
-		if (!$noKeys) $key = preg_match("/[^\w]/", $k) ? "'" . addslashes($k) . "'" : $k;
-		$json[] = $noKeys ? $value : "$key:$value";
-	}
-	// Return a JavaScript array string or a JSON string (depending if we're using keys or not.)
-	return $noKeys ? "[" . implode(",", $json) . "]" : "{" . implode(",", $json) . "}";
+	// Use PHP's built-in json_encode for strict JSON compliance (required for JSON.parse() in JavaScript)
+	// This replaces the old JavaScript object notation output with proper JSON
+	return json_encode($array, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES);
 }
 
 // Function to quickly translate a string by using the $language variable.

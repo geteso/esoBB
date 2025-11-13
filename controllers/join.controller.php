@@ -234,8 +234,9 @@ function addMember()
 			: "'{$field["input"]}'";
 	}
 	
-	// If we're not requiring verification, add a field to the query that "validates" the member without a validation hash.
-	if ($config["registrationRequireApproval"] == false) {
+	// If neither manual approval nor email approval is required, validate the member.
+	// Otherwise, leave the member as unvalidated (default behavior).
+	if (empty($config["requireManualApproval"]) and (empty($config["sendEmail"]) or empty($config["requireEmailApproval"]))) {
 		$insertData["account"] = "'Member'";
 	}
 

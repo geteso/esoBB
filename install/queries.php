@@ -150,7 +150,7 @@ if ($config["hashingMethod"] == "bcrypt") {
 } else {
 	$password = md5($salt . $_SESSION["install"]["adminPass"]);
 }
-$color = rand(1, 27);
+$color = random_int(1, 27);
 $queries[] = "INSERT INTO {$config["tablePrefix"]}members (memberId, name, email, password, salt, color, account) VALUES 
 (1, '{$_SESSION["install"]["adminUser"]}', '{$_SESSION["install"]["adminEmail"]}', '$password', '$salt', $color, 'Administrator')";
 

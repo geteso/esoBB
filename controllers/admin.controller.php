@@ -782,7 +782,8 @@ function saveMembersSettings()
 	$newConfig = array();
 
 	$newConfig["registrationOpen"] = (bool)!empty($_POST["registrationOpen"]);
-	if (in_array(@$_POST["registrationRequireApproval"], $this->registrationSettings)) $newConfig["registrationRequireApproval"] = $_POST["registrationRequireApproval"];
+	if (!empty($config["sendEmail"])) $newConfig["requireEmailApproval"] = (bool)!empty($_POST["requireEmailApproval"]);
+	$newConfig["requireManualApproval"] = (bool)!empty($_POST["requireManualApproval"]);
 	
 	if (count($newConfig)) $this->writeSettingsConfig($newConfig);
 

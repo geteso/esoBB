@@ -110,6 +110,28 @@ if (session_id()) {
 // Start a session if one does not already exist.
 } else {
 	session_name("{$config["cookieName"]}_Session");
+	// Configure session cookie parameters
+	$lifetime = 0; // Session cookie (expires when browser closes)
+	$path = "/";
+	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$secure = !empty($config["https"]); // Only send over HTTPS if enabled
+	$httponly = true; // Prevent JavaScript access
+	// session_set_cookie_params() array syntax requires PHP 7.3.0+
+	if (PHP_VERSION_ID >= 70300) {
+		session_set_cookie_params(array(
+			"lifetime" => $lifetime,
+			"path" => $path,
+			"domain" => $domain,
+			"secure" => $secure,
+			"httponly" => $httponly,
+			"samesite" => "Lax"
+		));
+	} else {
+		// PHP 7.2.x compatibility: use individual parameters
+		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
+		// Regular cookies (remember me) will still get SameSite via manual header setting
+		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+	}
 	session_start();
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
 	$_SESSION["time"] = time();
@@ -125,6 +147,12 @@ if (!empty($config["https"]) and $_SERVER["HTTPS"] != "on") {
     header("Location: https://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"]);
     exit;
 }
+
+// Set security headers
+header("X-Frame-Options: SAMEORIGIN");
+header("X-Content-Type-Options: nosniff");
+header("X-XSS-Protection: 1; mode=block");
+header("Referrer-Policy: strict-origin-when-cross-origin");
 
 // Replace GET values with ones from the request URI.  (ex. index.php/test/123 -> ?q1=test&q2=123)
 if (!empty($config["useFriendlyURLs"]) and isset($_SERVER["REQUEST_URI"])) {
