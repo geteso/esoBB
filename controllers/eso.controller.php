@@ -284,10 +284,12 @@ function login($name = false, $password = false, $hash = false)
 			regenerateToken();
 
 			// Set any necessary cookies and update the logins table.
-			if (@$_POST["login"]) {
+			if ($name !== false or $password !== false) {
 				$ip = cookieIp();
 				$userAgent = md5($_SERVER["HTTP_USER_AGENT"]);
-				$rememberMe = true;
+				// For join and/or verification, always set 'remember me' cookie. For a normal login form, check if
+				// 'remember me' was selected (defaults to true based on config).
+				$rememberMe = (@$_POST["join"] or ($name !== false and $password === false and $hash !== false)) ? true : (!empty($config["rememberMe"]));
 				// If there already exists a record for this cookie or IP address, update it accordingly.
 				$existingRecord = $this->db->result("SELECT cookie FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'" : "cookie IS NULL AND ip=$ip") . " AND memberId={$_SESSION["user"]["memberId"]}", 0);
 				if ($existingRecord) {

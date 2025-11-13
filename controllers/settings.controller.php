@@ -326,13 +326,25 @@ function changeAvatar()
 			
 			// Check for an error submitting the file and make sure the upload is a valid image file type.
 			if ($_FILES["avatarUpload"]["error"] != 0
-				or !in_array($_FILES["avatarUpload"]["type"], $allowedTypes)
 				or !is_uploaded_file($_FILES["avatarUpload"]["tmp_name"])) {
 				$this->eso->message("avatarError");
 				return false;
 			}
 			
-			$type = $_FILES["avatarUpload"]["type"];
+			// Verify the file is actually an image by checking its content, not just the MIME type
+			$fileInfo = @getimagesize($_FILES["avatarUpload"]["tmp_name"]);
+			if (!$fileInfo || !isset($fileInfo["mime"]) || !in_array($fileInfo["mime"], $allowedTypes)) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			// Validate magic bytes to ensure file content matches declared type
+			if (!validateImageMagicBytes($_FILES["avatarUpload"]["tmp_name"], $fileInfo["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$type = $fileInfo["mime"];
 			$file = $_FILES["avatarUpload"]["tmp_name"];
 			break;
 		
@@ -342,18 +354,24 @@ function changeAvatar()
 			// Make sure we can open URLs with fopen, otherwise there's no point in continuing!
 			if (!ini_get("allow_url_fopen")) return false;
 			
-			// Remove HTML entities and spaces from the URL.
-			$url = str_replace(" ", "%20", html_entity_decode($_POST["avatar"]["url"]));
+			// Validate the URL to prevent SSRF attacks.
+			if (!($url = validateRemoteUrl($_POST["avatar"]["url"]))) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			
 			// Get the image's type.
 			$info = @getimagesize($url);
+			if (!$info || !isset($info["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			$type = $info["mime"];
-			$file = $avatarFile;
 			
 			// Check the type of the image, and open file read/write handlers.
 			if (!in_array($type, $allowedTypes)
-				or (($rh = fopen($url, "rb")) === false)
-				or (($wh = fopen($file, "wb")) === false)) {
+				or (($rh = @fopen($url, "rb")) === false)
+				or (($wh = @fopen($avatarFile, "wb")) === false)) {
 				$this->eso->message("avatarError");
 				return false;
 			}
@@ -366,6 +384,15 @@ function changeAvatar()
 				}
 			}
 			fclose($rh); fclose($wh);
+			
+			// Validate magic bytes of downloaded file to ensure it matches declared type
+			if (!validateImageMagicBytes($avatarFile, $type)) {
+				@unlink($avatarFile);
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$file = $avatarFile;
 			break;
 		
 		// Unset the user's avatar.

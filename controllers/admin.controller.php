@@ -236,13 +236,25 @@ function changeLogo()
 			
 			// Check for an error submitting the file and make sure the upload is a valid image file type.
 			if ($_FILES["logoUpload"]["error"] != 0
-				or !in_array($_FILES["logoUpload"]["type"], $allowedTypes)
 				or !is_uploaded_file($_FILES["logoUpload"]["tmp_name"])) {
 				$this->eso->message("avatarError");
 				return false;
 			}
 			
-			$type = $_FILES["logoUpload"]["type"];
+			// Verify the file is actually an image by checking its content, not just the MIME type
+			$fileInfo = @getimagesize($_FILES["logoUpload"]["tmp_name"]);
+			if (!$fileInfo || !isset($fileInfo["mime"]) || !in_array($fileInfo["mime"], $allowedTypes)) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			// Validate magic bytes to ensure file content matches declared type
+			if (!validateImageMagicBytes($_FILES["logoUpload"]["tmp_name"], $fileInfo["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$type = $fileInfo["mime"];
 			$file = $_FILES["logoUpload"]["tmp_name"];
 			break;
 		
@@ -252,18 +264,24 @@ function changeLogo()
 			// Make sure we can open URLs with fopen, otherwise there's no point in continuing!
 			if (!ini_get("allow_url_fopen")) return false;
 			
-			// Remove HTML entities and spaces from the URL.
-			$url = str_replace(" ", "%20", html_entity_decode($_POST["logo"]["url"]));
+			// Validate the URL to prevent SSRF attacks.
+			if (!($url = validateRemoteUrl($_POST["logo"]["url"]))) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			
 			// Get the image's type.
 			$info = @getimagesize($url);
+			if (!$info || !isset($info["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			$type = $info["mime"];
-			$file = $logoFile;
 			
 			// Check the type of the image, and open file read/write handlers.
 			if (!in_array($type, $allowedTypes)
-				or (($rh = fopen($url, "rb")) === false)
-				or (($wh = fopen($file, "wb")) === false)) {
+				or (($rh = @fopen($url, "rb")) === false)
+				or (($wh = @fopen($logoFile, "wb")) === false)) {
 				$this->eso->message("avatarError");
 				return false;
 			}
@@ -276,6 +294,15 @@ function changeLogo()
 				}
 			}
 			fclose($rh); fclose($wh);
+			
+			// Validate magic bytes of downloaded file to ensure it matches declared type
+			if (!validateImageMagicBytes($logoFile, $type)) {
+				@unlink($logoFile);
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$file = $logoFile;
 			break;
 		
 		// Unset the user's avatar.
@@ -310,6 +337,7 @@ function changeLogo()
 	
 	//if (!empty($_POST["resizeLogo"])) {
 		//$newWidth = 30;
+		$newWidth = null;
 		$newHeight = 32;
 	//}
 	
@@ -321,12 +349,12 @@ function changeLogo()
 		if (file_exists($config["forumLogo"])) @unlink($config["forumLogo"]);
 
 		// If the new max dimensions exist and are smaller than the current dimensions, we're gonna want to resize.
-		if (($newWidth or $newHeight) and ($newWidth < $curWidth or $newHeight < $curHeight)) {
+		if (($newWidth or $newHeight) and (($newWidth and $newWidth < $curWidth) or ($newHeight and $newHeight < $curHeight))) {
 			
 			// Work out the resize ratio and calculate the dimensions of the new image.
-			$widthRatio = $newWidth / $curWidth;
-			$heightRatio = $newHeight / $curHeight;
-			$ratio = ($widthRatio and $widthRatio <= $heightRatio) ? $widthRatio : $heightRatio;
+			$widthRatio = $newWidth ? ($newWidth / $curWidth) : null;
+			$heightRatio = $newHeight ? ($newHeight / $curHeight) : null;
+			$ratio = ($widthRatio and (!$heightRatio or $widthRatio <= $heightRatio)) ? $widthRatio : $heightRatio;
 			$width = $ratio * $curWidth;
 			$height = $ratio * $curHeight;
 			$needsToBeResized = true;
@@ -444,13 +472,25 @@ function changeIcon()
 			
 			// Check for an error submitting the file and make sure the upload is a valid image file type.
 			if ($_FILES["iconUpload"]["error"] != 0
-				or !in_array($_FILES["iconUpload"]["type"], $allowedTypes)
 				or !is_uploaded_file($_FILES["iconUpload"]["tmp_name"])) {
 				$this->eso->message("avatarError");
 				return false;
 			}
 			
-			$type = $_FILES["iconUpload"]["type"];
+			// Verify the file is actually an image by checking its content, not just the MIME type
+			$fileInfo = @getimagesize($_FILES["iconUpload"]["tmp_name"]);
+			if (!$fileInfo || !isset($fileInfo["mime"]) || !in_array($fileInfo["mime"], $allowedTypes)) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			// Validate magic bytes to ensure file content matches declared type
+			if (!validateImageMagicBytes($_FILES["iconUpload"]["tmp_name"], $fileInfo["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$type = $fileInfo["mime"];
 			$file = $_FILES["iconUpload"]["tmp_name"];
 			break;
 		
@@ -460,18 +500,24 @@ function changeIcon()
 			// Make sure we can open URLs with fopen, otherwise there's no point in continuing!
 			if (!ini_get("allow_url_fopen")) return false;
 			
-			// Remove HTML entities and spaces from the URL.
-			$url = str_replace(" ", "%20", html_entity_decode($_POST["icon"]["url"]));
+			// Validate the URL to prevent SSRF attacks.
+			if (!($url = validateRemoteUrl($_POST["icon"]["url"]))) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			
 			// Get the image's type.
 			$info = @getimagesize($url);
+			if (!$info || !isset($info["mime"])) {
+				$this->eso->message("avatarError");
+				return false;
+			}
 			$type = $info["mime"];
-			$file = $iconFile;
 			
 			// Check the type of the image, and open file read/write handlers.
 			if (!in_array($type, $allowedTypes)
-				or (($rh = fopen($url, "rb")) === false)
-				or (($wh = fopen($file, "wb")) === false)) {
+				or (($rh = @fopen($url, "rb")) === false)
+				or (($wh = @fopen($iconFile, "wb")) === false)) {
 				$this->eso->message("avatarError");
 				return false;
 			}
@@ -484,6 +530,15 @@ function changeIcon()
 				}
 			}
 			fclose($rh); fclose($wh);
+			
+			// Validate magic bytes of downloaded file to ensure it matches declared type
+			if (!validateImageMagicBytes($iconFile, $type)) {
+				@unlink($iconFile);
+				$this->eso->message("avatarError");
+				return false;
+			}
+			
+			$file = $iconFile;
 			break;
 		
 		// Unset the user's avatar.

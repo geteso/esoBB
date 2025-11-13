@@ -51,7 +51,8 @@ function init()
 	if ($hash = @$_GET["q2"]) {
 		
 		// Find the user with this password reset token.  If it's an invalid token, take them back to the email form.
-		$result = $this->eso->db->query("SELECT memberId FROM {$config["tablePrefix"]}members WHERE resetPassword='$hash'");
+		$hashEscaped = $this->eso->db->escape($hash);
+		$result = $this->eso->db->query("SELECT memberId FROM {$config["tablePrefix"]}members WHERE resetPassword='$hashEscaped'");
 		if (!$this->eso->db->numRows($result)) redirect("forgotPassword");
 		list($memberId) = $this->eso->db->fetchRow($result);
 		
@@ -122,7 +123,8 @@ function init()
 		}
 		
 		// Find the member with this email.
-		$result = $this->eso->db->query("SELECT memberId, name, email FROM {$config["tablePrefix"]}members WHERE email='{$_POST["email"]}'");
+		$emailEscaped = $this->eso->db->escape($_POST["email"]);
+		$result = $this->eso->db->query("SELECT memberId, name, email FROM {$config["tablePrefix"]}members WHERE email='$emailEscaped'");
 		if (!$this->eso->db->numRows($result)) {
 			$this->eso->message("emailDoesntExist");
 			return;

@@ -58,26 +58,36 @@ function init()
 	global $config, $language;
 	
 	// Add the default gambits to the collection.
-	// Each gambit is made up of a function and an eval() condition that is used to determine if a search "term" matches the gambit.
+	// Each gambit is made up of a function and a callback condition that determines if a search "term" matches the gambit.
+	// Using callbacks instead of eval() for security - maintains backward compatibility with legacy string conditions
+	$searchInstance = &$this; // Reference for closures that need to set $this->matches
 	$this->gambits = array_merge($this->gambits, array(
-		array(array($this, "gambitStarred"), 'return $term == strtolower($language["gambits"]["starred"]);'),
-		array(array($this, "gambitDraft"), 'return $term == strtolower($language["gambits"]["draft"]);'),
-		array(array($this, "gambitTag"), 'return strpos($term, strtolower($language["gambits"]["tag:"])) === 0;'),
-		array(array($this, "gambitPrivate"), 'return $term == strtolower($language["gambits"]["private"]);'),
-		array(array($this, "gambitSticky"), 'return $term == strtolower($language["gambits"]["sticky"]);'),
-		array(array($this, "gambitLocked"), 'return $term == strtolower($language["gambits"]["locked"]);'),
-		array(array($this, "gambitAuthor"), 'return strpos($term, strtolower($language["gambits"]["author:"])) === 0;'),
-		array(array($this, "gambitContributor"), 'return strpos($term, strtolower($language["gambits"]["contributor:"])) === 0;'),
-		array(array($this, "gambitActive"), 'return preg_match($language["gambits"]["gambitActive"], $term, $this->matches);'),
-		array(array($this, "gambitHasNPosts"), 'return preg_match($language["gambits"]["gambitHasNPosts"], $term, $this->matches);'),
-		array(array($this, "gambitOrderByPosts"), 'return $term == strtolower($language["gambits"]["order by posts"]);'),
-		array(array($this, "gambitOrderByNewest"), 'return $term == strtolower($language["gambits"]["order by newest"]);'),
-		array(array($this, "gambitUnread"), 'return $term == strtolower($language["gambits"]["unread"]);'),
-		array(array($this, "gambitRandom"), 'return $term == strtolower($language["gambits"]["random"]);'),
-		array(array($this, "gambitReverse"), 'return $term == strtolower($language["gambits"]["reverse"]);'),
-		array(array($this, "gambitMoreResults"), 'return $term == strtolower($language["gambits"]["more results"]);'),
-		array(array($this, "gambitLimit"), 'return strpos($term, strtolower($language["gambits"]["limit:"])) === 0;'),
-		array(array($this, "fulltext"), 'return $term;'),
+		array(array($this, "gambitStarred"), function($term) use ($language) { return $term == strtolower($language["gambits"]["starred"]); }),
+		array(array($this, "gambitDraft"), function($term) use ($language) { return $term == strtolower($language["gambits"]["draft"]); }),
+		array(array($this, "gambitTag"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["tag:"])) === 0; }),
+		array(array($this, "gambitPrivate"), function($term) use ($language) { return $term == strtolower($language["gambits"]["private"]); }),
+		array(array($this, "gambitSticky"), function($term) use ($language) { return $term == strtolower($language["gambits"]["sticky"]); }),
+		array(array($this, "gambitLocked"), function($term) use ($language) { return $term == strtolower($language["gambits"]["locked"]); }),
+		array(array($this, "gambitAuthor"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["author:"])) === 0; }),
+		array(array($this, "gambitContributor"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["contributor:"])) === 0; }),
+		array(array($this, "gambitActive"), function($term) use ($language, &$searchInstance) { 
+			if (!isset($searchInstance->matches)) $searchInstance->matches = array();
+			$result = preg_match($language["gambits"]["gambitActive"], $term, $searchInstance->matches);
+			return $result;
+		}),
+		array(array($this, "gambitHasNPosts"), function($term) use ($language, &$searchInstance) { 
+			if (!isset($searchInstance->matches)) $searchInstance->matches = array();
+			$result = preg_match($language["gambits"]["gambitHasNPosts"], $term, $searchInstance->matches);
+			return $result;
+		}),
+		array(array($this, "gambitOrderByPosts"), function($term) use ($language) { return $term == strtolower($language["gambits"]["order by posts"]); }),
+		array(array($this, "gambitOrderByNewest"), function($term) use ($language) { return $term == strtolower($language["gambits"]["order by newest"]); }),
+		array(array($this, "gambitUnread"), function($term) use ($language) { return $term == strtolower($language["gambits"]["unread"]); }),
+		array(array($this, "gambitRandom"), function($term) use ($language) { return $term == strtolower($language["gambits"]["random"]); }),
+		array(array($this, "gambitReverse"), function($term) use ($language) { return $term == strtolower($language["gambits"]["reverse"]); }),
+		array(array($this, "gambitMoreResults"), function($term) use ($language) { return $term == strtolower($language["gambits"]["more results"]); }),
+		array(array($this, "gambitLimit"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["limit:"])) === 0; }),
+		array(array($this, "fulltext"), function($term) { return $term; }),
 	));
 	
 	// Add the default gambits to the gambit cloud: gambit text => css class to apply.
@@ -134,7 +144,7 @@ function init()
 	// Construct the SELECT and FROM parts of the final query that gets the result details.
 	$markedAsRead = !empty($this->eso->user["markedAsRead"]) ? $this->eso->user["markedAsRead"] : "0";
 	$memberId = $this->eso->user ? $this->eso->user["memberId"] : 0;
-	$this->select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.sticky AS sticky", "c.private AS private", "c.locked AS locked", "c.posts AS posts", "sm.name AS startMember", "c.startMember AS startMemberId", "sm.avatarFormat AS avatarFormat", "c.startTime AS startTime", "lpm.name AS lastPostMember", "c.lastPostMember AS lastPostMemberId", "c.lastPostTime AS lastPostTime", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "(IF(c.lastPostTime IS NOT NULL,c.lastPostTime,c.startTime)>$markedAsRead AND (s.lastRead IS NULL OR s.lastRead<c.posts)) AS unread", "s.starred AS starred", "CONCAT(" . implode(",',',", $this->eso->labels) . ") AS labels");
+	$this->select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.sticky AS sticky", "c.private AS private", "c.locked AS locked", "c.posts AS posts", "sm.name AS startMember", "c.startMember AS startMemberId", "sm.avatarFormat AS avatarFormat", "c.startTime AS startTime", "lpm.name AS lastPostMember", "c.lastPostMember AS lastPostMemberId", "c.lastPostTime AS lastPostTime", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "(IF(c.lastPostTime IS NOT NULL,c.lastPostTime,c.startTime)>$markedAsRead AND (s.lastRead IS NULL OR s.lastRead<c.posts)) AS unread", "s.starred AS starred", "sm.color AS color", "CONCAT(" . implode(",',',", $this->eso->labels) . ") AS labels");
 	$this->from = array(
 		"{$config["tablePrefix"]}conversations c",
 		"LEFT JOIN {$config["tablePrefix"]}tags t USING (conversationId)",
@@ -216,11 +226,14 @@ function markAllConversationsAsRead()
 // $class is the CSS className that will be applied to the text.
 // $function is the function to be called if the gambit is detected
 // 		(called with call_user_func($function, $gambit, $negate))
-// $condition is the eval() code to be run to see if the gambit is in the search string. eg. 'return $v == "sticky";'
+// $condition is either a callback function that takes $term and returns bool, or a string containing eval() code (deprecated)
+// 		For new gambits, use a callback: function($term) { return $term == "sticky"; }
+// 		Legacy string conditions are still supported but should be migrated to callbacks
 function registerGambit($text, $class, $function, $condition)
 {
 	$this->gambitCloud[$text] = $class;
-	$this->gambits[] = array($function, $condition);
+	// If condition is a callable, use it directly; otherwise store as string for backward compatibility
+	$this->gambits[] = array($function, is_callable($condition) ? $condition : $condition);
 }
 
 // Apply a condition to the search results.
@@ -296,7 +309,16 @@ function getConversationIDs($search = "")
 		// Find a matching gambit by evaluating each gambit's condition.
 		foreach ($this->gambits as $gambit) {
 			list($function, $condition) = $gambit;
-			if (eval($condition)) {
+			// If condition is a callable, use it directly; otherwise evaluate as legacy string (deprecated)
+			if (is_callable($condition)) {
+				$matches = call_user_func($condition, $term);
+			} else {
+				// Legacy eval() support - deprecated but maintained for backward compatibility
+				// $term is sanitized user input, but eval() is still dangerous
+				// This should be migrated to callbacks
+				$matches = eval($condition);
+			}
+			if ($matches) {
 				call_user_func_array($function, array(&$this, $term, $negate));
 				break;
 			}
@@ -670,7 +692,7 @@ function gambitDraft(&$search, $term, $negate)
 // Posts gambit: get conversations with a particular number of posts.
 function gambitHasNPosts(&$search, $term, $negate)
 {
-	$search->matches["a"] = (!$search->matches["a"]) ? "=" : desanitize($this->matches["a"]);
+	$search->matches["a"] = (!$search->matches["a"]) ? "=" : desanitize($search->matches["a"]);
 	if ($negate) {
 		switch ($search->matches["a"]) {
 			case "<": $search->matches["a"] = ">="; break;
@@ -680,7 +702,7 @@ function gambitHasNPosts(&$search, $term, $negate)
 			case "=": $search->matches["a"] = "!=";
 		}
 	}
-	$search->condition("conversations", "posts {$this->matches["a"]} {$this->matches["b"]}");
+	$search->condition("conversations", "posts {$search->matches["a"]} {$search->matches["b"]}");
 }
 
 // Order by posts gambit: order the conversations by the number of posts.

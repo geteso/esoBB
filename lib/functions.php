@@ -223,13 +223,29 @@ function makeLink()
 	$args = func_get_args();
 	// Loop through the arguments.
 	foreach ($args as $k => $q) {
-		if ($q === []) continue;
+		// Skip empty arrays, empty strings, false, null (but allow numeric 0 as it's a valid ID)
+		if ($q === [] or $q === false or $q === null or ($q === "" and !is_numeric($q))) continue;
 		// If we are using friendly URLs, append a "/" to the argument if it's not prefixed with "#", "?", or "&".
-		if (!empty($config["useFriendlyURLs"])) $link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : "$q/";
+		if (!empty($config["useFriendlyURLs"])) {
+			// Check if the argument is a string and starts with a special character (query string, anchor, etc.)
+			if (is_string($q) and strlen($q) > 0 and ($q[0] == "#" or $q[0] == "?" or $q[0] == "&")) {
+				$link .= $q;
+			} else {
+				$link .= "$q/";
+			}
+		}
 		// Otherwise, convert anything not prefixed with "#", "?", or "&" to a "?q1=x" argument.
 		else {
-			if ($q[0] == "?" and $k != 0) $q[0] = "&";
-			$link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : ($k == 0 ? "?" : "&") . "q" . ($k + 1) . "=$q";
+			// Convert "?" to "&" for non-first arguments
+			if (is_string($q) and strlen($q) > 0 and $q[0] == "?" and $k != 0) {
+				$q = "&" . substr($q, 1);
+			}
+			// If it starts with a special character, append as-is
+			if (is_string($q) and strlen($q) > 0 and ($q[0] == "#" or $q[0] == "?" or $q[0] == "&")) {
+				$link .= $q;
+			} else {
+				$link .= ($k == 0 ? "?" : "&") . "q" . ($k + 1) . "=$q";
+			}
 		}
 	}
 	// If we're not using mod_rewrite, we need to prepend "index.php/" to the link.
@@ -589,6 +605,97 @@ function writeFile($file, $contents)
 	fwrite($handle, $contents);
 	fclose($handle);
 	return true;
+}
+
+// Validate a remote URL to prevent SSRF attacks.
+// Returns the validated URL if safe, or false if unsafe.
+function validateRemoteUrl($url)
+{
+	// Decode HTML entities and normalize spaces
+	$url = str_replace(" ", "%20", html_entity_decode($url));
+	
+	// Validate URL format
+	if (!filter_var($url, FILTER_VALIDATE_URL)) return false;
+	
+	// Parse the URL to check scheme and host
+	$parsed = parse_url($url);
+	if (!$parsed || !isset($parsed["scheme"]) || !isset($parsed["host"])) return false;
+	
+	// Only allow http:// and https:// schemes
+	$allowedSchemes = array("http", "https");
+	if (!in_array(strtolower($parsed["scheme"]), $allowedSchemes)) return false;
+	
+	// Block file://, ftp://, and other non-HTTP schemes (extra check)
+	if (preg_match("/^(file|ftp|gopher|ldap|ldaps|php|data):/i", $url)) return false;
+	
+	$host = $parsed["host"];
+	
+	// Resolve hostname to IP to check for internal addresses
+	$ip = @gethostbyname($host);
+	
+	// Block if hostname resolution failed or returned the hostname itself (likely invalid)
+	if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) return false;
+	
+	// Convert to long for comparison
+	$ipLong = ip2long($ip);
+	if ($ipLong === false) return false;
+	
+	// Block private/internal IP ranges:
+	// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, ::1
+	$privateRanges = array(
+		array(ip2long("10.0.0.0"), ip2long("10.255.255.255")),
+		array(ip2long("172.16.0.0"), ip2long("172.31.255.255")),
+		array(ip2long("192.168.0.0"), ip2long("192.168.255.255")),
+		array(ip2long("127.0.0.0"), ip2long("127.255.255.255")),
+		array(ip2long("169.254.0.0"), ip2long("169.254.255.255"))
+	);
+	
+	foreach ($privateRanges as $range) {
+		if ($ipLong >= $range[0] && $ipLong <= $range[1]) return false;
+	}
+	
+	// Block IPv6 localhost (simplified check - full IPv6 validation would be more complex)
+	if (strpos($host, "::1") !== false || strtolower($host) === "localhost") return false;
+	
+	// Block 0.0.0.0
+	if ($ipLong === 0) return false;
+	
+	return $url;
+}
+
+// Validate file content by checking magic bytes (file signatures).
+// Returns true if the file matches the expected image type, false otherwise.
+function validateImageMagicBytes($filePath, $expectedMimeType)
+{
+	if (!file_exists($filePath) || !is_readable($filePath)) return false;
+	
+	$handle = @fopen($filePath, "rb");
+	if (!$handle) return false;
+	
+	$header = @fread($handle, 12);
+	@fclose($handle);
+	
+	if (strlen($header) < 12) return false;
+	
+	// Check magic bytes for different image types
+	switch ($expectedMimeType) {
+		case "image/jpeg":
+		case "image/pjpeg":
+			// JPEG: FF D8 FF
+			return (substr($header, 0, 3) === "\xFF\xD8\xFF");
+		
+		case "image/png":
+		case "image/x-png":
+			// PNG: 89 50 4E 47 0D 0A 1A 0A
+			return (substr($header, 0, 8) === "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A");
+		
+		case "image/gif":
+			// GIF: 47 49 46 38 (GIF8)
+			return (substr($header, 0, 4) === "GIF8");
+		
+		default:
+			return false;
+	}
 }
 
 // Regenerate the session token.

@@ -90,11 +90,19 @@ if (session_id()) {
 	// Only validate session if it has the required fields (prevents issues after session regeneration)
 	if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
 		// Destroy sessions that are started longer ago than sessionExpire.
-		if (time() - $_SESSION["time"] > $config["sessionExpire"] 
-		// Prevent session highjacking: check the current IP address against the one that initiated the session.
-		or $_SERVER["REMOTE_ADDR"] != $_SESSION["ip"] 
+		$sessionExpired = (time() - $_SESSION["time"] > $config["sessionExpire"]);
+		
+		// IP validation is optional (disabled by default) as it breaks for users behind proxies/VPNs/load balancers
+		// When enabled, it provides additional security but may cause legitimate users to be logged out
+		$ipMismatch = false;
+		if (!empty($config["validateSessionIp"])) {
+			$ipMismatch = ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]);
+		}
+		
 		// Check the current user agent against the one that initiated the session.
-		or md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]) {
+		$userAgentMismatch = (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]);
+		
+		if ($sessionExpired or $ipMismatch or $userAgentMismatch) {
 			session_unset();
 			session_destroy();
 		}
