@@ -87,14 +87,17 @@ session_save_path(PATH_ROOT."/sessions");
 ini_set('session.gc_probability', 1);
 
 if (session_id()) {
-	// Destroy sessions that are started longer ago than sessionExpire.
-	if (time() - $_SESSION["time"] > $config["sessionExpire"] 
-	// Prevent session highjacking: check the current IP address against the one that initiated the session.
-	or $_SERVER["REMOTE_ADDR"] != $_SESSION["ip"] 
-	// Check the current user agent against the one that initiated the session.
-	or md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]) {
-		session_unset();
-		session_destroy();
+	// Only validate session if it has the required fields (prevents issues after session regeneration)
+	if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
+		// Destroy sessions that are started longer ago than sessionExpire.
+		if (time() - $_SESSION["time"] > $config["sessionExpire"] 
+		// Prevent session highjacking: check the current IP address against the one that initiated the session.
+		or $_SERVER["REMOTE_ADDR"] != $_SESSION["ip"] 
+		// Check the current user agent against the one that initiated the session.
+		or md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]) {
+			session_unset();
+			session_destroy();
+		}
 	}
 // Start a session if one does not already exist.
 } else {

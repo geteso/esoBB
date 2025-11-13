@@ -69,7 +69,7 @@ h1#hasForumDescription #forumTitle {font-size:20px}
 #wrapper {max-width:1000px; margin:0 auto}
 
 /* Tags & gambits */
-#tagArea {margin-bottom:10px}
+#tagArea {margin-bottom:15px}
 #tags, #gambits {line-height:1.2; margin:10px 10px 10px; text-align:justify}
 #tags a, #gambits a {margin-right:0.7em}
 a.s1 {font-size:140%}

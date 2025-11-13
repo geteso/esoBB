@@ -51,7 +51,8 @@ function init()
 		// If the user is requesting that we resend their verification email...
 		if ($_GET["q2"] == "sendVerification") {
 			$memberId = (int)@$_GET["q3"];
-			$rand = md5(rand());
+			// Generate cryptographically secure random string for verification hash
+			$rand = bin2hex(random_bytes(16));
 			if (list($email, $name) = $this->eso->db->fetchRow("SELECT email, name FROM {$config["tablePrefix"]}members WHERE memberId=$memberId AND account='Unvalidated'") and $this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand' WHERE memberId=$memberId")) $this->sendVerificationEmail($email, $name, $memberId . $rand);
 			$this->eso->message("verifyEmail", false);
 		// Otherwise, if there's a verification hash in the URL, attempt to verify the user.
@@ -269,7 +270,8 @@ function addMember()
 	// Email the member with a verification link so that they can verify their account.
 	if (!empty($config["sendEmail"])) {
 		// Update their record in the database with a special password reset hash.
-		$rand = md5(rand());
+		// Generate cryptographically secure random string for verification hash
+		$rand = bin2hex(random_bytes(16));
 		$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand' WHERE memberId=$memberId");
 		$this->sendVerificationEmail($_POST["join"]["email"], $_POST["join"]["name"], $memberId . $rand);
 	}

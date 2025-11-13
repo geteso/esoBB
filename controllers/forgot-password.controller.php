@@ -130,7 +130,7 @@ function init()
 		list($memberId, $name, $email) = $this->eso->db->fetchRow($result);
 		
 		// Update their record in the database with a special password reset hash.
-		$hash = md5(rand());
+		$hash = bin2hex(random_bytes(16));
 		$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$hash' WHERE memberId=$memberId");
 		
 		// Send them email containing the link, and redirect to the home page.

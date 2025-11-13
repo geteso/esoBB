@@ -189,8 +189,9 @@ function login($name = false, $password = false, $hash = false)
 
 	// If a raw password was passed, convert it into a hash.
 	if ($name and $password) {
-		$salt = $this->db->result("SELECT salt FROM {$config["tablePrefix"]}members WHERE name='$name'", 0);
-		$dbPassword = $this->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE name='$name'", 0);
+		$nameEscaped = $this->db->escape($name);
+		$salt = $this->db->result("SELECT salt FROM {$config["tablePrefix"]}members WHERE name='$nameEscaped'", 0);
+		$dbPassword = $this->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE name='$nameEscaped'", 0);
 		if ($config["hashingMethod"] == "bcrypt" and password_verify($password, $dbPassword)) {
 			$hash = $dbPassword;
 		} else {
@@ -217,8 +218,9 @@ function login($name = false, $password = false, $hash = false)
 		
 		$this->callHook("beforeLogin", array(&$components));
 
-		// If we're counting logins per minute, impose some flood control measures.
-		if ($config["loginsPerMinute"] > 0) {
+		// Only check flood control for actual login attempts (not cookie-based logins)
+		$checkFloodControl = false;
+		if ($config["loginsPerMinute"] > 0 and ($name or $password)) {
 			$ip = cookieIp();
 
 			// If we have a record of their logins in the session, check how many logins they've performed in the last
@@ -231,7 +233,7 @@ function login($name = false, $password = false, $hash = false)
 				// Have they performed >= $config["loginsPerMinute"] logins in the last minute? If so, don't continue.
 				if (count($_SESSION["logins"]) >= $config["loginsPerMinute"]) {
 					$this->message("waitToLogin", true, array(60 - time() + min($_SESSION["logins"])));
-					return;
+					return false;
 				}
 			}
 
@@ -240,17 +242,11 @@ function login($name = false, $password = false, $hash = false)
 				// Have they performed >= $config["loginsPerMinute"] logins in the last minute?
 				if ($this->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId=0 AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
 					$this->message("waitToLogin", true, 60);
-					return;
+					return false;
 				}
-				// Log this attempt in the logins table (using memberId=0 for anonymous login attempts).
-				$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, memberId, loginTime) VALUES ($ip, 0, UNIX_TIMESTAMP())");
-				// Proactively clean the logins table of login attempts older than 60 seconds.
-				$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=0 AND loginTime<UNIX_TIMESTAMP()-60");
 			}
-
-			// Log this attempt in the session array.
-			if (!isset($_SESSION["logins"]) or !is_array($_SESSION["logins"])) $_SESSION["logins"] = array();
-			$_SESSION["logins"][] = time();
+			
+			$checkFloodControl = true;
 		}
 
 		// Run the query and get the data if there is a matching user.
@@ -261,7 +257,8 @@ function login($name = false, $password = false, $hash = false)
 
 			// If a raw password was passed, check if it is an md5 hash (only if we are using bcrypt) and update it.
 			if ($password and $config["hashingMethod"] == "bcrypt" and !password_verify($hash, $data["password"]) and $hash == md5($data["salt"] . $password)) {
-				$rand = md5(rand());
+				// Generate cryptographically secure random string for resetPassword
+				$rand = bin2hex(random_bytes(16));
 				$newHash = password_hash($password, PASSWORD_DEFAULT);
 				$this->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand', password='$newHash' WHERE memberId={$data["memberId"]}");
 				$this->message("passwordUpgraded", false);
@@ -300,7 +297,8 @@ function login($name = false, $password = false, $hash = false)
 					// If the user chooses to "remember" their credentials, set a new cookie.
 					$newCookie = null;
 					if ($rememberMe) {
-						$newCookie = md5(rand());
+						// Generate cryptographically secure cookie value (32 hex characters = 128 bits entropy)
+						$newCookie = bin2hex(random_bytes(16));
 						setcookie($config["cookieName"], sanitizeForHTTP($newCookie), time() + $config["cookieExpire"], "/", $config["cookieDomain"]);
 					// Clean up the database of any recorded (expired) cookie if there is one.
 					} elseif (isset($_COOKIE[$config["cookieName"]])) {
@@ -311,12 +309,32 @@ function login($name = false, $password = false, $hash = false)
 					$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (" . ($newCookie ? "'" . $this->db->escape($newCookie) . "'" : "NULL") . ", $ip, '" . $this->db->escape($userAgent) . "', {$data["memberId"]}, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())");
 				}
 			}
-			
-			if (!defined("AJAX_REQUEST")) refresh();
+
+			// Ensure session is written before redirect to ensure new session ID cookie is sent
+			// PHP saves sessions automatically at script end, but we want to ensure it's saved now
+			// so the cookie header is sent with the redirect response
+			if (!defined("AJAX_REQUEST")) {
+				session_write_close();
+				refresh();
+			}
 			return true;
 		}
 
 		// If the user was intentionally logging in but it didn't work, show an incorrect login details error.
+		// Only log failed attempts for flood control (not successful logins or cookie-based logins)
+		if ($checkFloodControl and ($name or $password)) {
+			$ip = cookieIp();
+			
+			// Log this failed attempt in the logins table (using memberId=0 for anonymous login attempts).
+			$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, memberId, loginTime) VALUES ($ip, 0, UNIX_TIMESTAMP())");
+			// Proactively clean the logins table of login attempts older than 60 seconds.
+			$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=0 AND loginTime<UNIX_TIMESTAMP()-60");
+			
+			// Log this failed attempt in the session array.
+			if (!isset($_SESSION["logins"]) or !is_array($_SESSION["logins"])) $_SESSION["logins"] = array();
+			$_SESSION["logins"][] = time();
+		}
+		
 		if (!isset($cookie)) $this->message("incorrectLogin", false);
 
 	}

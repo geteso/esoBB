@@ -595,8 +595,12 @@ function writeFile($file, $contents)
 function regenerateToken()
 {
 	session_regenerate_id(true);
-	$_SESSION["token"] = substr(md5(uniqid(rand())), 0, 13);
+	// Generate a cryptographically secure token using random_bytes (32 hex characters = 128 bits entropy)
+	$_SESSION["token"] = bin2hex(random_bytes(16));
 	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
+	// Update IP address and time to match current request to prevent session validation issues
+	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
+	$_SESSION["time"] = time();
 }
 
 // htmlspecialchars_decode for PHP 4.
