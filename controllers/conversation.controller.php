@@ -297,7 +297,7 @@ function init()
 	else {
 
 		// Update the user's last action to say that they're "starting a conversation".
-		$this->eso->updateLastAction($language["Starting a conversation"]);
+		$this->eso->updateLastAction("Starting a conversation");
 
 		// If there's a member name in the querystring, make the conversation that we're starting private with them and
 		// redirect.
@@ -769,7 +769,7 @@ function getPosts($criteria = array(), $display = false)
 			"avatar" => $this->eso->getAvatar($post["memberId"], $post["avatarFormat"]),
 			"thumb" => $this->eso->getAvatar($post["memberId"], $post["avatarFormat"], "thumb"),
 			"editMember" => $post["editMember"],
-			"lastAction" => strip_tags($post["lastAction"])
+			"lastAction" => strip_tags(translateLastAction($post["lastAction"]))
 		// Extra information if the post *has* been deleted.
 		) : array("deleteMember" => $post["deleteMember"]));
 		
@@ -1596,10 +1596,12 @@ function formatTag($tag)
 // Update the user's last action according to the conversation they are currently viewing.
 function updateLastAction()
 {
-	global $language;
-	$this->eso->updateLastAction("{$language["Viewing"]} " . (($this->conversation["private"] or $this->conversation["postCount"] == 0)
-		? $language["a private conversation"]
-		: "<a href='" . makeLink($this->conversation["id"], $this->conversation["slug"]) . "'>{$this->conversation["title"]}</a>"));
+	// Store action key with parameters: viewing_conversation|{id}|{slug}|{title}|{isPrivate}
+	$isPrivate = ($this->conversation["private"] or $this->conversation["postCount"] == 0) ? "1" : "0";
+	$id = (int)$this->conversation["id"];
+	$slug = $this->eso->db->escape($this->conversation["slug"]);
+	$title = $this->eso->db->escape($this->conversation["title"]);
+	$this->eso->updateLastAction("viewing_conversation|$id|$slug|$title|$isPrivate");
 }
 
 // To edit tags, user must be: conversation starter or >=moderator

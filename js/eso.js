@@ -287,9 +287,13 @@ function toggleStar(conversationId, star) {
 	});
 	star.className = star.className == "star0" ? "star1" : "star0";
 	star.getElementsByTagName("span")[0].innerHTML = eso.language[star.className == "star1" ? "Starred" : "Unstarred"];
-	color = getById("c" + conversationId).classList[0];
-	color = color.startsWith("c") ? color : "";
-	if (getById("c" + conversationId)) getById("c" + conversationId).className = star.className == "star1" ? (color ? color + " starred" : "starred") : color;
+	// Update conversation row className if it exists (only present in search results view, not conversation view)
+	var conversationRow = getById("c" + conversationId);
+	if (conversationRow) {
+		color = conversationRow.classList[0];
+		color = color.startsWith("c") ? color : "";
+		conversationRow.className = star.className == "star1" ? (color ? color + " starred" : "starred") : color;
+	}
 };
 
 // Work out the relative difference between the current time and a given timestamp.

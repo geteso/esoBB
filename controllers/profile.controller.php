@@ -102,8 +102,10 @@ function getMember($memberId)
 // Update the user's last action according to the profile they are currently viewing.
 function updateLastAction($memberId)
 {
-	global $language;
-	$this->eso->updateLastAction("{$language["Viewing"]} " . "<a href='" . makeLink("profile",$memberId) . "'>{$this->title}</a>");
+	// Store action key with parameters: viewing_profile|{memberId}|{title}
+	$memberId = (int)$memberId;
+	$title = $this->eso->db->escape($this->title);
+	$this->eso->updateLastAction("viewing_profile|$memberId|$title");
 }
 
 }

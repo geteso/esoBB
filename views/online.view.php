@@ -39,7 +39,7 @@ elseif($this->numberOnline):?>
 <div class='p c<?php echo $color;?>'><div class='hdr'>
 <div class='thumb'><a href='<?php echo makeLink("profile",$memberId);?>'><img src='<?php echo $this->eso->getAvatar($memberId,$avatarFormat,"thumb");?>' alt=''/></a></div>
 <h3><a href='<?php echo makeLink("profile",$memberId);?>'><?php echo $name;?></a></h3>
-<span><?php echo $lastAction;?> (<?php echo relativeTime($lastSeen);?>)</span>
+<span><?php echo translateLastAction($lastAction);?> (<?php echo relativeTime($lastSeen);?>)</span>
 </div></div>
 <?php endwhile;?>
 </div>

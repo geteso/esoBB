@@ -195,6 +195,113 @@ function translate($string)
 	return array_key_exists($string, $language) ? $language[$string] : $string;
 }
 
+// Translate a stored lastAction key to the current user's language.
+// Handles format: "key" or "key|param1|param2|..." for actions with dynamic content.
+// Returns translated text with HTML links reconstructed as needed.
+// Maintains backward compatibility: if input doesn't match key format, returns as-is (legacy data).
+function translateLastAction($action)
+{
+	if (empty($action)) return "";
+	
+	global $language;
+	
+	// Backward compatibility: if action contains HTML tags or doesn't look like a key, return as-is
+	if (strpos($action, "<") !== false or strpos($action, ">") !== false) {
+		return $action;
+	}
+	
+	// Parse action key and parameters
+	$parts = explode("|", $action);
+	$key = $parts[0];
+	$params = array_slice($parts, 1);
+	
+	// Handle different action types
+	switch ($key) {
+		case "Starting a conversation":
+			return isset($language[$key]) ? $language[$key] : $action;
+		
+		case "viewing_conversation":
+			// Format: viewing_conversation|{id}|{slug}|{title}|{isPrivate}
+			if (count($params) >= 4) {
+				list($id, $slug, $title, $isPrivate) = $params;
+				$id = (int)$id;
+				$viewingText = isset($language["Viewing"]) ? $language["Viewing"] : "Viewing:";
+				
+				// Security: Verify current permissions before showing title
+				// Check if conversation is currently private and if current viewer has access
+				global $config, $eso;
+				$canViewTitle = true;
+				
+				// Query to check if conversation is private and if current user can view it
+				if ($id > 0) {
+					$conversation = $eso->db->fetchAssoc("SELECT private, startMember, posts FROM {$config["tablePrefix"]}conversations WHERE conversationId=$id");
+					if ($conversation) {
+						$isCurrentlyPrivate = (int)$conversation["private"];
+						$startMember = (int)$conversation["startMember"];
+						$posts = (int)$conversation["posts"];
+						
+						// If conversation is private or has no posts, check permissions
+						if ($isCurrentlyPrivate == 1 or $posts == 0) {
+							$canViewTitle = false;
+							
+							// Check if current user can view this conversation
+							if ($eso->user) {
+								$memberId = (int)$eso->user["memberId"];
+								// User can view if: they started it, OR they're allowed, OR they're admin/moderator
+								if ($startMember == $memberId) {
+									$canViewTitle = true;
+								} elseif ($posts > 0) {
+									// Check if user is explicitly allowed
+									$allowed = $eso->db->result("SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=$id AND (memberId=$memberId OR memberId='{$eso->user["account"]}')", 0);
+									if ($allowed) {
+										$canViewTitle = true;
+									} elseif ($eso->user["moderator"]) {
+										// Moderators/admins can view
+										$canViewTitle = true;
+									}
+								}
+							}
+						}
+					} else {
+						// Conversation doesn't exist - don't show title
+						$canViewTitle = false;
+					}
+				}
+				
+				// If user can't view the title, show generic "private conversation" text
+				if (!$canViewTitle) {
+					$privateText = isset($language["a private conversation"]) ? $language["a private conversation"] : "a private conversation";
+					return "$viewingText $privateText";
+				} else {
+					// User can view - show the title
+					$link = makeLink($id, $slug);
+					$escapedTitle = htmlspecialchars($title, ENT_QUOTES, "UTF-8");
+					return "$viewingText <a href='$link'>$escapedTitle</a>";
+				}
+			}
+			return $action;
+		
+		case "viewing_profile":
+			// Format: viewing_profile|{memberId}|{title}
+			if (count($params) >= 2) {
+				list($memberId, $title) = $params;
+				$viewingText = isset($language["Viewing"]) ? $language["Viewing"] : "Viewing:";
+				$link = makeLink("profile", $memberId);
+				$escapedTitle = htmlspecialchars($title, ENT_QUOTES, "UTF-8");
+				return "$viewingText <a href='$link'>$escapedTitle</a>";
+			}
+			return $action;
+		
+		default:
+			// Simple action key - try to translate it
+			if (isset($language[$key])) {
+				return $language[$key];
+			}
+			// If not found, return as-is (might be legacy data or unknown key)
+			return $action;
+	}
+}
+
 // Generate a relative URL based on a variable number of arguments passed to the function.
 // The exact output of the function depends on the values of $config["useFriendlyURLs"] and $config["useModRewrite"].
 // ex. makeLink(123, "?start=4") -> "123?start=4", "index.php/123?start=4", "?q1=123&start=4"

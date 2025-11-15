@@ -46,7 +46,7 @@ if(!defined("IN_ESO"))exit;
 <ul class='form stats'>
 
 <li><label><?php echo $language["Last active"];?></label>
-<div><abbr title='<?php echo date($language["dateFormat"],$this->member["lastSeen"]);?>'><?php echo relativeTime($this->member["lastSeen"]);?></abbr> <?php echo !empty($this->member["lastAction"])?" <small>({$this->member["lastAction"]})</small>":"";?></div></li>
+<div><abbr title='<?php echo date($language["dateFormat"],$this->member["lastSeen"]);?>'><?php echo relativeTime($this->member["lastSeen"]);?></abbr> <?php echo !empty($this->member["lastAction"])?" <small>(" . translateLastAction($this->member["lastAction"]) . ")</small>":"";?></div></li>
 
 <li><label><?php echo $language["First posted"];?></label>
 <div><abbr title='<?php echo date($language["dateFormat"],$this->member["firstPosted"]);?>'><?php echo relativeTime($this->member["firstPosted"]);?></abbr></div></li>

@@ -67,7 +67,10 @@ function addEmoticonFormatter()
 
 function revertEmoticons($controller, &$post)
 {
-	$post = $this->eso->formatter->modes["emoticons"]->revert($post);
+	// Only revert emoticons if the formatter mode exists (user has emoticons enabled)
+	if (isset($this->eso->formatter->modes["emoticons"])) {
+		$post = $this->eso->formatter->modes["emoticons"]->revert($post);
+	}
 }
 
 // This is the part where we add the setting to the settings screen. Fun!
