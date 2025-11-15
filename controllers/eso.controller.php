@@ -48,6 +48,7 @@ var $labels = array(
 var $memberGroups = array("Administrator", "Moderator", "Member", "Suspended");
 var $bar = array("left" => array(), "right" => array());
 var $plugins = array();
+var $uploader;
 
 // Class constructor: connect to the database and perform other initializations.
 function __construct()
@@ -65,6 +66,9 @@ function __construct()
 	
 	// Create an instance of the Formatter class.
 	$this->formatter = new Formatter();
+	
+	// Create an instance of the Uploader class.
+	$this->uploader = new Uploader();
 }
 
 // Initialize: set up the user and initialize the bar and other components of the page.

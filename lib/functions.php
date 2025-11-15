@@ -753,40 +753,6 @@ function validateRemoteUrl($url)
 	return $url;
 }
 
-// Validate file content by checking magic bytes (file signatures).
-// Returns true if the file matches the expected image type, false otherwise.
-function validateImageMagicBytes($filePath, $expectedMimeType)
-{
-	if (!file_exists($filePath) || !is_readable($filePath)) return false;
-	
-	$handle = @fopen($filePath, "rb");
-	if (!$handle) return false;
-	
-	$header = @fread($handle, 12);
-	@fclose($handle);
-	
-	if (strlen($header) < 12) return false;
-	
-	// Check magic bytes for different image types
-	switch ($expectedMimeType) {
-		case "image/jpeg":
-		case "image/pjpeg":
-			// JPEG: FF D8 FF
-			return (substr($header, 0, 3) === "\xFF\xD8\xFF");
-		
-		case "image/png":
-		case "image/x-png":
-			// PNG: 89 50 4E 47 0D 0A 1A 0A
-			return (substr($header, 0, 8) === "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A");
-		
-		case "image/gif":
-			// GIF: 47 49 46 38 (GIF8)
-			return (substr($header, 0, 4) === "GIF8");
-		
-		default:
-			return false;
-	}
-}
 
 // Regenerate the session token.
 function regenerateToken()

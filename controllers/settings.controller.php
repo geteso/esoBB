@@ -314,85 +314,35 @@ function changeAvatar()
 	if (empty($config["changeAvatar"])) return false;
 	if (empty($_POST["avatar"]["type"])) return false;
 	
-	$allowedTypes = array("image/jpeg", "image/png", "image/gif", "image/pjpeg", "image/x-png");
+	$allowedTypes = array("image/jpeg", "image/png", "image/gif", "image/pjpeg", "image/x-png", "image/webp");
 	
 	// This is where the user's avatar will be saved, suffixed with _thumb and an extension (eg. .jpg).
 	$avatarFile = "avatars/{$this->eso->user["memberId"]}";
+	$file = false;
+	$tempFile = false;
 	
 	switch ($_POST["avatar"]["type"]) {
 		
 		// Upload an avatar from the user's computer.
 		case "upload":
 			
-			// Check for an error submitting the file and make sure the upload is a valid image file type.
-			if ($_FILES["avatarUpload"]["error"] != 0
-				or !is_uploaded_file($_FILES["avatarUpload"]["tmp_name"])) {
-				$this->eso->message("avatarError");
+			// Use uploader to validate and get the uploaded file.
+			if (!($file = $this->eso->uploader->getUploadedFile("avatarUpload", $allowedTypes))) {
+				$this->eso->message($this->eso->uploader->lastError ? $this->eso->uploader->lastError : "avatarError");
 				return false;
 			}
-			
-			// Verify the file is actually an image by checking its content, not just the MIME type
-			$fileInfo = @getimagesize($_FILES["avatarUpload"]["tmp_name"]);
-			if (!$fileInfo || !isset($fileInfo["mime"]) || !in_array($fileInfo["mime"], $allowedTypes)) {
-				$this->eso->message("avatarError");
-				return false;
-			}
-			
-			// Validate magic bytes to ensure file content matches declared type
-			if (!validateImageMagicBytes($_FILES["avatarUpload"]["tmp_name"], $fileInfo["mime"])) {
-				$this->eso->message("avatarError");
-				return false;
-			}
-			
-			$type = $fileInfo["mime"];
-			$file = $_FILES["avatarUpload"]["tmp_name"];
+			$tempFile = false; // Don't delete uploaded files
 			break;
 		
 		// Upload an avatar from a remote URL.
 		case "url":
 			
-			// Make sure we can open URLs with fopen, otherwise there's no point in continuing!
-			if (!ini_get("allow_url_fopen")) return false;
-			
-			// Validate the URL to prevent SSRF attacks.
-			if (!($url = validateRemoteUrl($_POST["avatar"]["url"]))) {
-				$this->eso->message("avatarError");
+			// Use uploader to download and validate the remote image.
+			if (!($file = $this->eso->uploader->downloadFromUrl($_POST["avatar"]["url"], $allowedTypes))) {
+				$this->eso->message($this->eso->uploader->lastError ? $this->eso->uploader->lastError : "avatarError");
 				return false;
 			}
-			
-			// Get the image's type.
-			$info = @getimagesize($url);
-			if (!$info || !isset($info["mime"])) {
-				$this->eso->message("avatarError");
-				return false;
-			}
-			$type = $info["mime"];
-			
-			// Check the type of the image, and open file read/write handlers.
-			if (!in_array($type, $allowedTypes)
-				or (($rh = @fopen($url, "rb")) === false)
-				or (($wh = @fopen($avatarFile, "wb")) === false)) {
-				$this->eso->message("avatarError");
-				return false;
-			}
-			
-			// Transfer the image from the remote location to our server.
-			while (!feof($rh)) {
-				if (fwrite($wh, fread($rh, 1024)) === false) {
-					$this->eso->message("avatarError");
-					return false;
-				}
-			}
-			fclose($rh); fclose($wh);
-			
-			// Validate magic bytes of downloaded file to ensure it matches declared type
-			if (!validateImageMagicBytes($avatarFile, $type)) {
-				@unlink($avatarFile);
-				$this->eso->message("avatarError");
-				return false;
-			}
-			
-			$file = $avatarFile;
+			$tempFile = true; // Delete temporary downloaded file
 			break;
 		
 		// Unset the user's avatar.
@@ -415,18 +365,25 @@ function changeAvatar()
 		default: return false;
 	}
 	
-	// Phew, we got through all that. Now let's turn the image into a resource...
-	switch ($type) {
-		case "image/jpeg": case "image/pjpeg": $image = @imagecreatefromjpeg($file); break;
-		case "image/x-png": case "image/png": $image = @imagecreatefrompng($file); break;
-		case "image/gif": $image = @imagecreatefromgif($file);
-	}
-	if (!$image) {
+	// Get image information for hook support.
+	$imageInfo = $this->eso->uploader->getImageInfo($file);
+	if (!$imageInfo) {
+		if ($tempFile) @unlink($file);
 		$this->eso->message("avatarError");
 		return false;
 	}
-	// ...and get its dimensions.
-	list($curWidth, $curHeight) = getimagesize($file);
+	
+	$mimeType = $imageInfo["mime"];
+	$curWidth = $imageInfo["width"];
+	$curHeight = $imageInfo["height"];
+	
+	// Create image resource for hook support (plugins may need it).
+	$image = $this->eso->uploader->createImageResource($file, $mimeType);
+	if (!$image) {
+		if ($tempFile) @unlink($file);
+		$this->eso->message("avatarError");
+		return false;
+	}
 	
 	// The dimensions we'll need are the normal avatar size and a thumbnail.
 	$dimensions = array("" => array($config["avatarMaxWidth"], $config["avatarMaxHeight"]), "_thumb" => array($config["avatarThumbHeight"], $config["avatarThumbHeight"]));
@@ -440,112 +397,55 @@ function changeAvatar()
 		// Delete the user's current avatar.
 		if (file_exists("$destination.{$this->eso->user["avatarFormat"]}"))
 			unlink("$destination.{$this->eso->user["avatarFormat"]}");
-					
-		if ($this->callHook("resizeAvatar", array($image, $destination, $type, $values[0], $values[1]), true)) continue;
-
-		// If the new max dimensions exist and are smaller than the current dimensions, we're gonna want to resize.
-		$newWidth = $values[0];
-		$newHeight = $values[1];
-		if (($newWidth or $newHeight) and ($newWidth < $curWidth or $newHeight < $curHeight)) {
-			
-			// Work out the resize ratio and calculate the dimensions of the new image.
-			$widthRatio = $newWidth / $curWidth;
-			$heightRatio = $newHeight / $curHeight;
-			$ratio = ($widthRatio and $widthRatio <= $heightRatio) ? $widthRatio : $heightRatio;
-			$width = $ratio * $curWidth;
-			$height = $ratio * $curHeight;
-			$needsToBeResized = true;
-		}
 		
-		// Otherwise just use the current dimensions.
-		else {
-			$width = $curWidth;
-			$height = $curHeight;
-			$needsToBeResized = false;
-		}
+		// Call hook - if plugin handles it, skip uploader processing.
+		if ($this->callHook("resizeAvatar", array($image, $destination, $mimeType, $values[0], $values[1]), true)) continue;
 
-		// If it's a gif that doesn't need to be resized (and it's not a thumbnail), we move instead of resampling 
-		// so as to preserve animation.
-		if (!$needsToBeResized and $type == "image/gif" and $suffix != "_thumb") {
-			
-			// Read the gif file's contents.
-			$handle = fopen($file, "r"); 
-			$contents = fread($handle, filesize($file)); 
-			fclose($handle);
-			
-			// Filter the first 256 characters, making sure there are no HTML tags of any kind.
-			// We have to do this because IE6 has a major security issue where if it finds any HTML in the first 256
-			// characters, it interprets the rest of the document as HTML (even though it's clearly an image!)
-			$tags = array("!-", "a hre", "bgsound", "body", "br", "div", "embed", "frame", "head", "html", "iframe", "input", "img", "link", "meta", "object", "plaintext", "script", "style", "table");
-			$re = array();
-			foreach ($tags as $tag) {
-				$part = "(?:<";
-				$length = strlen($tag);
-				for ($i = 0; $i < $length; $i++) $part .= "\\x00*" . $tag[$i];
-				$re[] = $part . ")";
-			}
-			
-			// If we did find any HTML tags, we're gonna have to lose the animation by resampling the image.
-			if (preg_match("/" . implode("|", $re) . "/", substr($contents, 0, 255))) $needsToBeResized = true;
-			
-			// But if it's all safe, write the image to the avatar file!
-			else writeFile($destination . ".gif", $contents);
-		}
-
-		// If this is a gif image and it needs to be resized, if it's a thumbnail, or if it's any other type of image...
-		if ($needsToBeResized or $type != "image/gif" or $suffix == "_thumb") {
-			
-			// -waves magic wand- Now, let's create the image!
-			$newImage = imagecreatetruecolor($width, $height);
-			
-			// Preserve the alpha for pngs and gifs.
-			if (in_array($type, array("image/png", "image/gif", "image/x-png"))) {
-				imagecolortransparent($newImage, imagecolorallocate($newImage, 0, 0, 0));
-				imagealphablending($newImage, false);
-				imagesavealpha($newImage, true);
-			}
-			
-			// (Oh yeah, the reason we're doin' the whole imagecopyresampled() thing even for images that don't need to 
-			// be resized is because it helps prevent a possible cross-site scripting attack in which the file has 
-			// malicious data after the header.)
-			imagecopyresampled($newImage, $image, 0, 0, 0, 0, $width, $height, $curWidth, $curHeight);
-			
-			// Save the image to the correct destination and format.
-			switch ($type) {
-				// jpeg
-				case "image/jpeg": case "image/pjpeg":
-					if (!imagejpeg($newImage, "$destination.jpg", 85)) $saveError = true;
-					break;
-				// png
-				case "image/x-png": case "image/png":
-					if (!imagepng($newImage, "$destination.png")) $saveError = true;
-					break;
-				// gif - the only way to preserve gif transparency is to save the image as a png... but we'll still 
-				// pretend that it's a gif!
-				case "image/gif":
-					if (!imagepng($newImage, "$destination.gif")) $saveError = true;
-			}
-			if (!empty($saveError))  {
-				$this->eso->message("avatarError");
-				return false;
-			}
-
-			// Clean up.
-			imagedestroy($newImage);
+		// Use uploader to save the image.
+		$options = array(
+			"maxWidth" => $values[0],
+			"maxHeight" => $values[1],
+			"format" => "auto",
+			"preserveAnimation" => ($suffix != "_thumb")
+		);
+		
+		$result = $this->eso->uploader->saveAsImage($file, $destination, $options);
+		
+		if (!$result["success"]) {
+			imagedestroy($image);
+			if ($tempFile) @unlink($file);
+			$this->eso->message($result["error"] ? $result["error"] : "avatarError");
+			return false;
 		}
 	}
 	
 	// Clean up temporary stuff.
 	imagedestroy($image);
-	@unlink($file);
+	if ($tempFile) @unlink($file);
 	
-	// Depending on the type of image that was uploaded, update the user's avatarFormat field.
-	switch ($type) {
-		case "image/jpeg": case "image/pjpeg": $avatarFormat = "jpg"; break;
-		case "image/x-png": case "image/png": $avatarFormat = "png"; break;
-		case "image/gif": $avatarFormat = "gif";
+	// Determine format from uploader's last file info or result.
+	$avatarFormat = "jpg";
+	if ($this->eso->uploader->lastFileInfo) {
+		switch ($this->eso->uploader->lastFileInfo["mime"]) {
+			case "image/jpeg":
+			case "image/pjpeg":
+				$avatarFormat = "jpg";
+				break;
+			case "image/png":
+			case "image/x-png":
+				$avatarFormat = "png";
+				break;
+			case "image/gif":
+				$avatarFormat = "gif";
+				break;
+			case "image/webp":
+				$avatarFormat = "webp";
+				break;
+		}
 	}
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET avatarFormat='$avatarFormat' WHERE memberId={$this->eso->user["memberId"]}");
+	
+	$avatarFormatEscaped = $this->eso->db->escape($avatarFormat);
+	$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET avatarFormat='$avatarFormatEscaped' WHERE memberId={$this->eso->user["memberId"]}");
 	$this->eso->user["avatarFormat"] = $_SESSION["user"]["avatarFormat"] = $avatarFormat;
 	
 	return true;

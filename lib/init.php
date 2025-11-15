@@ -81,6 +81,7 @@ require PATH_LIBRARY."/functions.php";
 require PATH_LIBRARY."/database.php";
 require PATH_LIBRARY."/classes.php";
 require PATH_LIBRARY."/formatter.php";
+require PATH_LIBRARY."/uploader.php";
 
 // Define the session save path.
 session_save_path(PATH_ROOT."/sessions");

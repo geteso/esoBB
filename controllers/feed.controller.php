@@ -41,7 +41,7 @@ function init()
 	// Set both the eso view and the controller view to bypass the wrapper
 	$this->eso->view = "feed.view.php";
 	$this->view = "feed.view.php";
-	header("Content-type: application/atom+xml; charset={$language["charset"]}");
+	header("Content-Type: application/xml; charset=" . $language["charset"]);
 	
 	if ($return = $this->callHook("init")) return;
 	

@@ -83,6 +83,13 @@ function init()
 		writeConfigFile("../config/versions.php", '$versions', $versions);
 	}
 	
+	// esoBB 1.0.0 delta 2 -> esoBB 1.0.0 delta 3
+	if ($versions["eso"] == "1.0.0d2") {
+		$this->upgrade_100d3();
+		$versions["eso"] = "1.0.0d3";
+		writeConfigFile("../config/versions.php", '$versions', $versions);
+	}
+	
 	// Write the program version to the versions.php file.
 	if ($versions["eso"] != ESO_VERSION) {
 		$versions["eso"] = ESO_VERSION;
@@ -172,6 +179,92 @@ function warning($msg)
 {
 	if (!isset($_SESSION["warnings"]) or !is_array($_SESSION["warnings"])) $_SESSION["warnings"] = array();
 	$_SESSION["warnings"][] = $msg;	
+}
+
+// 1.0.0 delta 2 -> 1.0.0 delta 3
+function upgrade_100d3()
+{
+	global $config;
+	
+	// Restructure the logins table to support session management.
+	// First, check if the table needs restructuring (if it doesn't have loginId column).
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'loginId'")) {
+		// Drop the old logins table and recreate it with the new structure.
+		$this->query("DROP TABLE IF EXISTS {$config["tablePrefix"]}logins");
+		$this->query("CREATE TABLE {$config["tablePrefix"]}logins (
+			loginId int unsigned NOT NULL AUTO_INCREMENT,
+			cookie char(32) default NULL,
+			ip int unsigned NOT NULL,
+			userAgent varchar(191) default NULL,
+			memberId int unsigned NOT NULL,
+			action varchar(63) NOT NULL default 'login',
+			firstTime int unsigned default NULL,
+			lastTime int unsigned default NULL,
+			loginTime int unsigned default NULL,
+			PRIMARY KEY  (loginId),
+			KEY memberId_lastTime (memberId, lastTime),
+			KEY cookie (cookie)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+	} else {
+		// Table exists but may need column updates.
+		// Change IP back to int unsigned if it's still char(32).
+		$columnInfo = $this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'ip'");
+		if ($this->numRows($columnInfo)) {
+			$column = $this->fetchAssoc($columnInfo);
+			if (isset($column["Type"]) && strpos($column["Type"], "char") !== false) {
+				$this->query("ALTER TABLE {$config["tablePrefix"]}logins MODIFY COLUMN ip int unsigned NOT NULL");
+			}
+		}
+		
+		// Add missing columns if they don't exist.
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'cookie'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN cookie char(32) default NULL AFTER loginId");
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'userAgent'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN userAgent varchar(191) default NULL AFTER ip");
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'memberId'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN memberId int unsigned NOT NULL AFTER userAgent");
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'action'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN action varchar(63) NOT NULL default 'login' AFTER memberId");
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'firstTime'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN firstTime int unsigned default NULL AFTER action");
+		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'lastTime'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN lastTime int unsigned default NULL AFTER firstTime");
+		
+		// Add indexes if they don't exist.
+		if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}logins WHERE Key_name='memberId_lastTime'"))
+			$this->query("CREATE INDEX memberId_lastTime ON {$config["tablePrefix"]}logins (memberId, lastTime)");
+		if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}logins WHERE Key_name='cookie'"))
+			$this->query("CREATE INDEX cookie ON {$config["tablePrefix"]}logins (cookie)");
+	}
+	
+	// Create the actions table (replaces deprecated searches table).
+	if (!$this->numRows("SHOW TABLES LIKE '{$config["tablePrefix"]}actions'"))
+		$this->query("CREATE TABLE {$config["tablePrefix"]}actions (
+			ip int unsigned NOT NULL,
+			memberId int unsigned default NULL,
+			action varchar(63) NOT NULL,
+			time int unsigned NOT NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+	
+	// Add WebP support to avatarFormat enum.
+	$columnInfo = $this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'avatarFormat'");
+	if ($this->numRows($columnInfo)) {
+		$column = $this->fetchAssoc($columnInfo);
+		// Check if the enum definition includes 'webp'.
+		if (isset($column["Type"]) && strpos($column["Type"], "'webp'") === false) {
+			// Modify the enum to include 'webp'.
+			$this->query("ALTER TABLE {$config["tablePrefix"]}members MODIFY COLUMN avatarFormat enum('jpg','png','gif','webp') default NULL");
+		}
+	}
+	
+	// Update salt column size from char(64) to char(32) if needed.
+	$columnInfo = $this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'salt'");
+	if ($this->numRows($columnInfo)) {
+		$column = $this->fetchAssoc($columnInfo);
+		if (isset($column["Type"]) && strpos($column["Type"], "char(64)") !== false) {
+			$this->query("ALTER TABLE {$config["tablePrefix"]}members MODIFY COLUMN salt char(32) NOT NULL");
+		}
+	}
 }
 
 // 1.0.0 delta 1 -> 1.0.0 delta 2
