@@ -2851,9 +2851,9 @@ validateAvatarForm: function() {
 			} else {
 				isValid = false;
 				if (!hasValidExtension) {
-					errorMsg = "Invalid image URL. URL must end with .jpg, .jpeg, .png, .gif, or .webp";
+					errorMsg = eso.language["avatarUrlInvalidExtension"];
 				} else {
-					errorMsg = "Invalid URL format. URL must start with http:// or https://";
+					errorMsg = eso.language["avatarUrlInvalidFormat"];
 				}
 			}
 		}
@@ -2866,14 +2866,14 @@ validateAvatarForm: function() {
 				// Check file size.
 				if (eso.maxUploadSize && file.size > eso.maxUploadSize) {
 					isValid = false;
-					errorMsg = "File is too large. Maximum file size is " + Math.round(eso.maxUploadSize / 1024 / 1024) + "MB";
+					errorMsg = eso.language["avatarFileTooLarge"].replace("%d", Math.round(eso.maxUploadSize / 1024 / 1024));
 				} else {
 					isValid = true;
 					errorMsg = "";
 				}
 			} else {
 				isValid = false;
-				errorMsg = "Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.";
+				errorMsg = eso.language["avatarFileInvalidType"];
 			}
 		} else {
 			isValid = false;

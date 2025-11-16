@@ -41,6 +41,8 @@ function init()
 	global $config, $language;
 	$this->title = $language["My settings"];
 	
+	$this->eso->addLanguageToJS("avatarFileInvalidType", "avatarFileTooLarge", "avatarUrlInvalidExtension", "avatarUrlInvalidFormat");
+	
 	// Has the user verified their email address?
 	if (!empty($config["sendEmail"])) $this->emailVerified = $this->eso->db->result("SELECT emailVerified FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
 	

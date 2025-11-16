@@ -62,6 +62,10 @@ $language = array(
 "Appearance settings" => "Appearance settings",
 "Are you human" => "Image verification",
 "author" => "by %s",
+"avatarFileInvalidType" => "Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.",
+"avatarFileTooLarge" => "File is too large. Maximum file size is %dMB",
+"avatarUrlInvalidExtension" => "Invalid image URL. URL must end with .jpg, .jpeg, .png, .gif, or .webp",
+"avatarUrlInvalidFormat" => "Invalid URL format. URL must start with http:// or https://",
 
 "Basic settings" => "Basic settings",
 "Bold" => "Bold",
