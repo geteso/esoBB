@@ -2460,54 +2460,259 @@ tag: function(tag) {
 
 
 
-// "Join this forum" JavaScript.
-var Join = {
+// Form class: centralized form validation, designed mainly for Join and My settings.
+var Form = {
 
-fieldsValidated: {}, // An array of fields and if they've been validated.
-timeouts: {},
-
-// Initialize: disable the join button and set up the fields so they will automatically validate when typed in.
-init: function() {
-	var disableButton = false;
-	for (var i in this.fieldsValidated) {
-		getById(i).onkeydown = Join.validateField;
-		if (!this.fieldsValidated[i]) disableButton = true;
+// Handle confirm password field validation when password field changes.
+handleConfirmPassword: function(fieldId, passwordFieldId, formConfig, isEmpty) {
+	if (fieldId != passwordFieldId) return;
+	
+	var confirmField = getById("confirm");
+	if (!confirmField) return;
+	
+	// If password field is now empty, clear confirm error immediately
+	if (isEmpty) {
+		formConfig.fieldsValidated["confirm"] = true;
+		var confirmMsg = getById("confirm-message");
+		if (confirmMsg) confirmMsg.innerHTML = "";
+	} else {
+		// Password has a value - always validate confirm (even if confirm is empty)
+		clearTimeout(formConfig.timeouts["confirm"]);
+		formConfig.timeouts["confirm"] = setTimeout(function() {
+			Form.validateField(confirmField, formConfig);
+		}, 100);
 	}
-	if (disableButton) disable(getById("joinSubmit"));
+},
+
+// Setup field handlers with configurable options.
+setupFieldHandlers: function(formConfig, options) {
+	options = options || {};
+	var includeKeyup = options.includeKeyup || false;
+	var customHandlers = options.customHandlers || {};
+	
+	for (var fieldId in formConfig.fields) {
+		var field = getById(fieldId);
+		if (!field) continue;
+		
+		// Use custom handler if provided
+		if (customHandlers[fieldId]) {
+			if (field.tagName == "SELECT") {
+				field.onchange = customHandlers[fieldId];
+			} else {
+				field.onkeydown = customHandlers[fieldId];
+				field.oninput = customHandlers[fieldId];
+				if (includeKeyup) {
+					field.onkeyup = function(e) {
+						var f = this;
+						if (!e) e = window.event;
+						if (e && (e.keyCode == 46 || e.keyCode == 8)) {
+							customHandlers[fieldId].call(f);
+						}
+					};
+				}
+			}
+			continue;
+		}
+		
+		// Default handler setup
+		if (field.tagName == "SELECT") {
+			field.onchange = function() {
+				var f = this;
+				Form.validateField(f, formConfig);
+			};
+		} else {
+			var validateHandler = function() {
+				var f = this;
+				Form.validateField(f, formConfig);
+			};
+			field.onkeydown = validateHandler;
+			field.oninput = validateHandler;
+			if (includeKeyup) {
+				field.onkeyup = function(e) {
+					var f = this;
+					if (!e) e = window.event;
+					if (e && (e.keyCode == 46 || e.keyCode == 8)) {
+						Form.validateField(f, formConfig);
+					}
+				};
+			}
+		}
+	}
+},
+
+// Initialize form validation with configuration object.
+init: function(formConfig, options) {
+	var disableButton = false;
+	
+	// Set up field handlers using shared function
+	Form.setupFieldHandlers(formConfig, options);
+	
+	// Check if button should be disabled initially.
+	for (var fieldId in formConfig.fields) {
+		if (!formConfig.fieldsValidated[fieldId]) {
+			disableButton = true;
+			break;
+		}
+	}
+	
+	// Set initial button state.
+	var submitButton = Form.getSubmitButton(formConfig.submitButtonId);
+	if (submitButton) {
+		if (disableButton) disable(submitButton);
+		else enable(submitButton);
+	}
 },
 
 // Validate a field with AJAX.
-validateField: function() {
-	var field = this;
-	clearTimeout(Join.timeouts[field.id]);
+validateField: function(field, formConfig) {
+	clearTimeout(formConfig.timeouts[field.id]);
 	
-	// Set a timeout so that the validation will only take place after the user has finished typing.
-	Join.timeouts[field.id] = setTimeout(function() {
+	// Capture field reference and value at event time to ensure correct value when timeout executes
+	var fieldElement = field;
+	
+	// Call beforeValidate hook if provided
+	if (formConfig.hooks && formConfig.hooks.beforeValidate) {
+		formConfig.hooks.beforeValidate(fieldElement, formConfig);
+	}
+	
+	// Set a timeout so that validation only takes place after the user has finished typing.
+	formConfig.timeouts[field.id] = setTimeout(function() {
+		// Read value at execution time (not capture time) to handle select+delete correctly
+		var value = fieldElement.value;
+		var isEmpty = !value || value.length === 0;
+		var postData = "action=validate&field=" + fieldElement.id + "&form=" + formConfig.formId + "&value=" + encodeURIComponent(value);
+		
+		// Special handling for confirm password field (needs password value).
+		if (fieldElement.id == "confirm" && formConfig.confirmPasswordField) {
+			var passwordField = getById(formConfig.confirmPasswordField);
+			if (passwordField) postData += "&password=" + encodeURIComponent(passwordField.value);
+		}
+		
+		// Special handling for confirm password field in Settings (needs newPassword value).
+		if (fieldElement.id == "confirm" && formConfig.newPasswordField) {
+			var newPasswordField = getById(formConfig.newPasswordField);
+			if (newPasswordField) postData += "&newPassword=" + encodeURIComponent(newPasswordField.value);
+		}
+		
 		Ajax.request({
-			"url": eso.baseURL + "ajax.php?controller=join",
+			"url": eso.baseURL + "ajax.php?controller=" + formConfig.ajaxController,
 			"success": function() {
-				Join.fieldsValidated[field.id] = this.result.validated;
-
-				// Change the message next to the field.
-				message = getById(field.id + "-message");
-				message.innerHTML = this.result.message;
+				var wasValidated = this.result.validated;
+				var message = this.result.message;
 				
-				// Are all fields in the form validated? If so, enable the submit button.
-				var formCompleted = true;
-				for (var j in Join.fieldsValidated) {
-					if (!Join.fieldsValidated[j]) formCompleted = false;
+				// Use server response directly - no error persistence
+				formConfig.fieldsValidated[fieldElement.id] = wasValidated;
+				
+				// Call afterValidate hook if provided
+				if (formConfig.hooks && formConfig.hooks.afterValidate) {
+					var hookResult = formConfig.hooks.afterValidate(fieldElement, wasValidated, message, formConfig);
+					if (hookResult) {
+						wasValidated = hookResult.wasValidated !== undefined ? hookResult.wasValidated : wasValidated;
+						message = hookResult.message !== undefined ? hookResult.message : message;
+					}
 				}
-				if (formCompleted) enable(getById("joinSubmit"));
-				else disable(getById("joinSubmit"));
+				
+				// Update the message next to the field.
+				var messageEl = getById(fieldElement.id + "-message");
+				if (messageEl) messageEl.innerHTML = message;
+				
+				// Handle confirm password field validation when password field changes
+				if (formConfig.confirmPasswordField) {
+					Form.handleConfirmPassword(fieldElement.id, formConfig.confirmPasswordField, formConfig, isEmpty);
+				} else if (formConfig.newPasswordField) {
+					Form.handleConfirmPassword(fieldElement.id, formConfig.newPasswordField, formConfig, isEmpty);
+				}
+				
+				// Check if form is complete and enable/disable submit button.
+				Form.updateButtonState(formConfig);
 			},
-			"post": "action=validate&field=" + field.id + "&value=" + encodeURIComponent(field.value) +
-			// If we're validating the confirm password field, we'll need to know the password as well.
-			(field.id == "confirm" ? "&password=" + encodeURIComponent(getById("password").value) : "")
+			"post": postData
 		});
-			
-		// If we're validating the password field, validate the confirm password field too.
-		if (field.id == "password") getById("confirm").onkeydown();
-	}, 500);			
+	}, 500);
+},
+
+// Check if a form is valid and update submit button state.
+updateButtonState: function(formConfig) {
+	// Call beforeButtonUpdate hook if provided
+	if (formConfig.hooks && formConfig.hooks.beforeButtonUpdate) {
+		formConfig.hooks.beforeButtonUpdate(formConfig);
+	}
+	
+	var formCompleted = true;
+	
+	// Use custom button state function if provided
+	if (formConfig.customButtonState) {
+		formCompleted = formConfig.customButtonState(formConfig);
+	} else {
+		// Default: check all fields are validated
+		for (var fieldId in formConfig.fieldsValidated) {
+			if (!formConfig.fieldsValidated[fieldId]) {
+				formCompleted = false;
+				break;
+			}
+		}
+	}
+	
+	var submitButton = Form.getSubmitButton(formConfig.submitButtonId);
+	if (submitButton) {
+		if (formCompleted) enable(submitButton);
+		else disable(submitButton);
+	}
+	
+	// Call afterButtonUpdate hook if provided
+	if (formConfig.hooks && formConfig.hooks.afterButtonUpdate) {
+		formConfig.hooks.afterButtonUpdate(formConfig);
+	}
+},
+
+// Get the submit button element by ID or name.
+getSubmitButton: function(buttonId) {
+	var button = getById(buttonId);
+	if (button) return button;
+	
+	// Try to find by name attribute.
+	var inputs = document.getElementsByTagName("input");
+	for (var i = 0; i < inputs.length; i++) {
+		if (inputs[i].name == buttonId && inputs[i].type == "submit") {
+			// Return the parent span.button if it exists, otherwise the input itself.
+			var parent = inputs[i].parentNode;
+			if (parent && parent.className && parent.className.indexOf("button") !== -1) {
+				return parent;
+			}
+			return inputs[i];
+		}
+	}
+	return null;
+}
+
+};
+
+// "Join this forum" JavaScript.
+var Join = {
+
+fieldsValidated: {}, // An array of fields and if they've been validated (set by PHP).
+formConfig: null, // Form configuration (set in init)
+
+// Initialize: set up form validation using Form.
+init: function() {
+	// Create formConfig structure for Form
+	Join.formConfig = {
+		formId: "join",
+		fields: {},
+		fieldsValidated: Join.fieldsValidated,
+		timeouts: {},
+		submitButtonId: "joinSubmit",
+		ajaxController: "join",
+		confirmPasswordField: "password"
+	};
+	
+	// Populate fields object from fieldsValidated
+	for (var fieldId in Join.fieldsValidated) {
+		Join.formConfig.fields[fieldId] = {};
+	}
+	
+	// Initialize Form
+	Form.init(Join.formConfig);
 }
 
 };
@@ -2516,6 +2721,8 @@ validateField: function() {
 
 // Settings JavaScript.
 var Settings = {
+
+timeouts: {}, // Debounce timers for field validation
 
 // Change the user's color.
 changeColor: function(color) {
@@ -2547,6 +2754,154 @@ changeColor: function(color) {
 	});
 },
 
+// Initialize avatar form handlers.
+initAvatarForm: function() {
+	var uploadRadio = getById("iconUpload");
+	var urlRadio = getById("iconUrl");
+	var noneRadio = getById("none");
+	var fileInput = getById("avatarUpload");
+	var urlInput = getById("avatarUrl");
+	var submitButton = Form.getSubmitButton("changeAvatar");
+	
+	// Store button reference for reuse
+	this.avatarSubmitButton = submitButton;
+	
+	// Start with button disabled.
+	if (submitButton) disable(submitButton);
+	
+	// Radio button change handlers.
+	if (uploadRadio) {
+		uploadRadio.onchange = function() {
+			Settings.validateAvatarForm();
+		};
+	}
+	if (urlRadio) {
+		urlRadio.onchange = function() {
+			Settings.validateAvatarForm();
+			if (urlInput) urlInput.focus();
+		};
+	}
+	if (noneRadio) {
+		noneRadio.onchange = function() {
+			Settings.validateAvatarForm();
+		};
+	}
+	
+	// File input change handler.
+	if (fileInput) {
+		fileInput.onchange = function() {
+			if (uploadRadio && uploadRadio.checked) {
+				Settings.validateAvatarForm();
+			}
+		};
+	}
+	
+	// URL input handler.
+	if (urlInput) {
+		urlInput.onkeydown = function() {
+			var f = this;
+			clearTimeout(Settings.timeouts["avatarUrl"]);
+			Settings.timeouts["avatarUrl"] = setTimeout(function() {
+				Settings.validateAvatarForm();
+			}, 500);
+		};
+	}
+	
+	// Validate on initial load if a radio is already selected.
+	this.validateAvatarForm();
+},
+
+// Validate avatar form.
+validateAvatarForm: function() {
+	var uploadRadio = getById("iconUpload");
+	var urlRadio = getById("iconUrl");
+	var noneRadio = getById("none");
+	var fileInput = getById("avatarUpload");
+	var urlInput = getById("avatarUrl");
+	// Use stored button reference, or find it if not stored
+	var submitButton = this.avatarSubmitButton || Form.getSubmitButton("changeAvatar");
+	var isValid = false;
+	var errorMsg = "";
+	
+	// Check which option is selected.
+	if (noneRadio && noneRadio.checked) {
+		// "No avatar" selected - always valid.
+		isValid = true;
+	} else if (urlRadio && urlRadio.checked) {
+		// URL option selected - validate URL.
+		var url = urlInput ? urlInput.value.trim() : "";
+		if (!url) {
+			isValid = false;
+		} else {
+			// Check if URL ends with valid image extension.
+			var validExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+			var urlLower = url.toLowerCase();
+			var hasValidExtension = false;
+			for (var i = 0; i < validExtensions.length; i++) {
+				if (urlLower.indexOf(validExtensions[i], urlLower.length - validExtensions[i].length) !== -1) {
+					hasValidExtension = true;
+					break;
+				}
+			}
+			// Also check URL format.
+			var urlPattern = /^https?:\/\/.+/i;
+			if (hasValidExtension && urlPattern.test(url)) {
+				isValid = true;
+				errorMsg = "";
+			} else {
+				isValid = false;
+				if (!hasValidExtension) {
+					errorMsg = "Invalid image URL. URL must end with .jpg, .jpeg, .png, .gif, or .webp";
+				} else {
+					errorMsg = "Invalid URL format. URL must start with http:// or https://";
+				}
+			}
+		}
+	} else if (uploadRadio && uploadRadio.checked) {
+		// Upload option selected - validate file.
+		if (fileInput && fileInput.files && fileInput.files.length > 0) {
+			var file = fileInput.files[0];
+			var validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/pjpeg", "image/x-png"];
+			if (validTypes.indexOf(file.type) !== -1) {
+				// Check file size.
+				if (eso.maxUploadSize && file.size > eso.maxUploadSize) {
+					isValid = false;
+					errorMsg = "File is too large. Maximum file size is " + Math.round(eso.maxUploadSize / 1024 / 1024) + "MB";
+				} else {
+					isValid = true;
+					errorMsg = "";
+				}
+			} else {
+				isValid = false;
+				errorMsg = "Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.";
+			}
+		} else {
+			isValid = false;
+		}
+	} else {
+		// No option selected.
+		isValid = false;
+	}
+	
+	// Update error messages.
+	var uploadMsg = getById("avatarUpload-message");
+	var urlMsg = getById("avatarUrl-message");
+	if (uploadMsg) uploadMsg.innerHTML = "";
+	if (urlMsg) urlMsg.innerHTML = "";
+	
+	if (urlRadio && urlRadio.checked && errorMsg) {
+		if (urlMsg) urlMsg.innerHTML = "<div class='msg warning'>" + errorMsg + "</div>";
+	} else if (uploadRadio && uploadRadio.checked && errorMsg) {
+		if (uploadMsg) uploadMsg.innerHTML = "<div class='msg warning'>" + errorMsg + "</div>";
+	}
+	
+	// Update button state.
+	if (submitButton) {
+		if (isValid) enable(submitButton);
+		else disable(submitButton);
+	}
+},
+
 // Toggle the visibility of a fieldset. The fieldset contents must have id='{id}Form'.
 toggleFieldset: function(id) {
 	toggle(getById(id + "Form"), {animation: "verticalSlide"});
@@ -2557,6 +2912,246 @@ toggleFieldset: function(id) {
 hideFieldset: function(id) {
 	hide(getById(id + "Form"));
 	getById(id).className = "hidden";
+},
+
+// Initialize settings form handlers.
+initSettingsForm: function() {
+	var settingsForm = document.querySelector("#settings > form");
+	if (!settingsForm) return;
+	
+	// Select all inputs within fieldsets with class "form" under the settings form
+	var inputs = settingsForm.querySelectorAll("form > fieldset .form input, form > fieldset .form select, form > fieldset .form textarea");
+	
+	// Find submit button within this specific form
+	var submitButton = settingsForm.querySelector(".submit");
+	if (submitButton) disable(submitButton);
+	
+	// Store original values for all inputs.
+	this.otherSettingsOriginal = {};
+	for (var i = 0; i < inputs.length; i++) {
+		var input = inputs[i];
+		if (input.type == "checkbox" || input.type == "radio") {
+			this.otherSettingsOriginal[input.id || input.name] = input.checked;
+		} else {
+			this.otherSettingsOriginal[input.id || input.name] = input.value;
+		}
+	}
+	
+	// Set up change handlers for all inputs.
+	for (var i = 0; i < inputs.length; i++) {
+		var input = inputs[i];
+		input.onchange = function() {
+			Settings.checkSettingsChanged();
+		};
+		// Also handle input events for text inputs
+		if (input.type == "text" || input.type == "email" || input.tagName == "TEXTAREA") {
+			input.oninput = function() {
+				Settings.checkSettingsChanged();
+			};
+		}
+	}
+},
+
+// Check if the settings in the settings form have changed.
+checkSettingsChanged: function() {
+	var settingsForm = document.querySelector("#settings > form");
+	if (!settingsForm) return;
+	
+	// Select all inputs within fieldsets with class "form" under the settings form
+	var inputs = settingsForm.querySelectorAll("form > fieldset .form input, form > fieldset .form select, form > fieldset .form textarea");
+	
+	// Find submit button within this specific form
+	var submitButton = settingsForm.querySelector(".submit");
+	var changed = false;
+	
+	// Check if any input has changed from its original value.
+	for (var i = 0; i < inputs.length; i++) {
+		var input = inputs[i];
+		var inputKey = input.id || input.name;
+		var originalValue = this.otherSettingsOriginal[inputKey];
+		
+		if (input.type == "checkbox" || input.type == "radio") {
+			if (originalValue !== input.checked) {
+				changed = true;
+				break;
+			}
+		} else {
+			if (originalValue !== input.value) {
+				changed = true;
+				break;
+			}
+		}
+	}
+	
+	// Update button state.
+	if (submitButton) {
+		if (changed) enable(submitButton);
+		else disable(submitButton);
+	}
+},
+
+// Initialize password/email form.
+initPasswordForm: function() {
+	var formConfig = {
+		formId: "settingsPassword",
+		fields: {
+			"newPassword": {},
+			"confirm": {},
+			"email": {},
+			"current": {}
+		},
+		fieldsValidated: {
+			"newPassword": true, // Optional, starts valid
+			"confirm": true, // Optional, starts valid
+			"email": true, // Optional, starts valid
+			"current": false // Required if changing password/email
+		},
+		timeouts: {},
+		submitButtonId: "settingsPasswordEmail[submit]",
+		ajaxController: "settings",
+		newPasswordField: "newPassword",
+		mutuallyExclusive: ["newPassword", "email"],
+		hooks: {
+			afterValidate: function(field, wasValidated, message, formConfig) {
+				// Handle mutual exclusivity for newPassword/email
+				if (field.id == "newPassword" || field.id == "email") {
+					var otherFieldId = field.id == "newPassword" ? "email" : "newPassword";
+					var otherField = getById(otherFieldId);
+					var isEmpty = !field.value || field.value.length === 0;
+					
+					// If this field has any value (valid or invalid) and other field is empty, clear other's error
+					if (!isEmpty && otherField && !otherField.value) {
+						formConfig.fieldsValidated[otherFieldId] = true;
+						var otherMsg = getById(otherFieldId + "-message");
+						if (otherMsg) otherMsg.innerHTML = "";
+					}
+				}
+			},
+			beforeButtonUpdate: function(formConfig) {
+				// Handle current password conditional requirement
+				var newPasswordField = getById("newPassword");
+				var emailField = getById("email");
+				var currentField = getById("current");
+				var hasValidChanges = (formConfig.fieldsValidated["newPassword"] && newPasswordField && newPasswordField.value) || 
+				                      (formConfig.fieldsValidated["email"] && emailField && emailField.value);
+				
+				if (!hasValidChanges) {
+					// No valid changes - current password not required
+					formConfig.fieldsValidated["current"] = true;
+					var currentMsg = getById("current-message");
+					if (currentMsg) currentMsg.innerHTML = "";
+				} else {
+					// Valid changes exist - current password becomes required
+					if (!currentField || !currentField.value) {
+						// Current is empty but required - mark as invalid
+						formConfig.fieldsValidated["current"] = false;
+						var currentMsg = getById("current-message");
+						if (currentMsg && !currentMsg.innerHTML) {
+							// Show passwordTooShort message
+							Ajax.request({
+								"url": eso.baseURL + "ajax.php?controller=settings",
+								"success": function() {
+									currentMsg.innerHTML = this.result.message;
+									Form.updateButtonState(formConfig);
+								},
+								"post": "action=validate&field=current&form=settingsPassword&value="
+							});
+						}
+					}
+				}
+			}
+		},
+		customButtonState: function(formConfig) {
+			// Check if at least one field has been changed (newPassword or email has a value)
+			var newPasswordField = getById("newPassword");
+			var emailField = getById("email");
+			var hasChanges = (newPasswordField && newPasswordField.value) || (emailField && emailField.value);
+			
+			// If no changes, button should be disabled
+			if (!hasChanges) return false;
+			
+			// Confirm password is only required when newPassword has a value
+			var confirmRequired = newPasswordField && newPasswordField.value;
+			
+			// Temporarily mark confirm as valid if it's not required
+			var originalConfirmValidated = formConfig.fieldsValidated["confirm"];
+			if (!confirmRequired) {
+				formConfig.fieldsValidated["confirm"] = true;
+			}
+			
+			// Check all fields
+			var formCompleted = true;
+			for (var fieldId in formConfig.fieldsValidated) {
+				if (!formConfig.fieldsValidated[fieldId]) {
+					formCompleted = false;
+					break;
+				}
+			}
+			
+			// Restore original confirm validation state
+			formConfig.fieldsValidated["confirm"] = originalConfirmValidated;
+			
+			return formCompleted;
+		}
+	};
+	
+	// Initialize Form
+	Form.init(formConfig);
+	
+	// Set initial button state (disabled)
+	var submitButton = Form.getSubmitButton(formConfig.submitButtonId);
+	if (submitButton) disable(submitButton);
+	
+	// Store config for later use
+	this.passwordFormConfig = formConfig;
+},
+
+// Initialize username form.
+initUsernameForm: function() {
+	var formConfig = {
+		formId: "settingsUser",
+		fields: {
+			"name": {},
+			"password": {}
+		},
+		fieldsValidated: {
+			"name": false,
+			"password": false
+		},
+		timeouts: {},
+		submitButtonId: "settingsUsername[submit]",
+		ajaxController: "settings",
+		customButtonState: function(formConfig) {
+			// Check if both fields have values (not just validated)
+			var nameField = getById("name");
+			var passwordField = getById("password");
+			var hasValues = (nameField && nameField.value) && (passwordField && passwordField.value);
+			
+			// If either field is empty, button should be disabled
+			if (!hasValues) return false;
+			
+			// Both fields have values - check if they're validated
+			var formCompleted = true;
+			for (var fieldId in formConfig.fieldsValidated) {
+				if (!formConfig.fieldsValidated[fieldId]) {
+					formCompleted = false;
+					break;
+				}
+			}
+			
+			return formCompleted;
+		}
+	};
+	
+	// Initialize Form with keyup support for select+delete scenarios
+	Form.init(formConfig, {includeKeyup: true});
+	
+	// Set initial button state (disabled)
+	var submitButton = Form.getSubmitButton(formConfig.submitButtonId);
+	if (submitButton) disable(submitButton);
+	
+	// Store config for later use
+	this.usernameFormConfig = formConfig;
 }
 
 };

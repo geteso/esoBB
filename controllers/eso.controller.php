@@ -675,6 +675,7 @@ function head()
 		"disableLinkAlerts" => !empty($this->eso->user["disableLinkAlerts"]),
 		"avatarAlignment" => !empty($this->eso->user["avatarAlignment"]) ? $this->eso->user["avatarAlignment"] : $_SESSION["avatarAlignment"],
 		"messageDisplayTime" => $config["messageDisplayTime"],
+		"maxUploadSize" => $this->uploader->maxUploadSize(),
 		"language" => $this->jsLanguage,
 		"token" => $_SESSION["token"]
 	) + $this->jsVars;

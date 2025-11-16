@@ -112,13 +112,13 @@ function init()
 			),
 			300 => array(
 				"id" => "emailOnPrivateAdd",
-				"html" => "<label for='emailOnPrivateAdd' class='checkbox'>{$language["emailOnPrivateAdd"]} <span class='label private'>{$language["labels"]["private"]}</span></label> <input id='emailOnPrivateAdd' type='checkbox' class='checkbox' name='emailOnPrivateAdd' value='1' " . ($this->eso->user["emailOnPrivateAdd"] ? "checked='checked' " : "") . ($this->emailVerified == 1 ? "" : "disabled") . "/>",
+				"html" => "<label for='emailOnPrivateAdd' class='checkbox'>{$language["emailOnPrivateAdd"]} <span class='label private'>{$language["labels"]["private"]}</span></label> <input id='emailOnPrivateAdd' type='checkbox' class='checkbox' name='emailOnPrivateAdd' value='1' " . ($this->eso->user["emailOnPrivateAdd"] ? "checked='checked' " : "") . ($this->emailVerified == 1 && !empty($config["sendEmail"]) ? "" : "disabled") . "/>",
 				"databaseField" => "emailOnPrivateAdd",
 				"checkbox" => true
 			),
 			400 => array(
 				"id" => "emailOnStar",
-				"html" => "<label for='emailOnStar' class='checkbox'>{$language["emailOnStar"]} <span class='star1 starInline'>*</span></label> <input id='emailOnStar' type='checkbox' class='checkbox' name='emailOnStar' value='1' " .  ($this->eso->user["emailOnStar"] ? "checked='checked' " : "") . ($this->emailVerified == 1 ? "" : "disabled") . "/>",
+				"html" => "<label for='emailOnStar' class='checkbox'>{$language["emailOnStar"]} <span class='star1 starInline'>*</span></label> <input id='emailOnStar' type='checkbox' class='checkbox' name='emailOnStar' value='1' " .  ($this->eso->user["emailOnStar"] ? "checked='checked' " : "") . ($this->emailVerified == 1 && !empty($config["sendEmail"]) ? "" : "disabled") . "/>",
 				"databaseField" => "emailOnStar",
 				"checkbox" => true
 			),
@@ -178,12 +178,17 @@ function saveSettings()
 	
 	// Construct the query to save the member's settings.
 	// Loop through the form fields and use their "databaseField" and "input" attributes for the query.
+	global $config;
 	$updateData = array();
 	foreach ($fields as $field) {
 		if (!is_array($field)) continue;
-		if (!empty($field["databaseField"])) $updateData[$field["databaseField"]] = !empty($field["checkbox"])
-			? ($field["input"] ? 1 : 0)
-			: "'{$field["input"]}'";
+		if (!empty($field["databaseField"])) {
+			// Skip email-related settings if email is not verified or sendEmail is disabled.
+			if (($field["databaseField"] == "emailOnPrivateAdd" || $field["databaseField"] == "emailOnStar") && ($this->emailVerified != 1 || empty($config["sendEmail"]))) continue;
+			$updateData[$field["databaseField"]] = !empty($field["checkbox"])
+				? ($field["input"] ? 1 : 0)
+				: "'{$field["input"]}'";
+		}
 	}
 	
 	$this->callHook("beforeSave", array(&$updateData));
@@ -476,6 +481,26 @@ function ajax()
 		case "changeColor":
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$this->changeColor(@$_POST["color"]);
+			break;
+		
+		// Validate a form field.
+		case "validate":
+			$fieldId = @$_POST["field"];
+			$formId = @$_POST["form"];
+			$value = @$_POST["value"];
+			
+			// Validate based on form and field.
+			$msg = $this->validateFieldAjax($fieldId, $formId, $value, @$_POST["newPassword"]);
+			if ($msg) {
+				return array("validated" => false, "message" => $this->eso->htmlMessage($msg));
+			} else {
+				$defaultMessage = "";
+				if ($formId == "settingsUser" && $fieldId == "name" && empty($value)) {
+					global $language;
+					$defaultMessage = $this->eso->htmlMessage("changeYourName");
+				}
+				return array("validated" => true, "message" => $defaultMessage);
+			}
 	}
 }
 
@@ -501,6 +526,95 @@ function validateAvatarAlignment(&$alignment)
 function validateLanguage(&$language)
 {
 	if (!in_array($language, $this->languages)) $language = "";
+}
+
+// Validate a field for AJAX validation.
+function validateFieldAjax($fieldId, $formId, $value, $newPassword = null)
+{
+	global $config;
+	
+	switch ($formId) {
+		
+		// Password/Email form.
+		case "settingsPassword":
+			switch ($fieldId) {
+				case "newPassword":
+					// Validate new password format - match Join behavior: validate even if short
+					// If field is empty, it's optional so return valid.
+					if (empty($value)) return false; // Optional field
+					// Always validate password length (even for short passwords) - matches Join
+					return validatePassword($value);
+				
+				case "confirm":
+					// Confirm password must match new password - match Join behavior exactly
+					// Get newPassword value (from POST or parameter)
+					$passwordValue = $newPassword !== null ? $newPassword : @$_POST["newPassword"];
+					
+					// If newPassword has a value, confirm must match (even if confirm is empty)
+					if (!empty($passwordValue)) {
+						if ($value != $passwordValue) return "passwordsDontMatch";
+					} else if (!empty($value)) {
+						// If newPassword is empty but confirm has a value, they don't match
+						return "passwordsDontMatch";
+					}
+					return false; // Valid
+				
+				case "email":
+					// Validate email format (but allow same email).
+					if (empty($value)) return false; // Optional field
+					$email = $value;
+					if ($error = validateEmail($email)) {
+						// If email is taken, check if it's the user's own email.
+						if ($error == "emailTaken") {
+							$currentEmail = $this->eso->db->result("SELECT email FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
+							if (strtolower($email) == strtolower($currentEmail)) return false; // Same email is valid
+						}
+						return $error;
+					}
+					return false; // Valid
+				
+				case "current":
+					// Current password validation: check format only for AJAX.
+					// Whether it's required depends on if new password or email is being changed.
+					// This is handled client-side. Full password verification happens on form submission.
+					// Match username form password validation behavior - always validate length if provided
+					if (empty($value)) {
+						// Check if newPassword or email is being changed (client should send this info).
+						// For now, return passwordTooShort if empty (client will handle conditional requirement).
+						return "passwordTooShort";
+					}
+					// Validate password length if provided - matches username form behavior
+					// Pass by reference to match validatePassword() signature
+					$passwordValue = $value;
+					return validatePassword($passwordValue);
+			}
+			break;
+		
+		// Username form.
+		case "settingsUser":
+			switch ($fieldId) {
+				case "name":
+					// Validate username format and uniqueness.
+					// Don't show error when empty - match Join behavior (errors only show after user types)
+					if (empty($value)) return false;
+					$name = substr($value, 0, 31);
+					// Allow capitalization changes of the same name.
+					if ($name !== $this->eso->user["name"] && strtolower($name) == strtolower($this->eso->user["name"])) {
+						return false; // Valid (just capitalization change)
+					}
+					return validateName($name);
+				
+				case "password":
+					// Password is required for username form - match Join behavior
+					// Don't show error when empty - match Join behavior (errors only show after user types)
+					if (empty($value)) return false;
+					// Validate password length if provided - matches Join behavior
+					return validatePassword($value);
+			}
+			break;
+	}
+	
+	return false; // Default: valid
 }
 
 }

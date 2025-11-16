@@ -64,7 +64,8 @@ else: ?>
 <input type='radio' class='radio' value='upload' name='avatar[type]' id='iconUpload'<?php if(@$_POST["avatar"]["type"]=="upload")echo " checked='checked'";?>/>
 <?php echo $language["Upload an avatar"];?>
 </label>
-<input id='upl-ava' name='avatarUpload' type='file' class='text' size='20' onchange='document.getElementById("upload").checked="true"'/>
+<input id='avatarUpload' name='avatarUpload' type='file' class='text' size='20' accept='image/jpeg,image/png,image/gif,image/webp'/>
+<div id='avatarUpload-message'></div>
 </li>
 
 <?php // Get an avatar from URL.
@@ -74,7 +75,8 @@ if(ini_get("allow_url_fopen")):?>
 <input type='radio' class='radio' value='url' name='avatar[type]' id='iconUrl'<?php if(@$_POST["avatar"]["type"]=="url")echo " checked='checked'";?>/>
 <?php echo $language["Enter the web address of an avatar"];?>
 </label>
-<input id='upl-url' name='avatar[url]' type='text' class='text' onkeypress='document.getElementById("url").checked="true"' value='<?php if(!empty($_POST["avatar"]["url"]))echo $_POST["avatar"]["url"];?>'/>
+<input id='avatarUrl' name='avatar[url]' type='text' class='text' value='<?php if(!empty($_POST["avatar"]["url"]))echo $_POST["avatar"]["url"];?>'/>
+<div id='avatarUrl-message'></div>
 </li>
 <?php endif;?>
 
@@ -86,12 +88,20 @@ if(ini_get("allow_url_fopen")):?>
 </label>
 </li>
 
-<li><label id='lbl-avt'></label> <?php echo $this->eso->skin->button(array("name"=>"changeAvatar","value"=>$language["Change avatar"]));?></li>
+<li><label id='lbl-avt'></label> <?php echo $this->eso->skin->button(array("id"=>"changeAvatarButton","name"=>"changeAvatar","value"=>$language["Change avatar"]));?></li>
 
 </ul>
 </form>
 
 <?php endif; ?>
+
+<script type='text/javascript'>
+// <![CDATA[
+<?php if (!empty($config["changeAvatar"]) && !$this->eso->isSuspended()): ?>
+Settings.initAvatarForm();
+<?php endif; ?>
+// ]]>
+</script>
 
 </div>
 </div></div>
@@ -135,6 +145,12 @@ endforeach;
 
 </form>
 
+<script type='text/javascript'>
+// <![CDATA[
+Settings.initSettingsForm();
+// ]]>
+</script>
+
 <?php // Output the change my password or email form. ?>
 <form action='<?php echo makeLink("settings");?>' method='post'>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
@@ -143,23 +159,23 @@ endforeach;
 <ul class='form' id='settingsPasswordForm'>
 	
 <li>
-<label><?php echo $language["New password"];?> <small><?php echo $language["optional"];?></small></label> <input type='password' name='settingsPasswordEmail[new]' class='text' autocomplete='new-password' value='<?php echo @$_POST["settingsPasswordEmail"]["new"];?>'/>
-<?php if(!empty($this->messages["new"]))echo $this->eso->htmlMessage($this->messages["new"]);?>
+<label><?php echo $language["New password"];?> <small><?php echo $language["optional"];?></small></label> <input id='newPassword' type='password' name='settingsPasswordEmail[new]' class='text' autocomplete='new-password' value='<?php echo @$_POST["settingsPasswordEmail"]["new"];?>'/>
+<div id='newPassword-message'><?php if(!empty($this->messages["new"]))echo $this->eso->htmlMessage($this->messages["new"]);?></div>
 </li>
 
 <li>
-<label><small><?php echo $language["Confirm password"];?></small></label> <input type='password' name='settingsPasswordEmail[confirm]' class='text' autocomplete='new-password' value=''/>
-<?php if(!empty($this->messages["confirm"]))echo $this->eso->htmlMessage($this->messages["confirm"]);?>
+<label><small><?php echo $language["Confirm password"];?></small></label> <input id='confirm' type='password' name='settingsPasswordEmail[confirm]' class='text' autocomplete='new-password' value=''/>
+<div id='confirm-message'><?php if(!empty($this->messages["confirm"]))echo $this->eso->htmlMessage($this->messages["confirm"]);?></div>
 </li>
 
 <li>
-<label><?php echo $language["New email"];?> <small><?php echo $language["optional"];?></small></label> <input type='text' name='settingsPasswordEmail[email]' class='text' autocomplete='email' value='<?php echo @$_POST["settingsPasswordEmail"]["email"];?>'/>
-<?php if(!empty($this->messages["email"]))echo $this->eso->htmlMessage($this->messages["email"]);?>
+<label><?php echo $language["New email"];?> <small><?php echo $language["optional"];?></small></label> <input id='email' type='text' name='settingsPasswordEmail[email]' class='text' autocomplete='email' value='<?php echo @$_POST["settingsPasswordEmail"]["email"];?>'/>
+<div id='email-message'><?php if(!empty($this->messages["email"]))echo $this->eso->htmlMessage($this->messages["email"]);?></div>
 </li>
 
 <li>
-<label><?php echo $language["My current password"];?></label> <input type='password' name='settingsPasswordEmail[current]' class='text' autocomplete='current-password'/>
-<?php if(!empty($this->messages["current"]))echo $this->eso->htmlMessage($this->messages["current"]);?>
+<label><?php echo $language["My current password"];?></label> <input id='current' type='password' name='settingsPasswordEmail[current]' class='text' autocomplete='current-password'/>
+<div id='current-message'><?php if(!empty($this->messages["current"]))echo $this->eso->htmlMessage($this->messages["current"]);?></div>
 </li>
 
 <li><label id='lbl-pass'></label> <?php echo $this->eso->skin->button(array("value"=>$language["Save changes"],"name"=>"settingsPasswordEmail[submit]"));?></li>
@@ -167,6 +183,12 @@ endforeach;
 </ul></fieldset>
 <?php if(!count($this->messages)):?><script type='text/javascript'>Settings.hideFieldset("settingsPassword")</script><?php endif;?>
 </form>
+
+<script type='text/javascript'>
+// <![CDATA[
+Settings.initPasswordForm();
+// ]]>
+</script>
 
 <?php // If it's okay to change names, output the change my username form.
 if (!empty($config["changeUsername"]) and !$this->eso->isSuspended()): ?>
@@ -177,13 +199,13 @@ if (!empty($config["changeUsername"]) and !$this->eso->isSuspended()): ?>
 <ul class='form' id='settingsUserForm'>
 
 <li>
-<label><?php echo $language["New username"];?> <small><?php echo $language["optional"];?></small><small style='display:block'><?php echo $language["changeYourName"];?></small></label> <input type='text' name='settingsUsername[name]' class='text' autocomplete='username' value='<?php echo @$_POST["settingsUsername"]["name"];?>'/>
-<?php if(!empty($this->messages["username"]))echo $this->eso->htmlMessage($this->messages["username"]);?>
+<label><?php echo $language["New username"];?></label> <input id='name' type='text' name='settingsUsername[name]' class='text' autocomplete='username' value='<?php echo @$_POST["settingsUsername"]["name"];?>'/>
+<div id='name-message'><?php if(!empty($this->messages["username"]))echo $this->eso->htmlMessage($this->messages["username"]);else echo $this->eso->htmlMessage("changeYourName");?></div>
 </li>
 
 <li>
-<label><?php echo $language["My current password"];?></label> <input type='password' name='settingsUsername[password]' class='text' autocomplete='current-password'/>
-<?php if(!empty($this->messages["password"]))echo $this->eso->htmlMessage($this->messages["password"]);?>
+<label><?php echo $language["My current password"];?></label> <input id='password' type='password' name='settingsUsername[password]' class='text' autocomplete='current-password'/>
+<div id='password-message'><?php if(!empty($this->messages["password"]))echo $this->eso->htmlMessage($this->messages["password"]);?></div>
 </li>
 
 <li><label id='lbl-pass'></label> <?php echo $this->eso->skin->button(array("value"=>$language["Save changes"],"name"=>"settingsUsername[submit]"));?></li>
@@ -194,6 +216,12 @@ if (!empty($config["changeUsername"]) and !$this->eso->isSuspended()): ?>
 
 <?php if(!count($this->messages)):?><script type='text/javascript'>Settings.hideFieldset("settingsUser")</script><?php endif;?>
 </form>
+
+<script type='text/javascript'>
+// <![CDATA[
+Settings.initUsernameForm();
+// ]]>
+</script>
 <?php endif;?>
 
 </div>
