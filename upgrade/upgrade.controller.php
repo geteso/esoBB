@@ -200,7 +200,6 @@ function upgrade_100d3()
 			action varchar(63) NOT NULL default 'login',
 			firstTime int unsigned default NULL,
 			lastTime int unsigned default NULL,
-			loginTime int unsigned default NULL,
 			PRIMARY KEY  (loginId),
 			KEY memberId_lastTime (memberId, lastTime),
 			KEY cookie (cookie)
@@ -229,6 +228,9 @@ function upgrade_100d3()
 			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN firstTime int unsigned default NULL AFTER action");
 		if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'lastTime'"))
 			$this->query("ALTER TABLE {$config["tablePrefix"]}logins ADD COLUMN lastTime int unsigned default NULL AFTER firstTime");
+		
+		if ($this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'loginTime'"))
+			$this->query("ALTER TABLE {$config["tablePrefix"]}logins DROP COLUMN loginTime");
 		
 		// Add indexes if they don't exist.
 		if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}logins WHERE Key_name='memberId_lastTime'"))

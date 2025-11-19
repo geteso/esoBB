@@ -225,31 +225,9 @@ function login($name = false, $password = false, $hash = false)
 		// Only check flood control for actual login attempts (not cookie-based logins)
 		$checkFloodControl = false;
 		if ($config["loginsPerMinute"] > 0 and ($name or $password)) {
-			$ip = cookieIp();
-
-			// If we have a record of their logins in the session, check how many logins they've performed in the last
-			// minute.
-			if (!empty($_SESSION["logins"])) {
-				// Clean anything older than 60 seconds out of the logins array.
-				foreach ($_SESSION["logins"] as $k => $v) {
-					if ($v < time() - 60) unset($_SESSION["logins"][$k]);
-				}
-				// Have they performed >= $config["loginsPerMinute"] logins in the last minute? If so, don't continue.
-				if (count($_SESSION["logins"]) >= $config["loginsPerMinute"]) {
-					$this->message("waitToLogin", true, array(60 - time() + min($_SESSION["logins"])));
-					return false;
-				}
+			if (!checkFloodControl("login", $config["loginsPerMinute"], "logins", "waitToLogin", null)) {
+				return false;
 			}
-
-			// However, if we don't have a record in the session, use the MySQL logins table.
-			else {
-				// Have they performed >= $config["loginsPerMinute"] logins in the last minute?
-				if ($this->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId=0 AND loginTime>UNIX_TIMESTAMP()-60", 0) >= $config["loginsPerMinute"]) {
-					$this->message("waitToLogin", true, 60);
-					return false;
-				}
-			}
-			
 			$checkFloodControl = true;
 		}
 
@@ -368,20 +346,6 @@ function login($name = false, $password = false, $hash = false)
 		}
 
 		// If the user was intentionally logging in but it didn't work, show an incorrect login details error.
-		// Only log failed attempts for flood control (not successful logins or cookie-based logins)
-		if ($checkFloodControl and ($name or $password)) {
-			$ip = cookieIp();
-			
-			// Log this failed attempt in the logins table (using memberId=0 for anonymous login attempts).
-			$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (ip, memberId, loginTime) VALUES ($ip, 0, UNIX_TIMESTAMP())");
-			// Proactively clean the logins table of login attempts older than 60 seconds.
-			$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=0 AND loginTime<UNIX_TIMESTAMP()-60");
-			
-			// Log this failed attempt in the session array.
-			if (!isset($_SESSION["logins"]) or !is_array($_SESSION["logins"])) $_SESSION["logins"] = array();
-			$_SESSION["logins"][] = time();
-		}
-		
 		if (!isset($cookie)) $this->message("incorrectLogin", false);
 
 	}

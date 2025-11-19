@@ -753,6 +753,51 @@ function validateRemoteUrl($url)
 	return $url;
 }
 
+// Check flood control for a given action. Returns true if allowed, false if rate limited.
+// Sets error message via $eso->message() if rate limited.
+function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $memberId = null)
+{
+	global $eso, $config;
+	
+	// If flood control is disabled, allow the action.
+	if ($rateLimit <= 0) return true;
+	
+	// Get the user's IP address.
+	$ip = cookieIp();
+	
+	// If we have a record of their attempts in the session, check how many they've performed in the last minute.
+	if (!empty($_SESSION[$sessionKey])) {
+		// Clean anything older than 60 seconds out of the session array.
+		foreach ($_SESSION[$sessionKey] as $k => $v) {
+			if ($v < time() - 60) unset($_SESSION[$sessionKey][$k]);
+		}
+		// Have they performed >= $rateLimit attempts in the last minute? If so, don't continue.
+		if (count($_SESSION[$sessionKey]) >= $rateLimit) {
+			$eso->message($errorMessage, true, array(60 - time() + min($_SESSION[$sessionKey])));
+			return false;
+		}
+	}
+	
+	// However, if we don't have a record in the session, use the MySQL actions table.
+	else {
+		// Have they performed >= $rateLimit attempts in the last minute?
+		if ($eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='" . $eso->db->escape($action) . "' AND time>UNIX_TIMESTAMP()-60", 0) >= $rateLimit) {
+			$eso->message($errorMessage, true, 60);
+			return false;
+		}
+		// Log this attempt in the actions table.
+		$memberIdValue = $memberId !== null ? $memberId : "NULL";
+		$eso->db->query("INSERT INTO {$config["tablePrefix"]}actions (ip, memberId, action, time) VALUES ($ip, $memberIdValue, '" . $eso->db->escape($action) . "', UNIX_TIMESTAMP())");
+		// Proactively clean the actions table of attempts older than 60 seconds.
+		$eso->db->query("DELETE FROM {$config["tablePrefix"]}actions WHERE action='" . $eso->db->escape($action) . "' AND time<UNIX_TIMESTAMP()-60");
+	}
+	
+	// Log this attempt in the session array.
+	if (!isset($_SESSION[$sessionKey]) or !is_array($_SESSION[$sessionKey])) $_SESSION[$sessionKey] = array();
+	$_SESSION[$sessionKey][] = time();
+	
+	return true;
+}
 
 // Regenerate the session token.
 function regenerateToken()

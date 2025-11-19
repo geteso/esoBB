@@ -137,7 +137,6 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}logins (
 	action varchar(63) NOT NULL default 'login',
 	firstTime int unsigned default NULL,
 	lastTime int unsigned default NULL,
-	loginTime int unsigned default NULL,
 	PRIMARY KEY  (loginId),
 	KEY memberId_lastTime (memberId, lastTime),
 	KEY cookie (cookie)

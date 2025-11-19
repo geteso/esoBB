@@ -423,41 +423,10 @@ function doSearch($search = "")
 	
 	// If they are searching for something, take some flood control measures.
 	if ($search and $config["searchesPerMinute"] > 0) {
-	
-		// If we have a record of their searches in the session, check how many searches they've performed in the last 
-		// minute.
-		if (!empty($_SESSION["searches"])) {
-			// Clean anything older than 60 seconds out of the searches array.
-			foreach ($_SESSION["searches"] as $k => $v) {
-				if ($v < time() - 60) unset($_SESSION["searches"][$k]);
-			}
-			// Have they performed >= $config["searchesPerMinute"] searches in the last minute? If so, don't continue.
-			if (count($_SESSION["searches"]) >= $config["searchesPerMinute"]) {
-				$this->eso->message("waitToSearch", true, array(60 - time() + min($_SESSION["searches"])));
-				return;
-			}
+		$memberId = $this->eso->user ? $this->eso->user["memberId"] : 0;
+		if (!checkFloodControl("search", $config["searchesPerMinute"], "searches", "waitToSearch", $memberId)) {
+			return;
 		}
-		
-		// However, if we don't have a record in the session, use the MySQL actions table.
-		else {
-			// Get the user's IP address.
-			$ip = cookieIp();
-			$memberId = $this->eso->user ? $this->eso->user["memberId"] : 0;
-			// Have they performed >= $config["searchesPerMinute"] searches in the last minute?
-			if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='search' AND time>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) {
-				$this->eso->message("waitToSearch", true, 60);
-				return;
-			}
-			// Log this search in the actions table.
-			$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}actions (ip, memberId, action, time) VALUES ($ip, $memberId, 'search', UNIX_TIMESTAMP())");
-			// Proactively clean the actions table of searches older than 60 seconds.
-			$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}actions WHERE action='search' AND time<UNIX_TIMESTAMP()-60");
-		}
-		
-		// Log this search in the session array.
-		if (!isset($_SESSION["searches"]) or !is_array($_SESSION["searches"])) $_SESSION["searches"] = array();
-		$_SESSION["searches"][] = time();
-		
 	}
 	
 	// Get the conversation IDs that match the search terms.
