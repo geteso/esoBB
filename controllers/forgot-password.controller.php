@@ -69,12 +69,8 @@ function init()
 			
 			// If it's all good, update the password in the database, show a success message, and redirect.
 			if (!count($this->errors)) {
-				$salt = generateRandomString(32);
-				if ($config["hashingMethod"] == "bcrypt") {
-					$passwordHash = password_hash($password, PASSWORD_DEFAULT);
-				} else {
-					$passwordHash = md5($salt . $password);
-				}
+				$salt = $config["hashingMethod"] == "bcrypt" ? "" : generateRandomString(32);
+				$passwordHash = hashPassword($password, $salt ?: null, $config);
 				$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword=NULL, password='$passwordHash', salt='$salt' WHERE memberId=$memberId");
 				$this->eso->message("passwordChanged", false);
 				redirect("");

@@ -211,14 +211,10 @@ function addMember()
 	}
 
 	// We also need to generate a hash and salt and add them to the query.
-	$salt = generateRandomString(32);
-	if ($config["hashingMethod"] == "bcrypt") {
-		$hash = password_hash($_POST["join"]["password"], PASSWORD_DEFAULT);
-	} else {
-		$hash = md5($salt . $_POST["join"]["password"]);
-	}
+	$salt = $config["hashingMethod"] == "bcrypt" ? "" : generateRandomString(32);
+	$hash = hashPassword($_POST["join"]["password"], $salt ?: null, $config);
 	$insertData["password"] = "'$hash'";
-	$insertData["salt"] = "'$salt'";
+	$insertData["salt"] = $salt ? "'$salt'" : "''";
 
 	// Add a few extra fields to the query.
 	$insertData["color"] = "FLOOR(1 + (RAND() * {$this->eso->skin->numberOfColors}))";

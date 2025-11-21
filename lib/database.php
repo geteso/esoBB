@@ -64,7 +64,7 @@ public function query($query, $fatal = true)
 }
 
 // Find anything in single quotes in the error and make it red in the query.  Makes debugging a bit easier.
-protected function highlightQueryErrors($query, $error)
+public function highlightQueryErrors($query, $error)
 {
 	preg_match("/'(.+?)'/", $error, $matches);
 	if (!empty($matches[1])) $query = str_replace($matches[1], "<span style='color:#f00'>{$matches[1]}</span>", $query);
@@ -194,6 +194,225 @@ public function constructUpdateQuery($table, $data, $conditions)
 	return "UPDATE {$config["tablePrefix"]}$table SET $update WHERE $where";
 }
 
+// Prepare a statement for execution. Returns a PreparedStatement object.
+public function prepare($query, $fatal = true)
+{
+	global $config;
+	
+	if (!$query) return false;
+	
+	$stmt = mysqli_prepare($this->link, $query);
+	if (!$stmt) {
+		if ($fatal) {
+			$error = $this->error();
+			$this->eso->fatalError($config["verboseFatalErrors"] ? $error . "<p style='font:100% monospace; overflow:auto'>" . $this->highlightQueryErrors($query, $error) . "</p>" : "", "mysql");
+		}
+		return false;
+	}
+	
+	return new PreparedStatement($stmt, $this, $query);
+}
+
+// Execute a prepared query with parameters (convenience method).
+// Usage: $db->queryPrepared("SELECT * FROM members WHERE name=? AND password=?", "ss", $name, $hash)
+public function queryPrepared($query, $types, ...$params)
+{
+	$stmt = $this->prepare($query);
+	if (!$stmt) return false;
+	
+	$stmt->bindParams($types, ...$params);
+	if (!$stmt->execute()) return false;
+	
+	return $stmt;
+}
+
+// Execute a prepared query and return the result set (for SELECT queries).
+// Usage: $result = $db->fetchPrepared("SELECT * FROM members WHERE name=?", "s", $name)
+public function fetchPrepared($query, $types, ...$params)
+{
+	$stmt = $this->queryPrepared($query, $types, ...$params);
+	if (!$stmt) return false;
+	
+	return $stmt->getResult();
+}
+
+}
+
+/**
+ * PreparedStatement class: wraps mysqli prepared statements
+ * for secure parameterized queries.
+ */
+class PreparedStatement {
+	
+	protected $stmt;
+	protected $db;
+	protected $query;
+	protected $types;
+	protected $params;
+	protected $result;
+	protected $executed = false;
+	
+	public function __construct($stmt, $db, $query)
+	{
+		$this->stmt = $stmt;
+		$this->db = $db;
+		$this->query = $query;
+	}
+	
+	// Bind parameters to the prepared statement.
+	// $types: string of type characters (i, d, s, b) for integer, double, string, blob
+	// $params: variable number of parameters or array of parameters
+	public function bindParams($types, ...$params)
+	{
+		// If first param is array, assume it's [types, param1, param2, ...]
+		if (is_array($types) && count($types) > 0 && is_string($types[0])) {
+			$this->types = $types[0];
+			$this->params = array_slice($types, 1);
+		} else {
+			// If only one param and it's an array, it's the params array
+			if (count($params) == 1 && is_array($params[0])) {
+				$this->types = $types;
+				$this->params = $params[0];
+			} else {
+				$this->types = $types;
+				$this->params = $params;
+			}
+		}
+		
+		// Bind parameters by reference (required by mysqli_stmt_bind_param)
+		if (!empty($this->params)) {
+			$refs = array();
+			foreach ($this->params as $key => $value) {
+				$refs[$key] = &$this->params[$key];
+			}
+			array_unshift($refs, $this->types);
+			call_user_func_array(array($this->stmt, 'bind_param'), $refs);
+		}
+		
+		return $this;
+	}
+	
+	// Execute the prepared statement.
+	public function execute($fatal = true)
+	{
+		global $config;
+		
+		// Call hook with query string representation (for compatibility)
+		$queryString = $this->getQueryString();
+		$this->db->eso->callHook("beforeDatabaseQuery", array(&$queryString));
+		
+		// Execute the statement
+		if (!mysqli_stmt_execute($this->stmt)) {
+			if ($fatal) {
+				$error = mysqli_stmt_error($this->stmt);
+				$this->db->eso->fatalError($config["verboseFatalErrors"] ? $error . "<p style='font:100% monospace; overflow:auto'>" . $this->db->highlightQueryErrors($queryString, $error) . "</p>" : "", "mysql");
+			}
+			return false;
+		}
+		
+		// Get result set if this is a SELECT query (returns false for INSERT/UPDATE/DELETE)
+		$this->result = mysqli_stmt_get_result($this->stmt);
+		$this->executed = true;
+		
+		// Call hook after execution
+		$this->db->eso->callHook("afterDatabaseQuery", array($queryString, &$this->result));
+		
+		// Return true on success (result can be false for non-SELECT queries, which is fine)
+		return true;
+	}
+	
+	// Get a string representation of the query for hooks/debugging.
+	protected function getQueryString()
+	{
+		$query = $this->query;
+		if (!empty($this->params)) {
+			foreach ($this->params as $param) {
+				// Replace first ? with escaped parameter
+				$escaped = is_null($param) ? "NULL" : (is_int($param) ? $param : "'" . $this->db->escape($param) . "'");
+				$query = preg_replace('/\?/', $escaped, $query, 1);
+			}
+		}
+		return $query;
+	}
+	
+	// Fetch an associative array from the result.
+	public function fetchAssoc()
+	{
+		if (!$this->executed) return false;
+		if (!$this->result) return false;
+		return mysqli_fetch_assoc($this->result);
+	}
+	
+	// Fetch a sequential array from the result.
+	public function fetchRow()
+	{
+		if (!$this->executed) return false;
+		if (!$this->result) return false;
+		return mysqli_fetch_row($this->result);
+	}
+	
+	// Fetch an object from the result.
+	public function fetchObject()
+	{
+		if (!$this->executed) return false;
+		if (!$this->result) return false;
+		return mysqli_fetch_object($this->result);
+	}
+	
+	// Get a single result value (similar to Database::result()).
+	public function result($row = 0, $field = 0)
+	{
+		if (!$this->executed) return false;
+		if (!$this->result) return false;
+		
+		mysqli_data_seek($this->result, $row);
+		$datarow = mysqli_fetch_array($this->result);
+		return $datarow ? $datarow[$field] : false;
+	}
+	
+	// Return the number of rows in the result.
+	public function numRows()
+	{
+		if (!$this->executed) return false;
+		if (!$this->result) return false;
+		return mysqli_num_rows($this->result);
+	}
+	
+	// Return the number of affected rows.
+	public function affectedRows()
+	{
+		if (!$this->executed) return false;
+		return mysqli_stmt_affected_rows($this->stmt);
+	}
+	
+	// Get the last insert ID (for INSERT queries).
+	public function insertId()
+	{
+		if (!$this->executed) return false;
+		return mysqli_insert_id($this->db->link);
+	}
+	
+	// Get the result set (for compatibility with existing code).
+	public function getResult()
+	{
+		return $this->result;
+	}
+	
+	// Close the statement.
+	public function close()
+	{
+		if ($this->stmt) {
+			mysqli_stmt_close($this->stmt);
+			$this->stmt = null;
+		}
+	}
+	
+	// Destructor: close statement if not already closed.
+	public function __destruct()
+	{
+		$this->close();
+	}
+	
 }
 
 ?>

@@ -236,7 +236,7 @@ fieldset.hidden legend a {color:#666}
 .button input {color:#fff}
 .button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5),inset 0 1px 0 #eeeeee}
 .button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25),inset 0 1px 0 #eeeeee}
-.buttonSmall, .p .body .button {box-shadow:inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}
+.buttonSmall, .p .body .button {box-shadow:inset 0 1px 0 #eeeeee, 0 1px 0 #ffffff}
 .buttonSmall, .buttonSmall:active, .buttonSmall:hover {background:linear-gradient(#f7f7f7, #d8d9e1); color:#000; text-shadow:#fff 0 1px; border:1px solid #bbb; border-radius:0}
 .buttonSmall:hover, .p .body .button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5), inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}
 .buttonSmall:active, .p .body .button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}

@@ -799,6 +799,83 @@ function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $mem
 	return true;
 }
 
+// Set a secure cookie with proper security flags (Secure, HttpOnly, SameSite).
+// Handles PHP 7.2.x compatibility for SameSite attribute.
+function setSecureCookie($name, $value, $expires, $config)
+{
+	$path = "/";
+	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$secure = !empty($config["https"]);
+	$httponly = true;
+	
+	if (PHP_VERSION_ID >= 70300) {
+		setcookie($name, sanitizeForHTTP($value), array(
+			"expires" => $expires,
+			"path" => $path,
+			"domain" => $domain,
+			"secure" => $secure,
+			"httponly" => $httponly,
+			"samesite" => "Lax"
+		));
+	} else {
+		// PHP 7.2.x compatibility: set cookie and add SameSite via header
+		setcookie($name, sanitizeForHTTP($value), $expires, $path, $domain, $secure, $httponly);
+		// Set SameSite attribute manually for PHP 7.2.x
+		header("Set-Cookie: $name=" . sanitizeForHTTP($value) . "; Expires=" . gmdate("D, d M Y H:i:s", $expires) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
+	}
+}
+
+// Delete a secure cookie with proper security flags.
+// Handles PHP 7.2.x compatibility for SameSite attribute.
+function deleteSecureCookie($name, $config)
+{
+	$expires = -1;
+	$path = "/";
+	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$secure = !empty($config["https"]);
+	$httponly = true;
+	
+	if (PHP_VERSION_ID >= 70300) {
+		setcookie($name, "", array(
+			"expires" => $expires,
+			"path" => $path,
+			"domain" => $domain,
+			"secure" => $secure,
+			"httponly" => $httponly,
+			"samesite" => "Lax"
+		));
+	} else {
+		// PHP 7.2.x compatibility
+		setcookie($name, "", $expires, $path, $domain, $secure, $httponly);
+		header("Set-Cookie: $name=; Expires=" . gmdate("D, d M Y H:i:s", 0) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
+	}
+}
+
+// Hash a password using the configured hashing method (bcrypt or md5).
+// Returns the hashed password.
+function hashPassword($password, $salt = null, $config)
+{
+	if ($config["hashingMethod"] == "bcrypt") {
+		return password_hash($password, PASSWORD_DEFAULT);
+	} else {
+		if ($salt === null) {
+			$salt = generateRandomString(32);
+		}
+		return md5($salt . $password);
+	}
+}
+
+// Verify a password against a hash using the configured hashing method.
+// Returns true if password matches, false otherwise.
+function verifyPassword($password, $hash, $salt, $config)
+{
+	if ($config["hashingMethod"] == "bcrypt") {
+		return password_verify($password, $hash);
+	} else {
+		return $hash === md5($salt . $password);
+	}
+}
+
 // Regenerate the session token.
 function regenerateToken()
 {

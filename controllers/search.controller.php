@@ -423,7 +423,7 @@ function doSearch($search = "")
 	
 	// If they are searching for something, take some flood control measures.
 	if ($search and $config["searchesPerMinute"] > 0) {
-		$memberId = $this->eso->user ? $this->eso->user["memberId"] : 0;
+		$memberId = $this->eso->user ? $this->eso->user["memberId"] : null;
 		if (!checkFloodControl("search", $config["searchesPerMinute"], "searches", "waitToSearch", $memberId)) {
 			return;
 		}
