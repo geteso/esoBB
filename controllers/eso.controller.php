@@ -81,31 +81,52 @@ function init()
 	// If the user is logged in...
 	elseif (isset($_SESSION["user"])) {
 		$ip = cookieIp();
+		$memberId = (int)$_SESSION["user"]["memberId"];
 		// Make sure the user data exists in the members table.
-		$memberExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId={$_SESSION["user"]["memberId"]}", 0);
+		$memberExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 		// Also make sure this device exists in the logins table: first try by cookie if cookie exists, otherwise by IP
 		$whereClause = "";
+		$loginExists = false;
+		$cookie = null;
 		if (isset($_COOKIE[$config["cookieName"]])) {
-			$whereClause = "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND memberId={$_SESSION["user"]["memberId"]}";
+			$cookie = $_COOKIE[$config["cookieName"]];
+			$loginExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE cookie=? AND memberId=?", "si", $cookie, $memberId);
+			if ($loginExists) {
+				$whereClause = "cookie";
+			}
 		} else {
-			$whereClause = "cookie IS NULL AND ip=$ip AND memberId={$_SESSION["user"]["memberId"]}";
+			$loginExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE cookie IS NULL AND ip=? AND memberId=?", "ii", $ip, $memberId);
+			if ($loginExists) {
+				$whereClause = "ip";
+			}
 		}
-		$loginExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE $whereClause", 0);
 		// If not found by cookie/IP, try finding any record for this memberId and IP (in case cookie expired)
 		if (!$loginExists) {
-			$loginExists = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE ip=$ip AND memberId={$_SESSION["user"]["memberId"]}", 0);
+			$loginExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE ip=? AND memberId=?", "ii", $ip, $memberId);
 			if ($loginExists) {
-				$whereClause = "ip=$ip AND memberId={$_SESSION["user"]["memberId"]}";
+				$whereClause = "ip";
 			}
 		}
 		// Check if session has expired based on lastTime
-		$lastTime = $loginExists ? $this->db->result("SELECT lastTime FROM {$config["tablePrefix"]}logins WHERE $whereClause", 0) : 0;
+		$lastTime = 0;
+		if ($loginExists) {
+			if ($whereClause == "cookie" && $cookie !== null) {
+				$lastTime = $this->db->fetchOne("SELECT lastTime FROM {$config["tablePrefix"]}logins WHERE cookie=? AND memberId=?", "si", $cookie, $memberId);
+			} else {
+				$lastTime = $this->db->fetchOne("SELECT lastTime FROM {$config["tablePrefix"]}logins WHERE cookie IS NULL AND ip=? AND memberId=?", "ii", $ip, $memberId);
+			}
+			$lastTime = $lastTime ?: 0;
+		}
 		// If member doesn't exist, login record doesn't exist, or session has expired, logout
-		if ($_SESSION["user"]["memberId"] != $memberExists or !$loginExists or ($lastTime and (time() - $lastTime > $config["sessionExpire"]))) {
+		if ($memberId != $memberExists or !$loginExists or ($lastTime and (time() - $lastTime > $config["sessionExpire"]))) {
 			$this->logout();
 		} else {
 			// Update lastTime to track activity
-			$this->db->query("UPDATE {$config["tablePrefix"]}logins SET lastTime=UNIX_TIMESTAMP() WHERE $whereClause");
+			if ($whereClause == "cookie" && $cookie !== null) {
+				$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}logins SET lastTime=UNIX_TIMESTAMP() WHERE cookie=? AND memberId=?", "si", $cookie, $memberId);
+			} else {
+				$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}logins SET lastTime=UNIX_TIMESTAMP() WHERE cookie IS NULL AND ip=? AND memberId=?", "ii", $ip, $memberId);
+			}
 		}
 	}
 	
@@ -193,35 +214,31 @@ function login($name = false, $password = false, $hash = false)
 
 	// If a raw password was passed, convert it into a hash.
 	if ($name and $password) {
-		$nameEscaped = $this->db->escape($name);
-		$salt = $this->db->result("SELECT salt FROM {$config["tablePrefix"]}members WHERE name='$nameEscaped'", 0);
-		$dbPassword = $this->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE name='$nameEscaped'", 0);
-		if (verifyPassword($password, $dbPassword, $salt, $config)) {
-			$hash = $dbPassword;
-		} else {
-			$hash = hashPassword($password, $salt, $config);
+		$row = $this->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE name=?", "s", $name);
+		if ($row) {
+			$salt = $row["salt"];
+			$dbPassword = $row["password"];
+			if (verifyPassword($password, $dbPassword, $salt, $config)) {
+				$hash = $dbPassword;
+			} else {
+				$hash = hashPassword($password, $salt, $config);
+			}
 		}
 	}
 	
 	// Otherwise attempt to get the member ID and password hash from a cookie.
 	$memberId = false;
 	if ($hash === false and isset($_COOKIE[$config["cookieName"]])) {
-		$memberId = $this->db->result("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'", 0);
-		if ($memberId) $hash = $this->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId={$memberId}", 0);
+		$cookie = $_COOKIE[$config["cookieName"]];
+		$memberId = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}logins WHERE cookie=?", "s", $cookie);
+		if ($memberId) {
+			$hash = $this->db->fetchOne("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+		}
 	}
 	
 	// If we successfully have a name or member ID, and a hash, then we attempt to login.
 	if (($name or ($memberId = (int)$memberId)) and $hash !== false) {
 		
-		// Construct the query components to select user data from the members table.
-		$components = array(
-			"select" => array("*"),
-			"from" => array("{$config["tablePrefix"]}members"),
-			"where" => array($name ? "name='" . $this->db->escape($name) . "'" : "memberId=$memberId", "password='" . $this->db->escape($hash) . "'")
-		);
-		
-		$this->callHook("beforeLogin", array(&$components));
-
 		// Only check flood control for actual login attempts (not cookie-based logins)
 		$checkFloodControl = false;
 		if ($config["loginsPerMinute"] > 0 and ($name or $password)) {
@@ -231,9 +248,23 @@ function login($name = false, $password = false, $hash = false)
 			$checkFloodControl = true;
 		}
 
+		// Call hook with components for compatibility (though we're using prepared statements now)
+		$components = array(
+			"select" => array("*"),
+			"from" => array("{$config["tablePrefix"]}members"),
+			"where" => array($name ? "name=?" : "memberId=?", "password=?")
+		);
+		$this->callHook("beforeLogin", array(&$components));
+		
 		// Run the query and get the data if there is a matching user.
-		$result = $this->db->query($this->db->constructSelectQuery($components));
-		if ($data = $this->db->fetchAssoc($result)) {
+		// Use prepared statement for login query
+		if ($name) {
+			$data = $this->db->fetchAssocPrepared("SELECT * FROM {$config["tablePrefix"]}members WHERE name=? AND password=?", "ss", $name, $hash);
+		} else {
+			$data = $this->db->fetchAssocPrepared("SELECT * FROM {$config["tablePrefix"]}members WHERE memberId=? AND password=?", "is", $memberId, $hash);
+		}
+		
+		if ($data) {
 
 			$this->callHook("afterLogin", array(&$data));
 
@@ -242,7 +273,8 @@ function login($name = false, $password = false, $hash = false)
 				// Generate cryptographically secure random string for resetPassword
 				$rand = bin2hex(random_bytes(16));
 				$newHash = hashPassword($password, null, $config);
-				$this->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand', password='$newHash' WHERE memberId={$data["memberId"]}");
+				$memberId = (int)$data["memberId"];
+				$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=?, password=? WHERE memberId=?", "ssi", $rand, $newHash, $memberId);
 				$this->message("passwordUpgraded", false);
 			}
 
@@ -273,9 +305,21 @@ function login($name = false, $password = false, $hash = false)
 				// 'remember me' was selected (defaults to true based on config).
 				$rememberMe = (@$_POST["join"] or ($name !== false and $password === false and $hash !== false)) ? true : (!empty($config["rememberMe"]));
 				// If there already exists a record for this cookie or IP address, update it accordingly.
-				$existingRecord = $this->db->result("SELECT cookie FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'" : "cookie IS NULL AND ip=$ip") . " AND memberId={$_SESSION["user"]["memberId"]}", 0);
+				$sessionMemberId = (int)$_SESSION["user"]["memberId"];
+				$existingRecord = false;
+				if (isset($_COOKIE[$config["cookieName"]])) {
+					$cookie = $_COOKIE[$config["cookieName"]];
+					$existingRecord = $this->db->fetchOne("SELECT cookie FROM {$config["tablePrefix"]}logins WHERE cookie=? AND memberId=?", "si", $cookie, $sessionMemberId);
+				} else {
+					$existingRecord = $this->db->fetchOne("SELECT cookie FROM {$config["tablePrefix"]}logins WHERE cookie IS NULL AND ip=? AND memberId=?", "ii", $ip, $sessionMemberId);
+				}
 				if ($existingRecord) {
-					$this->db->query("UPDATE {$config["tablePrefix"]}logins SET ip=$ip, userAgent='" . $this->db->escape($userAgent) . "', lastTime=UNIX_TIMESTAMP() WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "'" : "cookie IS NULL AND ip=$ip") . " AND memberId={$_SESSION["user"]["memberId"]}");
+					if (isset($_COOKIE[$config["cookieName"]])) {
+						$cookie = $_COOKIE[$config["cookieName"]];
+						$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}logins SET ip=?, userAgent=?, lastTime=UNIX_TIMESTAMP() WHERE cookie=? AND memberId=?", "issi", $ip, $userAgent, $cookie, $sessionMemberId);
+					} else {
+						$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}logins SET ip=?, userAgent=?, lastTime=UNIX_TIMESTAMP() WHERE cookie IS NULL AND ip=? AND memberId=?", "isii", $ip, $userAgent, $ip, $sessionMemberId);
+					}
 				// Otherwise, the cookie is either expired or doesn't exist.
 				} else {
 					// If the user chooses to "remember" their credentials, set a new cookie.
@@ -287,12 +331,19 @@ function login($name = false, $password = false, $hash = false)
 						setSecureCookie($config["cookieName"], $newCookie, time() + $config["cookieExpire"], $config);
 					// Clean up the database of any recorded (expired) cookie if there is one.
 					} elseif (isset($_COOKIE[$config["cookieName"]])) {
-						$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL AND memberId={$data["memberId"]}");
+						$cookie = $_COOKIE[$config["cookieName"]];
+						$dataMemberId = (int)$data["memberId"];
+						$this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie=? AND cookie IS NOT NULL AND memberId=?", "si", $cookie, $dataMemberId);
 						// Delete cookie with same security flags
 						deleteSecureCookie($config["cookieName"], $config);
 					}
 					// Record this in the logins table.
-					$this->db->query("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (" . ($newCookie ? "'" . $this->db->escape($newCookie) . "'" : "NULL") . ", $ip, '" . $this->db->escape($userAgent) . "', {$data["memberId"]}, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())");
+					$dataMemberId = (int)$data["memberId"];
+					if ($newCookie) {
+						$this->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())", "sisi", $newCookie, $ip, $userAgent, $dataMemberId);
+					} else {
+						$this->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (NULL, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())", "isi", $ip, $userAgent, $dataMemberId);
+					}
 				}
 			}
 
@@ -329,7 +380,12 @@ function logout()
 	regenerateToken();
 
 	// Delete the login record from the logins table.
-	$this->db->query("DELETE FROM {$config["tablePrefix"]}logins WHERE " . (isset($_COOKIE[$config["cookieName"]]) ? "cookie='" . $this->db->escape($_COOKIE[$config["cookieName"]]) . "' AND cookie IS NOT NULL" : "cookie IS NULL AND ip=$ip") . " AND memberId={$memberId}");
+	if (isset($_COOKIE[$config["cookieName"]])) {
+		$cookie = $_COOKIE[$config["cookieName"]];
+		$this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie=? AND cookie IS NOT NULL AND memberId=?", "si", $cookie, $memberId);
+	} else {
+		$this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE cookie IS NULL AND ip=? AND memberId=?", "ii", $ip, $memberId);
+	}
 	if (isset($_COOKIE[$config["cookieName"]])) {
 		// Delete cookie with same security flags as when it was set
 		deleteSecureCookie($config["cookieName"], $config);
@@ -629,8 +685,8 @@ function star($conversationId)
 	
 	// Otherwise, toggle the database star field.
 	else {
-		$query = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, starred) VALUES ($conversationId, {$this->user["memberId"]}, 1) ON DUPLICATE KEY UPDATE starred=IF(starred=1,0,1)";
-		$this->db->query($query);
+		$memberId = (int)$this->user["memberId"];
+		$this->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, starred) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE starred=IF(starred=1,0,1)", "ii", $conversationId, $memberId);
 		
 		$this->callHook("star", array($conversationId));
 	}
@@ -686,11 +742,12 @@ function updateLastAction($action)
 	$this->callHook("updateLastAction", array(&$action));
 	
 	global $config;
-	$action = $this->db->escape(substr($action, 0, 255));
-	$query = "UPDATE {$config["tablePrefix"]}members SET lastAction='$action', lastSeen=" . time() . " WHERE memberId={$this->user["memberId"]}";
-	$this->user["lastSeen"] = $_SESSION["user"]["lastSeen"] = time();
+	$action = substr($action, 0, 255);
+	$lastSeen = time();
+	$memberId = (int)$this->user["memberId"];
+	$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET lastAction=?, lastSeen=? WHERE memberId=?", "sii", $action, $lastSeen, $memberId);
+	$this->user["lastSeen"] = $_SESSION["user"]["lastSeen"] = $lastSeen;
 	$this->user["lastAction"] = $_SESSION["user"]["lastAction"] = $action;
-	$this->db->query($query);
 }
 
 // Change a member's group.
@@ -700,7 +757,9 @@ function changeMemberGroup($memberId, $newGroup, $currentGroup = false)
 	$memberId = (int)$memberId;
 	
 	// Make sure we have the member's current group (if it wasn't passed as an argument.)
-	if (!$currentGroup) $currentGroup = $this->db->result($this->db->query("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=$memberId"), 0);
+	if (!$currentGroup) {
+		$currentGroup = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+	}
 	
 	// Determine which groups the member can be changed to.
 	if (!($possibleGroups = $this->canChangeGroup($memberId, $currentGroup)) or !in_array($newGroup, $possibleGroups)) return false;
@@ -708,7 +767,7 @@ function changeMemberGroup($memberId, $newGroup, $currentGroup = false)
 	$this->callHook("changeMemberGroup", array(&$newGroup));
 	
 	// Change the group!
-	$this->db->query("UPDATE {$config["tablePrefix"]}members SET account='$newGroup' WHERE memberId=$memberId");
+	$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET account=? WHERE memberId=?", "si", $newGroup, $memberId);
 }
 
 // To change $member's group $this->user must be an admin and $member != rootAdmin and $member != $this->user.
@@ -750,7 +809,8 @@ function isSuspended()
 	
 	// If the user's suspension is unknown, get it from the database and cache it for later.
 	if ($this->user["suspended"] !== true and $this->user["suspended"] !== false) {
-		$account = $this->db->result("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId={$this->user["memberId"]}", 0);
+		$memberId = (int)$this->user["memberId"];
+		$account = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 		$this->user["account"] = $_SESSION["user"]["account"] = $account;
 		$this->user["suspended"] = $account == "Suspended";
 	}
@@ -765,7 +825,8 @@ function isUnvalidated()
 	if (!$this->user) return false;
 
 	if ($this->user["account"] = "Unvalidated") {
-		$account = $this->db->result("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId={$this->user["memberId"]}", 0);
+		$memberId = (int)$this->user["memberId"];
+		$account = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 		$this->user["account"] = $_SESSION["user"]["account"] = $account;
 		$this->user["unvalidated"] = $account == "Unvalidated";
 	}

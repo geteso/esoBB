@@ -53,7 +53,13 @@ function init()
 			$memberId = (int)@$_GET["q3"];
 			// Generate cryptographically secure random string for verification hash
 			$rand = bin2hex(random_bytes(16));
-			if (list($email, $name) = $this->eso->db->fetchRow("SELECT email, name FROM {$config["tablePrefix"]}members WHERE memberId=$memberId AND account='Unvalidated'") and $this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand' WHERE memberId=$memberId")) $this->sendVerificationEmail($email, $name, $memberId . $rand);
+			$row = $this->eso->db->fetchRowPrepared("SELECT email, name FROM {$config["tablePrefix"]}members WHERE memberId=? AND account='Unvalidated'", "i", $memberId);
+			if ($row) {
+				list($email, $name) = $row;
+				if ($this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $rand, $memberId)) {
+					$this->sendVerificationEmail($email, $name, $memberId . $rand);
+				}
+			}
 			$this->eso->message("verifyEmail", false);
 		// Otherwise, if there's a verification hash in the URL, attempt to verify the user.
 		} else $this->validateMember($_GET["q2"]);
@@ -194,8 +200,8 @@ function addMember()
 		}
 	}
 	
-	// Construct the query to insert the member into the database.
-	// Loop through the form fields and use their "databaseField" and "input" attributes for the query.
+	// Construct the data to insert the member into the database.
+	// Loop through the form fields and use their "databaseField" and "input" attributes.
 	$insertData = array();
 	foreach ($this->fields as $field) {
 		if (!is_array($field)) continue;
@@ -223,14 +229,51 @@ function addMember()
 	
 	$this->callHook("beforeAddMember", array(&$insertData));
 	
-	// Construct the query and make it a REPLACE query rather than an INSERT one (so unvalidated members can be
-	// overwritten).
-	$insertQuery = $this->eso->db->constructInsertQuery("members", $insertData);
-	$insertQuery = "REPLACE" . substr($insertQuery, 6);
+	// Build prepared statement parameters
+	$fields = array();
+	$placeholders = array();
+	$values = array();
+	$types = "";
 	
-	// Execute the query and get the new member's ID.
-	$this->eso->db->query($insertQuery);
-	$memberId = $this->eso->db->lastInsertId();
+	foreach ($insertData as $field => $value) {
+		$fields[] = $field;
+		if ($field == "color") {
+			// Color is a SQL expression, embed directly
+			$placeholders[] = $value;
+		} else {
+			// Remove quotes and escape, will be bound as parameter
+			$cleanValue = trim($value, "'");
+			$placeholders[] = "?";
+			$values[] = $cleanValue;
+			// Determine type
+			if (is_numeric($cleanValue) && $cleanValue == (int)$cleanValue) {
+				$types .= "i";
+			} else {
+				$types .= "s";
+			}
+		}
+	}
+	
+	// Construct the REPLACE query
+	$fieldsList = implode(", ", $fields);
+	$placeholdersList = implode(", ", $placeholders);
+	$query = "REPLACE INTO {$config["tablePrefix"]}members ($fieldsList) VALUES ($placeholdersList)";
+	
+	// Execute the query using prepared statement
+	if (!empty($values)) {
+		$stmt = $this->eso->db->prepare($query);
+		if ($stmt) {
+			$stmt->bindParams($types, ...$values);
+			$stmt->execute();
+			$memberId = $this->eso->db->lastInsertId();
+		} else {
+			return false;
+		}
+	} else {
+		// No parameters to bind (shouldn't happen, but handle it)
+		$this->eso->db->query($query);
+		$memberId = $this->eso->db->lastInsertId();
+	}
 	
 	$this->callHook("afterAddMember", array($memberId));
 	
@@ -239,7 +282,7 @@ function addMember()
 		// Update their record in the database with a special password reset hash.
 		// Generate cryptographically secure random string for verification hash
 		$rand = bin2hex(random_bytes(16));
-		$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$rand' WHERE memberId=$memberId");
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $rand, $memberId);
 		$this->sendVerificationEmail($_POST["join"]["email"], $_POST["join"]["name"], $memberId . $rand);
 	}
 	
@@ -267,13 +310,23 @@ function validateMember($hash)
 	
 	// Split the hash into the member ID and password.
 	$memberId = (int)substr($hash, 0, strlen($hash) - 32);
-	$resetPassword = $this->eso->db->escape(substr($hash, -32));
+	$resetPassword = substr($hash, -32);
 	
 	// See if there is an unvalidated user with this ID and password hash. If there is, validate them and log them in.
-	if ($name = @$this->eso->db->result($this->eso->db->query("SELECT name FROM {$config["tablePrefix"]}members WHERE memberId=$memberId AND resetPassword='$resetPassword' AND emailVerified!=1"), 0) and $password = @$this->eso->db->result($this->eso->db->query("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId=$memberId AND resetPassword='$resetPassword' AND emailVerified!=1"), 0)) {
-		$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET " . (empty($config["requireManualApproval"]) ? "account='Member', " : "") . "emailVerified=1 WHERE memberId=$memberId");
+	$row = $this->eso->db->fetchAssocPrepared("SELECT name, password FROM {$config["tablePrefix"]}members WHERE memberId=? AND resetPassword=? AND emailVerified!=1", "is", $memberId, $resetPassword);
+	if ($row) {
+		$name = $row["name"];
+		$password = $row["password"];
+		if (empty($config["requireManualApproval"])) {
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET account='Member', emailVerified=1 WHERE memberId=?", "i", $memberId);
+		} else {
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET emailVerified=1 WHERE memberId=?", "i", $memberId);
+		}
 		$this->eso->login($name, false, $password);
-		if (empty($config["requireManualApproval"]) and $this->eso->db->result($this->eso->db->query("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=$memberId"), 0) == "Member") $this->eso->message("accountValidated", false);
+		if (empty($config["requireManualApproval"])) {
+			$account = $this->eso->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+			if ($account == "Member") $this->eso->message("accountValidated", false);
+		}
 	}
 }
 

@@ -51,10 +51,8 @@ function init()
 	if ($hash = @$_GET["q2"]) {
 		
 		// Find the user with this password reset token.  If it's an invalid token, take them back to the email form.
-		$hashEscaped = $this->eso->db->escape($hash);
-		$result = $this->eso->db->query("SELECT memberId FROM {$config["tablePrefix"]}members WHERE resetPassword='$hashEscaped'");
-		if (!$this->eso->db->numRows($result)) redirect("forgotPassword");
-		list($memberId) = $this->eso->db->fetchRow($result);
+		$memberId = $this->eso->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE resetPassword=?", "s", $hash);
+		if (!$memberId) redirect("forgotPassword");
 		
 		$this->setPassword = true;
 		
@@ -71,7 +69,8 @@ function init()
 			if (!count($this->errors)) {
 				$salt = $config["hashingMethod"] == "bcrypt" ? "" : generateRandomString(32);
 				$passwordHash = hashPassword($password, $salt ?: null, $config);
-				$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword=NULL, password='$passwordHash', salt='$salt' WHERE memberId=$memberId");
+				$memberId = (int)$memberId;
+				$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=NULL, password=?, salt=? WHERE memberId=?", "ssi", $passwordHash, $salt, $memberId);
 				$this->eso->message("passwordChanged", false);
 				redirect("");
 			}
@@ -89,17 +88,19 @@ function init()
 		}
 		
 		// Find the member with this email.
-		$emailEscaped = $this->eso->db->escape($_POST["email"]);
-		$result = $this->eso->db->query("SELECT memberId, name, email FROM {$config["tablePrefix"]}members WHERE email='$emailEscaped'");
-		if (!$this->eso->db->numRows($result)) {
+		$row = $this->eso->db->fetchAssocPrepared("SELECT memberId, name, email FROM {$config["tablePrefix"]}members WHERE email=?", "s", $_POST["email"]);
+		if (!$row) {
 			$this->eso->message("emailDoesntExist");
 			return;
 		}
-		list($memberId, $name, $email) = $this->eso->db->fetchRow($result);
+		$memberId = $row["memberId"];
+		$name = $row["name"];
+		$email = $row["email"];
 		
 		// Update their record in the database with a special password reset hash.
 		$hash = bin2hex(random_bytes(16));
-		$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET resetPassword='$hash' WHERE memberId=$memberId");
+		$memberId = (int)$memberId;
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $hash, $memberId);
 		
 		// Send them email containing the link, and redirect to the home page.
 		if (sendEmail($email, sprintf($language["emails"]["forgotPassword"]["subject"], $name), sprintf($language["emails"]["forgotPassword"]["body"], $name, $config["forumTitle"], $config["baseURL"] . makeLink("forgot-password", $hash)))) {

@@ -79,6 +79,7 @@ function getMember($memberId)
 		"(SELECT COUNT(*) FROM {$config["tablePrefix"]}posts p WHERE p.memberId=m.memberId) AS postCount"
 	);
 	$from = array("{$config["tablePrefix"]}members m");
+	$memberId = (int)$memberId;
 	$where = array("m.memberId=$memberId");
 
 	// Put together the query components.

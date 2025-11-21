@@ -44,7 +44,10 @@ function init()
 	$this->eso->addLanguageToJS("avatarFileInvalidType", "avatarFileTooLarge", "avatarUrlInvalidExtension", "avatarUrlInvalidFormat");
 	
 	// Has the user verified their email address?
-	if (!empty($config["sendEmail"])) $this->emailVerified = $this->eso->db->result("SELECT emailVerified FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
+	if (!empty($config["sendEmail"])) {
+		$memberId = (int)$this->eso->user["memberId"];
+		$this->emailVerified = $this->eso->db->fetchOne("SELECT emailVerified FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+	}
 	
 	// Change the user's color.
 	if (!empty($_GET["changeColor"]) and (int)$_GET["changeColor"]
@@ -189,15 +192,28 @@ function saveSettings()
 			if (($field["databaseField"] == "emailOnPrivateAdd" || $field["databaseField"] == "emailOnStar") && ($this->emailVerified != 1 || empty($config["sendEmail"]))) continue;
 			$updateData[$field["databaseField"]] = !empty($field["checkbox"])
 				? ($field["input"] ? 1 : 0)
-				: "'{$field["input"]}'";
+				: $field["input"];
 		}
 	}
 	
 	$this->callHook("beforeSave", array(&$updateData));
 	
-	// Construct and execute the query!
-	$updateQuery = $this->eso->db->constructUpdateQuery("members", $updateData, array("memberId" => $this->eso->user["memberId"]));
-	$this->eso->db->query($updateQuery);
+	// Build UPDATE query with prepared statement placeholders
+	if (count($updateData)) {
+		$setClause = array();
+		$types = "";
+		$params = array();
+		foreach ($updateData as $field => $value) {
+			$setClause[] = "$field=?";
+			$types .= is_int($value) ? "i" : "s";
+			$params[] = $value;
+		}
+		$memberId = (int)$this->eso->user["memberId"];
+		$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
+		$types .= "i";
+		$params[] = $memberId;
+		$this->eso->db->queryPrepared($query, $types, ...$params);
+	}
 	
 	// Update user session data according to the field "databaseField" values.
 	foreach ($fields as $field) {
@@ -215,8 +231,14 @@ function changeUsername()
 	global $config;
 	if ($this->eso->isSuspended()) return false;
 	$updateData = array();
-	$salt = $this->eso->db->result("SELECT salt FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
-	$password = $this->eso->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
+	$memberId = (int)$this->eso->user["memberId"];
+	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+	if ($row) {
+		$salt = $row["salt"];
+		$password = $row["password"];
+	} else {
+		return false;
+	}
 
 	// Are we setting a new username?
 	if (!empty($_POST["settingsUsername"]["name"])) {
@@ -225,13 +247,12 @@ function changeUsername()
 		$name = substr($_POST["settingsUsername"]["name"], 0, 31);
 		// Prevent duplicates and allow changes to capitalization of the same name.
 		if (!($name !== $this->eso->user["name"] and strtolower($name) == strtolower($this->eso->user["name"])) and $error = validateName($name)) $this->messages["username"] = $error;
-		else $updateData["name"] = "'{$_POST["settingsUsername"]["name"]}'";
-//		$this->messages["current"] = "reenterInformation";
+		else $updateData["name"] = $_POST["settingsUsername"]["name"];
 
 		if ($name !== $this->eso->user["name"]) {
 			if ($name !== $this->eso->user["name"] and strtolower($name) == strtolower($this->eso->user["name"]))
 			if ($error = validateName($name)) $this->messages["username"] = $error;
-			else $updateData["name"] = "'{$_POST["settingsUsername"]["name"]}'";
+			else $updateData["name"] = $_POST["settingsUsername"]["name"];
 		} else {
 
 		}
@@ -244,8 +265,18 @@ function changeUsername()
 
 	// Everything is valid and good to go! Run the query if necessary.
 	elseif (count($updateData)) {
-		$query = $this->eso->db->constructUpdateQuery("members", $updateData, array("memberId" => $this->eso->user["memberId"]));
-		$this->eso->db->query($query);
+		$setClause = array();
+		$types = "";
+		$params = array();
+		foreach ($updateData as $field => $value) {
+			$setClause[] = "$field=?";
+			$types .= is_int($value) ? "i" : "s";
+			$params[] = $value;
+		}
+		$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
+		$types .= "i";
+		$params[] = $memberId;
+		$this->eso->db->queryPrepared($query, $types, ...$params);
 		$this->messages = array();
 		return true;
 	}
@@ -258,9 +289,15 @@ function changePasswordEmail()
 {
 	global $config;
 	$updateData = array();
-	$salt = $this->eso->db->result("SELECT salt FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
+	$memberId = (int)$this->eso->user["memberId"];
+	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+	if ($row) {
+		$salt = $row["salt"];
+		$password = $row["password"];
+	} else {
+		return false;
+	}
 	$newSalt = generateRandomString(32);
-	$password = $this->eso->db->result("SELECT password FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
 	
 	// Are we setting a new password?
 	if (!empty($_POST["settingsPasswordEmail"]["new"])) {
@@ -274,8 +311,8 @@ function changePasswordEmail()
 		
 		// Alright, the password stuff is all good. Add the password updating part to the query.
 		else {
-			$updateData["password"] = "'$hash'";
-			$updateData["salt"] = "'$newSalt'";
+			$updateData["password"] = $hash;
+			$updateData["salt"] = $newSalt;
 		}
 		
 		// Show a 'reenter information' message next to the current password field just in case we fail later on.
@@ -290,7 +327,7 @@ function changePasswordEmail()
 		
 		// Validate the email address. If it's ok, add the updating part to the query.
 		if ($error = validateEmail($_POST["settingsPasswordEmail"]["email"])) $this->messages["email"] = $error;
-		else $updateData["email"] = "'{$_POST["settingsPasswordEmail"]["email"]}'";
+		else $updateData["email"] = $_POST["settingsPasswordEmail"]["email"];
 		$this->messages["current"] = "reenterInformation";
 		
 	}
@@ -302,8 +339,18 @@ function changePasswordEmail()
 
 	// Everything is valid and good to go! Run the query if necessary.
 	elseif (count($updateData)) {
-		$query = $this->eso->db->constructUpdateQuery("members", $updateData, array("memberId" => $this->eso->user["memberId"]));
-		$this->eso->db->query($query);
+		$setClause = array();
+		$types = "";
+		$params = array();
+		foreach ($updateData as $field => $value) {
+			$setClause[] = "$field=?";
+			$types .= is_int($value) ? "i" : "s";
+			$params[] = $value;
+		}
+		$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
+		$types .= "i";
+		$params[] = $memberId;
+		$this->eso->db->queryPrepared($query, $types, ...$params);
 		$this->messages = array();
 		return true;
 	}
@@ -363,7 +410,8 @@ function changeAvatar()
 			if (file_exists($file)) @unlink($file);
 			
 			// Clear the avatarFormat field in the database and session variable.
-			$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET avatarFormat=NULL WHERE memberId={$this->eso->user["memberId"]}");
+			$memberId = (int)$this->eso->user["memberId"];
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET avatarFormat=NULL WHERE memberId=?", "i", $memberId);
 			$this->eso->user["avatarFormat"] = $_SESSION["user"]["avatarFormat"] = "";
 			return true;
 			
@@ -449,8 +497,8 @@ function changeAvatar()
 		}
 	}
 	
-	$avatarFormatEscaped = $this->eso->db->escape($avatarFormat);
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET avatarFormat='$avatarFormatEscaped' WHERE memberId={$this->eso->user["memberId"]}");
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET avatarFormat=? WHERE memberId=?", "si", $avatarFormat, $memberId);
 	$this->eso->user["avatarFormat"] = $_SESSION["user"]["avatarFormat"] = $avatarFormat;
 	
 	return true;
@@ -466,7 +514,8 @@ function changeColor($color)
 	else $color = 0;
 
 	// Update the database and session variables with the new color.
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET color=$color WHERE memberId={$this->eso->user["memberId"]}");
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET color=? WHERE memberId=?", "ii", $color, $memberId);
 	$this->eso->user["color"] = $_SESSION["user"]["color"] = $color;
 }
 
@@ -566,7 +615,8 @@ function validateFieldAjax($fieldId, $formId, $value, $newPassword = null)
 					if ($error = validateEmail($email)) {
 						// If email is taken, check if it's the user's own email.
 						if ($error == "emailTaken") {
-							$currentEmail = $this->eso->db->result("SELECT email FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}", 0);
+							$memberId = (int)$this->eso->user["memberId"];
+							$currentEmail = $this->eso->db->fetchOne("SELECT email FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 							if (strtolower($email) == strtolower($currentEmail)) return false; // Same email is valid
 						}
 						return $error;

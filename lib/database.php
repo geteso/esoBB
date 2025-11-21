@@ -236,6 +236,87 @@ public function fetchPrepared($query, $types, ...$params)
 	return $stmt->getResult();
 }
 
+// Get a single value from a prepared query (convenience method).
+// Usage: $memberId = $db->fetchOne("SELECT memberId FROM members WHERE name=?", "s", $name)
+public function fetchOne($query, $types, ...$params)
+{
+	$result = $this->fetchPrepared($query, $types, ...$params);
+	return $result ? $this->result($result, 0) : false;
+}
+
+// Get a single row as numeric array from a prepared query (convenience method).
+// Usage: $row = $db->fetchRowPrepared("SELECT id, name FROM members WHERE id=?", "i", $id)
+public function fetchRowPrepared($query, $types, ...$params)
+{
+	$result = $this->fetchPrepared($query, $types, ...$params);
+	return $result ? $this->fetchRow($result) : false;
+}
+
+// Get a single row as associative array from a prepared query (convenience method).
+// Usage: $data = $db->fetchAssocPrepared("SELECT * FROM members WHERE id=?", "i", $id)
+public function fetchAssocPrepared($query, $types, ...$params)
+{
+	$result = $this->fetchPrepared($query, $types, ...$params);
+	return $result ? $this->fetchAssoc($result) : false;
+}
+
+// Check if a record exists (returns boolean).
+// Usage: $exists = $db->exists("SELECT 1 FROM members WHERE name=?", "s", $name)
+public function exists($query, $types, ...$params)
+{
+	$result = $this->fetchPrepared($query, $types, ...$params);
+	return $result ? (bool)$this->result($result, 0) : false;
+}
+
+// Helper for IN clauses - builds placeholders and merges parameters.
+// Usage: $result = $db->fetchPreparedIn("SELECT * FROM table WHERE id IN (?) AND status=?", "i", [1,2,3], "s", "active")
+public function fetchPreparedIn($query, $inTypes, $inValues, $otherTypes = "", ...$otherParams)
+{
+	if (empty($inValues)) return false;
+	
+	// Replace ? in IN clause with proper placeholders
+	$inPlaceholders = str_repeat("?,", count($inValues) - 1) . "?";
+	$query = preg_replace('/\bIN\s*\(\?\)/', "IN ($inPlaceholders)", $query, 1);
+	
+	// Build types string for IN values
+	$types = "";
+	foreach ($inValues as $val) {
+		if (is_int($val)) $types .= "i";
+		elseif (is_float($val)) $types .= "d";
+		else $types .= "s";
+	}
+	$types .= $otherTypes;
+	
+	// Merge parameters
+	$params = array_merge($inValues, $otherParams);
+	
+	return $this->fetchPrepared($query, $types, ...$params);
+}
+
+// Similar helper for queryPrepared with IN clauses
+public function queryPreparedIn($query, $inTypes, $inValues, $otherTypes = "", ...$otherParams)
+{
+	if (empty($inValues)) return false;
+	
+	// Replace ? in IN clause with proper placeholders
+	$inPlaceholders = str_repeat("?,", count($inValues) - 1) . "?";
+	$query = preg_replace('/\bIN\s*\(\?\)/', "IN ($inPlaceholders)", $query, 1);
+	
+	// Build types string for IN values
+	$types = "";
+	foreach ($inValues as $val) {
+		if (is_int($val)) $types .= "i";
+		elseif (is_float($val)) $types .= "d";
+		else $types .= "s";
+	}
+	$types .= $otherTypes;
+	
+	// Merge parameters
+	$params = array_merge($inValues, $otherParams);
+	
+	return $this->queryPrepared($query, $types, ...$params);
+}
+
 }
 
 /**

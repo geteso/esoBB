@@ -239,11 +239,13 @@ function registerGambit($text, $class, $function, $condition)
 // Apply a condition to the search results.
 // This takes effect when collecting conversation IDs through the following query:
 // SELECT DISTINCT conversationId FROM $table WHERE $condition
-function condition($table, $condition, $negate = false)
+function condition($table, $condition, $negate = false, $types = "", ...$params)
 {
 	$condition = "($condition)";
-	if (in_array(array($table, $condition, $negate), $this->conditions)) return;
-	$this->conditions[] = array($table, $condition, $negate);
+	$paramsArray = is_array($params) && count($params) == 1 && is_array($params[0]) ? $params[0] : $params;
+	$conditionData = array($table, $condition, $negate, $types, $paramsArray);
+	if (in_array($conditionData, $this->conditions)) return;
+	$this->conditions[] = $conditionData;
 }
 
 // Apply an order to the search results.
@@ -346,22 +348,29 @@ function getConversationIDs($search = "")
 	$conversationConditions = array();
 	$idCondition = "";
 	foreach ($this->conditions as $v) {
-		list($table, $condition, $negate) = $v;
+		$table = $v[0];
+		$condition = $v[1];
+		$negate = $v[2];
+		$types = isset($v[3]) ? $v[3] : "";
+		$params = isset($v[4]) ? $v[4] : array();
 		
-		// If the condition is based on the conversations table, we'll save it for inclusion in the final query.
 		if ($table == "conversations") {
 			$conversationConditions[] = $condition;
 			continue;
 		}
 		
-		// Construct a query that will find conversation IDs that meet the condition.
 		$prefix = strpos($table, "conversations c") !== false ? "c." : "";
-		$query = "SELECT DISTINCT {$prefix}conversationId FROM {$config["tablePrefix"]}{$v[0]} WHERE $condition $idCondition";
-	
-		// Get the list of conversation IDs so that the next condition can use it in its query.
-		$result = $this->eso->db->query($query);
+		$query = "SELECT DISTINCT {$prefix}conversationId FROM {$config["tablePrefix"]}{$table} WHERE $condition $idCondition";
+
+		if (!empty($types) && !empty($params)) {
+			$result = $this->eso->db->fetchPrepared($query, $types, ...$params);
+		} else {
+			$result = $this->eso->db->query($query);
+		}
 		$ids = array();
-		while (list($conversationId) = $this->eso->db->fetchRow($result)) $ids[] = $conversationId;
+		if ($result) {
+			while (list($conversationId) = $this->eso->db->fetchRow($result)) $ids[] = $conversationId;
+		}
 		
 		// If this condition is negated, then add the IDs to the list of bad conversations.
 		// If the condition is not negated, set the list of good conversations to the IDs, provided there are some.
@@ -593,7 +602,7 @@ function gambitTag(&$search, $term, $negate)
 {
 	global $language;
 	$term = trim(substr($term, strlen($language["gambits"]["tag:"])));
-	$search->condition("tags", "tag='$term'", $negate);
+	$search->condition("tags", "tag=?", $negate, "s", $term);
 }
 
 // Active gambit: get conversations active in the specified time period.
@@ -626,7 +635,12 @@ function gambitAuthor(&$search, $term, $negate)
 	global $config, $language;
 	$term = trim(substr($term, strlen($language["gambits"]["author:"])));
 	if ($term == $language["gambits"]["myself"]) $term = $search->eso->user["name"];
-	$search->condition("conversations", "c.startMember" . ($negate ? "!" : "") . "=(SELECT memberId FROM {$config["tablePrefix"]}members WHERE name='$term')");
+	$memberId = $search->eso->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE name=?", "s", $term);
+	if ($memberId) {
+		$search->condition("conversations", "c.startMember" . ($negate ? "!=" : "=") . "?", $negate, "i", $memberId);
+	} elseif (!$negate) {
+		$search->condition("conversations", "1=0", false);
+	}
 }
 
 // Contributor gambit: get conversations which contain posts by a particular member.
@@ -635,7 +649,12 @@ function gambitContributor(&$search, $term, $negate)
 	global $config, $language;
 	$term = trim(substr($term, strlen($language["gambits"]["contributor:"])));
 	if ($term == $language["gambits"]["myself"]) $term = $search->eso->user["name"];
-	$search->condition("posts", "memberId=(SELECT memberId FROM {$config["tablePrefix"]}members WHERE name='$term')", $negate);
+	$memberId = $search->eso->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE name=?", "s", $term);
+	if ($memberId) {
+		$search->condition("posts", "memberId=?", $negate, "i", $memberId);
+	} elseif (!$negate) {
+		$search->condition("posts", "1=0", false);
+	}
 }
 
 // More results gambit: bump up the limit to display more results.
@@ -704,7 +723,6 @@ function gambitRandom(&$search, $term, $negate)
 function gambitReverse(&$search, $term, $negate)
 {
 	if (!$negate) $search->reverse = true;
-	$search->condition("conversations", "(c.lastPostTime) IS NOT NULL", $negate);
 }
 
 // Locked gambit: get conversations which are locked.
@@ -717,7 +735,17 @@ function gambitLocked(&$search, $term, $negate)
 function fulltext(&$search, $term, $negate)
 {
 	$term = str_replace("&quot;", '"', $term);
-	$search->condition("posts", "MATCH (title, content) AGAINST ('$term' IN BOOLEAN MODE)", $negate);
+	
+	// Check if term contains BOOLEAN MODE special characters that need protection
+	// If it does and isn't already a phrase (wrapped in quotes), wrap it in quotes
+	$hasSpecialChars = preg_match('/[+\-><()~]/', $term);
+	$isPhrase = (substr($term, 0, 1) == '"' && substr($term, -1) == '"');
+	
+	if ($hasSpecialChars && !$isPhrase) {
+		$term = '"' . $term . '"';
+	}
+	
+	$search->condition("posts", "MATCH (title, content) AGAINST (? IN BOOLEAN MODE)", $negate, "s", $term);
 	
 	// Add the keywords in $term to be highlighted. Make sure we keep ones "in quotes" together.
 	$words = array();

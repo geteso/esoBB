@@ -141,14 +141,16 @@ function init()
 				case "unread":
 					$this->startFrom = max(0, min($this->conversation["lastRead"], $this->conversation["postCount"] - $config["postsPerPage"]));
 					$limit = (int)$this->conversation["lastRead"];
-					$postId = $this->eso->db->result($this->eso->db->query("SELECT postId FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} ORDER BY time ASC LIMIT $limit, 1"), 0);
+					$conversationId = (int)$this->conversation["id"];
+					$postId = $this->eso->db->fetchOne("SELECT postId FROM {$config["tablePrefix"]}posts WHERE conversationId=? ORDER BY time ASC LIMIT ?, 1", "ii", $conversationId, $limit);
 					redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom", "#p$postId");
 					break;
 
 				// Last: redirect to the last post in the conversation.
 				case "last":
 					$this->startFrom = max(0, $this->conversation["postCount"] - $config["postsPerPage"]);
-					$postId = $this->eso->db->result($this->eso->db->query("SELECT MAX(postId) FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]}"), 0);
+					$conversationId = (int)$this->conversation["id"];
+					$postId = $this->eso->db->fetchOne("SELECT MAX(postId) FROM {$config["tablePrefix"]}posts WHERE conversationId=?", "i", $conversationId);
 					redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom", "#p$postId");
 					break;
 
@@ -173,9 +175,10 @@ function init()
 		// appropriately.
 		if (isset($_GET["quotePost"])) {
 			$postId = (int)$_GET["quotePost"];
-			$result = $this->eso->db->query("SELECT name, content FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId AND conversationId={$this->conversation["id"]}");
-			if (!$this->eso->db->numRows($result)) return false;
-			list($member, $content) = $this->eso->db->fetchRow($result);
+			$conversationId = (int)$this->conversation["id"];
+			$row = $this->eso->db->fetchRowPrepared("SELECT name, content FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=? AND conversationId=?", "ii", $postId, $conversationId);
+			if (!$row) return false;
+			list($member, $content) = $row;
 			$this->conversation["draft"] = "<blockquote><cite>$member - [post:$postId]</cite>" . desanitize($this->formatForEditing($this->removeQuotes($content))) . "</blockquote>";
 		}
 
@@ -262,7 +265,8 @@ function init()
 		$this->updateLastAction();
 		
 		// Add the meta tags (description + keywords) to the head.
-		$description = $this->eso->db->result("SELECT LEFT(content, 256) FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} ORDER BY time ASC LIMIT 1", 0);
+		$conversationId = (int)$this->conversation["id"];
+		$description = $this->eso->db->fetchOne("SELECT LEFT(content, 256) FROM {$config["tablePrefix"]}posts WHERE conversationId=? ORDER BY time ASC LIMIT 1", "i", $conversationId) ?: "";
 		if (strlen($description) > 255) $description = substr($description, 0, strrpos($description, " ")) . " ...";
 		$description = strip_tags(str_replace(array("</p>", "</h3>", "</pre>"), " ", $description));
 		$this->eso->addToHead("<meta name='keywords' content='" . str_replace(", ", ",", $this->conversation["tags"]) . "'/>");
@@ -431,7 +435,8 @@ function ajax()
 		case "deletePost":
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			$this->deletePost($postId);
 			break;
 			
@@ -439,7 +444,8 @@ function ajax()
 		case "restorePost":
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			
 			// After restoring the post, return its details from the database.
 			if ($this->restorePost($postId)) return $this->getPosts(array("postIds" => $postId));
@@ -449,16 +455,19 @@ function ajax()
 		case "deletePostForever":
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 
 			// Get the post details from the database so we can check if the user has permission to delete it.
-			list($memberId, $account, $deleteMember) = $this->eso->db->fetchRow("SELECT p.memberId, account, deleteMember FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId");
-			if (($error = $this->canDeletePost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($error);
-
-			else {
-				if ($this->deletePostForever($postId)) {
-					// Return updated post count so JavaScript can update pagination
-					return array("postCount" => $this->conversation["posts"]);
+			$row = $this->eso->db->fetchRowPrepared("SELECT p.memberId, account, deleteMember FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=?", "i", $postId);
+			if ($row) {
+				list($memberId, $account, $deleteMember) = $row;
+				if (($error = $this->canDeletePost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($error);
+				else {
+					if ($this->deletePostForever($postId)) {
+						// Return updated post count so JavaScript can update pagination
+						return array("postCount" => $this->conversation["posts"]);
+					}
 				}
 			}
 			break;
@@ -467,46 +476,58 @@ function ajax()
 		case "editPost":
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			if ($content = $this->editPost($postId, @$_POST["content"])) return array("content" => $this->displayPost($content));
 			break;
 
 		// Get the controls and content of for a post to be edited.
 		case "getEditPost":
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			
 			// Get the post details from the database so we can check if the user has permission to edit it.
-			list($memberId, $account, $deleteMember, $content) = $this->eso->db->fetchRow("SELECT p.memberId, account, deleteMember, content FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId");
-			if (($error = $this->canEditPost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($error);
-			
-			// Return an array containing the formatting controls and the editing textarea/buttons.
-			else return array(
-				"controls" => implode(" ", $this->getEditControls("p$postId")),
-				"body" => $this->getEditArea($postId, $this->formatForEditing($content))
-			);
+			$row = $this->eso->db->fetchRowPrepared("SELECT p.memberId, account, deleteMember, content FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=?", "i", $postId);
+			if ($row) {
+				list($memberId, $account, $deleteMember, $content) = $row;
+				if (($error = $this->canEditPost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($error);
+				// Return an array containing the formatting controls and the editing textarea/buttons.
+				else return array(
+					"controls" => implode(" ", $this->getEditControls("p$postId")),
+					"body" => $this->getEditArea($postId, $this->formatForEditing($content))
+				);
+			}
 			break;
 			
 		// Show a deleted post.
 		case "showDeletedPost":
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			
 			// Get the post details from the database so we can check if the user has permission to view it.
-			list($memberId, $account, $deleteMember, $content) = $this->eso->db->fetchRow("SELECT p.memberId, account, deleteMember, content FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId");
-			if (($message = $this->canEditPost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($message);
-			else return $this->displayPost($content);
+			$row = $this->eso->db->fetchRowPrepared("SELECT p.memberId, account, deleteMember, content FROM {$config["tablePrefix"]}posts p INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=?", "i", $postId);
+			if ($row) {
+				list($memberId, $account, $deleteMember, $content) = $row;
+				if (($message = $this->canEditPost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($message);
+				else return $this->displayPost($content);
+			}
 			break;
 
 		// Get the unformatted content of a post for inserting into the reply textarea as a quote.
 		case "getPost":
 			$postId = (int)@$_POST["postId"];
-			if (!$this->conversation = $this->getConversation("(SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=$postId)")) return;
-			list($member, $content) = $this->eso->db->fetchRow($this->eso->db->query("SELECT name, content FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=$postId"));
-			return array(
-				"member" => $member . " - [post:$postId]",
-				"content" => desanitize($this->formatForEditing($this->removeQuotes($content))),
-			);
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
+			$row = $this->eso->db->fetchRowPrepared("SELECT name, content FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=?", "i", $postId);
+			if ($row) {
+				list($member, $content) = $row;
+				return array(
+					"member" => $member . " - [post:$postId]",
+					"content" => desanitize($this->formatForEditing($this->removeQuotes($content))),
+				);
+			}
 			break;
 
 		// Get the formatted HTML of a string for previewing purposes.
@@ -685,8 +706,14 @@ function &getMembersAllowed()
 	
 	// Otherwise, fetch the members allowed from the database.
 	else {
-		$result = $this->eso->db->query("SELECT s.memberId, IF(m.name IS NOT NULL,m.name,s.memberId) FROM {$config["tablePrefix"]}status s LEFT JOIN {$config["tablePrefix"]}members m USING (memberId) WHERE s.conversationId={$this->conversation["id"]} AND s.allowed=1");
-		while (list($memberId, $name) = $this->eso->db->fetchRow($result)) $membersAllowed[$memberId] = $name;
+		$conversationId = (int)$this->conversation["id"];
+		$result = $this->eso->db->fetchPrepared("SELECT s.memberId, IF(m.name IS NOT NULL,m.name,s.memberId) FROM {$config["tablePrefix"]}status s LEFT JOIN {$config["tablePrefix"]}members m USING (memberId) WHERE s.conversationId=? AND s.allowed=1", "i", $conversationId);
+		if ($result) {
+			while ($row = $this->eso->db->fetchRow($result)) {
+				list($memberId, $name) = $row;
+				$membersAllowed[$memberId] = $name;
+			}
+		}
 	}
 	
 	$this->callHook("getMembersAllowed", array(&$membersAllowed));
@@ -796,9 +823,11 @@ function updateLastRead($lastRead)
 	
 	// Only update it if they've just read further than they've ever read before.
 	if ($lastRead > $this->conversation["lastRead"]) {
-		$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, lastRead)
-			VALUES ({$this->conversation["id"]}, {$this->eso->user["memberId"]}, $lastRead)
-			ON DUPLICATE KEY UPDATE lastRead=$lastRead");
+		$conversationId = (int)$this->conversation["id"];
+		$memberId = (int)$this->eso->user["memberId"];
+		$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, lastRead)
+			VALUES (?, ?, ?)
+			ON DUPLICATE KEY UPDATE lastRead=?", "iiii", $conversationId, $memberId, $lastRead, $lastRead);
 		$this->conversation["lastRead"] = $lastRead;
 	}
 }
@@ -810,28 +839,37 @@ function addReply($content, $newConversation = false)
 
 	// Does the user have permission? Is the post content valid? Flood control?
 	$hookError = $this->callHook("validateAddReply", array(&$content), true);
+	$timeCheck = time() - $config["timeBetweenPosts"];
+	$memberId = (int)$this->eso->user["memberId"];
+	$floodCheck = false;
+	if (!$newConversation) {
+		$floodCheck = $this->eso->db->exists("SELECT 1 FROM {$config["tablePrefix"]}posts WHERE memberId=? AND time>?", "ii", $memberId, $timeCheck);
+	}
 	if (($error = $this->canReply()) !== true or ($error = $this->validatePost($content))
-		or (!$newConversation and ($error = $this->eso->db->result("SELECT 1 FROM {$config["tablePrefix"]}posts WHERE memberId={$this->eso->user["memberId"]} AND time>" . (time() - $config["timeBetweenPosts"]), 0) ? "waitToReply" : false))
+		or (!$newConversation and ($error = $floodCheck ? "waitToReply" : false))
 		or ($error = $hookError)) {
 		$this->eso->message($error);
 		return false;
 	}
 
 	// Prepare the post details for the query.
-	$formattedContent = $this->eso->db->escape($this->formatForDisplay($content));
+	$formattedContent = $this->formatForDisplay($content);
 	$time = time();
+	$conversationId = (int)$this->conversation["id"];
+	$conversationTitle = $this->conversation["title"];
+	
 	$post = array(
-		"conversationId" => $this->conversation["id"],
-		"memberId" => $this->eso->user["memberId"],
+		"conversationId" => $conversationId,
+		"memberId" => $memberId,
 		"time" => $time,
-		"content" => "'$formattedContent'",
-		"title" => "'{$this->conversation["title"]}'"
+		"content" => $formattedContent,
+		"title" => $conversationTitle
 	);
 	
 	$this->callHook("beforeAddReply", array(&$post));
 
-	// Construct the query and insert the post into the posts table.
-	$this->eso->db->query($this->eso->db->constructInsertQuery("posts", $post));
+	// Insert the post into the posts table using prepared statement.
+	$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}posts (conversationId, memberId, time, content, title) VALUES (?, ?, ?, ?, ?)", "iiiss", $post["conversationId"], $post["memberId"], $post["time"], $post["content"], $post["title"]);
 	$id = $this->eso->db->lastInsertId();
 	
 	// If this is not a post being created in a brand new conversation...
@@ -839,26 +877,31 @@ function addReply($content, $newConversation = false)
 	
 		// Update the conversations table with the new post count, last post/action times, and last post member.
 		// Also update the conversation's start time if this is the first post.
-		$this->eso->db->query("UPDATE {$config["tablePrefix"]}conversations SET startTime=IF(posts IS NULL OR posts=0,$time,startTime), posts=IF(posts IS NOT NULL,posts+1,1), lastPostTime=$time, lastActionTime=$time, lastPostMember={$this->eso->user["memberId"]} WHERE conversationId={$this->conversation["id"]}");
+		$conversationId = (int)$this->conversation["id"];
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET startTime=IF(posts IS NULL OR posts=0,?,startTime), posts=IF(posts IS NOT NULL,posts+1,1), lastPostTime=?, lastActionTime=?, lastPostMember=? WHERE conversationId=?", "iiiii", $time, $time, $time, $memberId, $conversationId);
 		
 		// If the user had a draft saved in this conversation before adding this reply, erase it now.
 		if ($this->conversation["draft"])
-			$this->eso->db->query("UPDATE {$config["tablePrefix"]}status SET draft=NULL WHERE conversationId={$this->conversation["id"]} AND memberId={$this->eso->user["memberId"]}");
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}status SET draft=NULL WHERE conversationId=? AND memberId=?", "ii", $conversationId, $memberId);
 	
 		// Email people who have starred this conversation and want an email!
 		// Conditions for the query: the member isn't themselves, they have verified their email address, they have
 		// ticked 'email me' in My settings, they've starred the conversation, they have no unread posts in the
 		// conversation (apart from this one), and they're not online at the moment.
-		$query = "SELECT name, email, language
+		$lastSeenCheck = time() - $config["userOnlineExpire"];
+		$postCount = (int)$this->conversation["postCount"];
+		$result = $this->eso->db->fetchPrepared("SELECT name, email, language
 			FROM {$config["tablePrefix"]}members m
-			LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId={$this->conversation["id"]} AND s.memberId=m.memberId)
-			WHERE m.memberId!={$this->eso->user["memberId"]} AND m.emailVerified=1 AND m.emailOnStar=1 AND s.starred=1 AND s.lastRead>={$this->conversation["postCount"]} AND (m.lastSeen IS NULL OR " . (time() - $config["userOnlineExpire"]) . ">m.lastSeen)";
-		$result = $this->eso->db->query($query);
+			LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId=? AND s.memberId=m.memberId)
+			WHERE m.memberId!=? AND m.emailVerified=1 AND m.emailOnStar=1 AND s.starred=1 AND s.lastRead>=? AND (m.lastSeen IS NULL OR ?>m.lastSeen)", "iiiii", $conversationId, $memberId, $postCount, $lastSeenCheck);
 		global $versions;
-		while (list($name, $email, $language) = $this->eso->db->fetchRow($result)) {
+		if ($result) {
+			while ($row = $this->eso->db->fetchRow($result)) {
+				list($name, $email, $language) = $row;
 			include "languages/" . sanitizeFileName(file_exists("languages/$language.php") ? $language : $config["language"]) . ".php";
-			sendEmail($email, vsprintf($language["emails"]["newReply"]["subject"], array($name, $this->conversation["title"])), vsprintf($language["emails"]["newReply"]["body"], array($name, $this->eso->user["name"], $this->conversation["title"], $config["baseURL"] . makeLink($this->conversation["id"], $this->conversation["slug"]), "unread")));
-			unset($langauge, $messages);
+				sendEmail($email, vsprintf($language["emails"]["newReply"]["subject"], array($name, $this->conversation["title"])), vsprintf($language["emails"]["newReply"]["body"], array($name, $this->eso->user["name"], $this->conversation["title"], $config["baseURL"] . makeLink($this->conversation["id"], $this->conversation["slug"]), "unread")));
+				unset($langauge, $messages);
+			}
 		}
 	}
 
@@ -889,9 +932,10 @@ function saveDraft($content)
 	
 	$this->callHook("saveDraft", array(&$content));
 	
-	// We need to use $this->eso->db->escape here because the content is raw, ie. we don't want to sanitize() it.
-	$slashedContent = $this->eso->db->escape($content);
-	$this->eso->db->query("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, draft) VALUES ({$this->conversation["id"]}, {$this->eso->user["memberId"]}, '$slashedContent') ON DUPLICATE KEY UPDATE draft='$slashedContent'");
+	// Content is raw, will be bound as parameter
+	$conversationId = (int)$this->conversation["id"];
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, draft) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE draft=?", "iiss", $conversationId, $memberId, $content, $content);
 	
 	// Update local conversation details.
 	$this->conversation["draft"] = $content;
@@ -939,8 +983,8 @@ function editPost($postId, $content)
 	// Update the database with the post's new formatted content.
 	$content = $this->formatForDisplay($content);
 	$time = time();
-	$query = "UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c SET p.content='" . $this->eso->db->escape($content) . "', p.editMember={$this->eso->user["memberId"]}, p.editTime=$time, c.lastActionTime=$time WHERE postId=$postId AND c.conversationId=p.conversationId";
-	$this->eso->db->query($query);
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c SET p.content=?, p.editMember=?, p.editTime=?, c.lastActionTime=? WHERE postId=? AND c.conversationId=p.conversationId", "siiii", $content, $memberId, $time, $time, $postId);
 	
 	return $content;
 }
@@ -1054,10 +1098,16 @@ function deletePost($postId)
 	global $config;
 	$postId = (int)$postId;
 	$time = time();
-	$query = "UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
-		SET p.deleteMember={$this->eso->user["memberId"]}, p.editTime=$time, c.lastActionTime=$time
-		WHERE postId=$postId AND c.conversationId=p.conversationId" . ($this->eso->user["moderator"] ? "" : " AND p.memberId={$this->eso->user["memberId"]}");	
-	$this->eso->db->query($query);
+	$memberId = (int)$this->eso->user["memberId"];
+	if ($this->eso->user["moderator"]) {
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
+			SET p.deleteMember=?, p.editTime=?, c.lastActionTime=?
+			WHERE postId=? AND c.conversationId=p.conversationId", "iiii", $memberId, $time, $time, $postId);
+	} else {
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
+			SET p.deleteMember=?, p.editTime=?, c.lastActionTime=?
+			WHERE postId=? AND c.conversationId=p.conversationId AND p.memberId=?", "iiiii", $memberId, $time, $time, $postId, $memberId);
+	}
 
 	// If the query didn't affect any rows, either we didn't have permission or the post didn't exist...
 	if (!$this->eso->db->affectedRows()) {
@@ -1089,9 +1139,16 @@ function restorePost($postId)
 	global $config;
 	$postId = (int)$postId;
 	$time = time();
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
-		SET p.deleteMember=NULL, p.editMember={$this->eso->user["memberId"]}, p.editTime=$time, c.lastActionTime=$time
-		WHERE postId=$postId AND c.conversationId=p.conversationId" . ($this->eso->user["moderator"] ? "" : " AND p.memberId={$this->eso->user["memberId"]}"));
+	$memberId = (int)$this->eso->user["memberId"];
+	if ($this->eso->user["moderator"]) {
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
+			SET p.deleteMember=NULL, p.editMember=?, p.editTime=?, c.lastActionTime=?
+			WHERE postId=? AND c.conversationId=p.conversationId", "iiii", $memberId, $time, $time, $postId);
+	} else {
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p, {$config["tablePrefix"]}conversations c
+			SET p.deleteMember=NULL, p.editMember=?, p.editTime=?, c.lastActionTime=?
+			WHERE postId=? AND c.conversationId=p.conversationId AND p.memberId=?", "iiiii", $memberId, $time, $time, $postId, $memberId);
+	}
 			
 	// If the query didn't affect any rows, either we didn't have permission or the post didn't exist...
 	if (!$this->eso->db->affectedRows()) {
@@ -1121,43 +1178,36 @@ function deletePostForever($postId)
 		return false;
 	}
 	// Make sure the post has already been soft-deleted (we don't want to be accidentally deleting posts forever).
-	if (!$this->eso->db->result("SELECT deleteMember FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} AND postId=$postId")) return false;
+	$conversationId = (int)$this->conversation["id"];
+	if (!$this->eso->db->fetchOne("SELECT deleteMember FROM {$config["tablePrefix"]}posts WHERE conversationId=? AND postId=?", "ii", $conversationId, $postId)) return false;
 
 	// Is the post being deleted also the last post of this conversaton?
-	$lastPost = $this->eso->db->result("SELECT postId FROM {$config["tablePrefix"]}posts
-		WHERE conversationId={$this->conversation["id"]} ORDER BY time DESC LIMIT 1");
+	$lastPost = $this->eso->db->fetchOne("SELECT postId FROM {$config["tablePrefix"]}posts WHERE conversationId=? ORDER BY time DESC LIMIT 1", "i", $conversationId);
 	if ($lastPost == $postId) {
 		// Change the last post member and time to that of the previous post.
-		$lastPostMember = $this->eso->db->result("SELECT memberId FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} AND postId!=$postId ORDER BY time DESC LIMIT 1");
-		$lastPostTime = $this->eso->db->result("SELECT time FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} AND postId!=$postId ORDER BY time DESC LIMIT 1");
-		$query = "UPDATE {$config["tablePrefix"]}conversations
-			SET lastPostMember=$lastPostMember, lastPostTime=$lastPostTime
-			WHERE conversationId={$this->conversation["id"]}";
-		if (!empty($lastPostMember)) $this->eso->db->query($query);
+		$lastPostMember = $this->eso->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}posts WHERE conversationId=? AND postId!=? ORDER BY time DESC LIMIT 1", "ii", $conversationId, $postId);
+		$lastPostTime = $this->eso->db->fetchOne("SELECT time FROM {$config["tablePrefix"]}posts WHERE conversationId=? AND postId!=? ORDER BY time DESC LIMIT 1", "ii", $conversationId, $postId);
+		if (!empty($lastPostMember)) {
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET lastPostMember=?, lastPostTime=? WHERE conversationId=?", "iii", $lastPostMember, $lastPostTime, $conversationId);
+		}
 	}
 
 	// Exclude the post from the post count. (For some reason, subtracting 1 from an unsigned integer doesn't work.)
-	$posts = $this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}posts
-	WHERE conversationId={$this->conversation["id"]} AND postId!=$postId ORDER BY time");
+	$posts = $this->eso->db->fetchOne("SELECT COUNT(*) FROM {$config["tablePrefix"]}posts WHERE conversationId=? AND postId!=? ORDER BY time", "ii", $conversationId, $postId) ?: 0;
 	$time = time();
 	if ($posts > 0) {
-		$query = "UPDATE {$config["tablePrefix"]}conversations SET posts=$posts, lastActionTime=$time WHERE conversationId={$this->conversation["id"]}";
-		$this->eso->db->query($query);
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET posts=?, lastActionTime=? WHERE conversationId=?", "iii", $posts, $time, $conversationId);
 		// Update the conversation array with the new post count
 		$this->conversation["posts"] = $posts;
 		$this->conversation["lastActionTime"] = $time;
 	} else {
-		$query = "UPDATE {$config["tablePrefix"]}conversations SET posts=0, lastActionTime=$time WHERE conversationId={$this->conversation["id"]}";
-		$this->eso->db->query($query);
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET posts=0, lastActionTime=? WHERE conversationId=?", "ii", $time, $conversationId);
 		$this->conversation["posts"] = 0;
 		$this->conversation["lastActionTime"] = $time;
 	}
 
 	// Delete the post (actually delete it.)
-	$query = "DELETE p FROM {$config["tablePrefix"]}posts p
-		LEFT JOIN {$config["tablePrefix"]}conversations c ON (p.conversationId=c.conversationId)
-		WHERE p.postId=$postId";
-	$this->eso->db->query($query);
+	$this->eso->db->queryPrepared("DELETE p FROM {$config["tablePrefix"]}posts p LEFT JOIN {$config["tablePrefix"]}conversations c ON (p.conversationId=c.conversationId) WHERE p.postId=?", "i", $postId);
 
 	// If the query didn't affect any rows, either we didn't have permission or the post didn't exist...
 	if (!$this->eso->db->affectedRows()) {
@@ -1177,9 +1227,11 @@ function startConversation($conversation)
 	
 	// Does the user have permission?
 	// Impose some flood control measures.
-	$time = time() - $config["timeBetweenPosts"];
+	$timeCheck = time() - $config["timeBetweenPosts"];
+	$memberId = (int)$this->eso->user["memberId"];
+	$floodCheck = $this->eso->db->fetchOne("SELECT MAX(startTime)>? FROM {$config["tablePrefix"]}conversations WHERE startMember=?", "ii", $timeCheck, $memberId);
 	if (($error = $this->canStartConversation()) !== true
-		or ($error = $this->eso->db->result("SELECT MAX(startTime)>$time FROM {$config["tablePrefix"]}conversations WHERE startMember={$this->eso->user["memberId"]}", 0) ? "waitToReply" : false)) {
+		or ($error = $floodCheck ? "waitToReply" : false)) {
 		$this->eso->message($error);
 		return false;
 	}
@@ -1198,23 +1250,27 @@ function startConversation($conversation)
 	// Construct the INSERT query.
 	$time = time();
 	$slug = slug($conversation["title"]);
+	$title = $conversation["title"];
+	$startMember = (int)$this->eso->user["memberId"];
+	$private = (is_array($conversation["membersAllowed"]) and count($conversation["membersAllowed"])) ? 1 : 0;
+	$posts = $conversation["draft"] ? 0 : 1;
+	
+	// Build insert data for hook compatibility
 	$insert = array(
-		"title" => "'" . $this->eso->db->escape($conversation["title"]) . "'",
+		"title" => "'" . $this->eso->db->escape($title) . "'",
 		"slug" => "'$slug'",
-		"startMember" => $this->eso->user["memberId"],
+		"startMember" => $startMember,
 		"startTime" => $time,
 		"lastPostTime" => $time,
-		"lastPostMember" => $this->eso->user["memberId"],
+		"lastPostMember" => $startMember,
 		"lastActionTime" => $time,
-		"private" => (is_array($conversation["membersAllowed"]) and count($conversation["membersAllowed"])) ? "1" : "0",
-		"posts" => $conversation["draft"] ? "0" : "1"
+		"private" => $private,
+		"posts" => $posts
 	);
-	
 	$this->callHook("beforeStartConversation", array(&$insert, $conversation));
 	
-	// Insert the conversation into the database.	
-	$query = $this->eso->db->constructInsertQuery("conversations", $insert);
-	$this->eso->db->query($query);
+	// Insert the conversation into the database using prepared statement.
+	$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}conversations (title, slug, startMember, startTime, lastPostTime, lastPostMember, lastActionTime, private, posts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "ssiiiiiii", $title, $slug, $startMember, $time, $time, $startMember, $time, $private, $posts);
 	$conversationId = $this->eso->db->lastInsertId();
 	
 	// Update the local conversation variable.
@@ -1227,7 +1283,7 @@ function startConversation($conversation)
 
 	// Add the first post or save the draft.
 	if (!($conversation["draft"] ? $this->saveDraft($conversation["content"]) : $this->addReply($conversation["content"], true))) {
-		$this->eso->db->query("DELETE FROM {$config["tablePrefix"]}conversations WHERE conversationId=$conversationId");
+		$this->eso->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}conversations WHERE conversationId=?", "i", $conversationId);
 		$this->conversation["id"] = null;
 		return false;
 	}
@@ -1239,16 +1295,30 @@ function startConversation($conversation)
 
 	// Star the conversation for the member.
 	if ($conversation["starred"]) {
-		$query = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, starred) VALUES ({$this->conversation["id"]}, {$this->eso->user["memberId"]}, 1) ON DUPLICATE KEY UPDATE starred=1";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		$memberId = (int)$this->eso->user["memberId"];
+		$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, starred) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE starred=1", "ii", $conversationId, $memberId);
 	}
 
 	// Save members allowed.
 	if (is_array($conversation["membersAllowed"]) and count($conversation["membersAllowed"])) {
-		$inserts = array();
-		foreach ($conversation["membersAllowed"] as $memberId => $name) $inserts[] = "({$this->conversation["id"]}, '$memberId', 1)";
-		$query = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES " . implode(",", $inserts) . " ON DUPLICATE KEY UPDATE allowed=1";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		// Build prepared statement for multiple inserts
+		$placeholders = array();
+		$values = array();
+		$types = "";
+		foreach ($conversation["membersAllowed"] as $memberId => $name) {
+			$placeholders[] = "(?, ?, 1)";
+			$values[] = $conversationId;
+			$values[] = is_numeric($memberId) ? (int)$memberId : $memberId;
+			$types .= is_numeric($memberId) ? "ii" : "is";
+		}
+		$query = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES " . implode(",", $placeholders) . " ON DUPLICATE KEY UPDATE allowed=1";
+		$stmt = $this->eso->db->prepare($query);
+		if ($stmt) {
+			$stmt->bindParams($types, ...$values);
+			$stmt->execute();
+		}
 	}
 
 	// Clear session data.
@@ -1267,15 +1337,16 @@ function deleteConversation()
 
 	// Delete the conversation, statuses, posts, and tags from the database.
 	global $config;
+	$conversationId = (int)$this->conversation["id"];
 	$query = "DELETE c, s, p, t FROM {$config["tablePrefix"]}conversations c
 		LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId=c.conversationId)
 		LEFT JOIN {$config["tablePrefix"]}posts p ON (p.conversationId=c.conversationId)
 		LEFT JOIN {$config["tablePrefix"]}tags t ON (t.conversationId=c.conversationId)
-		WHERE c.conversationId={$this->conversation["id"]}";
+		WHERE c.conversationId=?";
 		
 	$this->callHook("deleteConversation", array(&$query));
 	
-	$this->eso->db->query($query);
+	$this->eso->db->queryPrepared($query, "i", $conversationId);
 	$this->conversation["lastActionTime"] = time();
 	
 	return true;
@@ -1321,11 +1392,30 @@ function addMember($name)
 				break;
 			// Otherwise, search for it in the database as an actual member name.
 			default:
-				$name = $this->eso->db->escape($name);
-				if (!(list($memberId, $memberName) = @$this->eso->db->fetchRow("SELECT memberId, name FROM {$config["tablePrefix"]}members WHERE (name='$name' OR name LIKE '$name%') AND name NOT IN ('" . (isset($this->conversation["membersAllowed"]) and is_array($this->conversation["membersAllowed"]) ? implode("','", $this->conversation["membersAllowed"]) : implode("','", [])) . "') ORDER BY name='$name' DESC LIMIT 1"))) {
+				$nameSearch = $name;
+				$nameLike = $name . "%";
+				$excludedNames = array();
+				if (isset($this->conversation["membersAllowed"]) and is_array($this->conversation["membersAllowed"])) {
+					$excludedNames = array_values($this->conversation["membersAllowed"]);
+				}
+				// Build query with placeholders
+				$types = "ss";
+				$params = array($nameSearch, $nameLike);
+				$notInClause = "";
+				if (!empty($excludedNames)) {
+					$notInPlaceholders = str_repeat("?,", count($excludedNames) - 1) . "?";
+					$notInClause = " AND name NOT IN ($notInPlaceholders)";
+					$types .= str_repeat("s", count($excludedNames));
+					$params = array_merge($params, $excludedNames);
+				}
+				$types .= "s"; // for ORDER BY name=?
+				$params[] = $nameSearch;
+				$result = $this->eso->db->fetchPrepared("SELECT memberId, name FROM {$config["tablePrefix"]}members WHERE (name=? OR name LIKE ?)$notInClause ORDER BY name=? DESC LIMIT 1", $types, ...$params);
+				if (!$result || !($row = $this->eso->db->fetchRow($result))) {
 					$this->eso->message("memberDoesntExist");
 					return false;
 				}
+				list($memberId, $memberName) = $row;
 		}
 	}
 
@@ -1338,13 +1428,18 @@ function addMember($name)
 
 		// Set the conversation's private field to true and update the last action time.
 		if (!$this->conversation["private"]) {
-			$query = "UPDATE {$config["tablePrefix"]}conversations SET private=1 WHERE conversationId={$this->conversation["id"]}";
-			$this->eso->db->query($query);
+			$conversationId = (int)$this->conversation["id"];
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET private=1 WHERE conversationId=?", "i", $conversationId);
 		}
 
 		// Allow the member to view the conversation in the status table.
-		$query = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES ({$this->conversation["id"]}, '$memberId', 1) ON DUPLICATE KEY UPDATE allowed=1";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		if (is_numeric($memberId)) {
+			$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE allowed=1", "ii", $conversationId, (int)$memberId);
+		} else {
+			// memberId is a string (account name like "Moderator")
+			$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE allowed=1", "is", $conversationId, $memberId);
+		}
 	}
 
 	// Update the membersAllowed array (which may in turn update the $_SESSION["membersAllowed"] array.)
@@ -1373,8 +1468,12 @@ function removeMember($memberId)
 
 	// If the conversation exists, mark this member as not allowed in the conversation.
 	if ($this->conversation["id"]) {
-		$query = "UPDATE {$config["tablePrefix"]}status SET allowed=0 WHERE conversationId={$this->conversation["id"]} AND memberId='$memberId'";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		if (is_numeric($memberId)) {
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}status SET allowed=0 WHERE conversationId=? AND memberId=?", "ii", $conversationId, (int)$memberId);
+		} else {
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}status SET allowed=0 WHERE conversationId=? AND memberId=?", "is", $conversationId, $memberId);
+		}
 	}
 
 	// Update the membersAllowed and labels arrays (which may in turn update the $_SESSION["membersAllowed"] array.)
@@ -1389,8 +1488,8 @@ function removeMember($memberId)
 		
 		// Turn off conversation's private field.
 		if ($this->conversation["id"])  {
-			$query = "UPDATE {$config["tablePrefix"]}conversations SET private=0 WHERE conversationId={$this->conversation["id"]}";
-			$this->eso->db->query($query);
+			$conversationId = (int)$this->conversation["id"];
+			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET private=0 WHERE conversationId=?", "i", $conversationId);
 		}
 	}
 	
@@ -1418,20 +1517,41 @@ function emailPrivateAdd($memberIds, $emailAll = false)
 	// our array, they have verified their email address, they've checked the 'email me' box in My settings, and the
 	// member musn't have a record in the status table for this conversation if we're emailing ALL members in the
 	// conversation.
+	$conversationId = (int)$this->conversation["id"];
+	$userMemberId = (int)$this->eso->user["memberId"];
+	$memberIdPlaceholders = str_repeat("?,", count($memberIds) - 1) . "?";
+	$accountPlaceholders = !empty($accounts) ? str_repeat("?,", count($accounts) - 1) . "?" : "";
+	$types = "i";
+	$params = array($conversationId, $userMemberId);
+	foreach ($memberIds as $id) {
+		$types .= "i";
+		$params[] = (int)$id;
+	}
+	if (!empty($accounts)) {
+		foreach ($accounts as $acc) {
+			$types .= "s";
+			$params[] = $acc;
+		}
+	}
+	$accountClause = !empty($accounts) ? " OR m.account IN ($accountPlaceholders)" : "";
+	$nullClause = !$emailAll ? " AND s.memberId IS NULL" : "";
 	$query = "SELECT DISTINCT name, email, language
 		FROM {$config["tablePrefix"]}members m
-		LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId={$this->conversation["id"]} AND m.memberId=s.memberId)
-		WHERE m.memberId!={$this->eso->user["memberId"]} AND (m.memberId IN (" . implode(",", $memberIds) . ") OR m.account IN ('" . implode("','", $accounts) . "')) AND m.emailVerified=1 AND m.emailOnPrivateAdd=1 " . (!$emailAll ? "AND s.memberId IS NULL" : "");
-	$result = $this->eso->db->query($query);
-	if (!$this->eso->db->numRows($result)) return false;
+		LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId=? AND m.memberId=s.memberId)
+		WHERE m.memberId!=? AND (m.memberId IN ($memberIdPlaceholders)$accountClause) AND m.emailVerified=1 AND m.emailOnPrivateAdd=1$nullClause";
+	$result = $this->eso->db->fetchPrepared($query, $types, ...$params);
+	if (!$result || !$this->eso->db->numRows($result)) return false;
 	
 	// Send the email.
 	global $versions;
-	while (list($name, $email, $language) = $this->eso->db->fetchRow($result)) {
-		include "languages/" . sanitizeFileName(file_exists("languages/$language.php") ? $language : $config["language"]) . ".php";
-		$args = array($name, $this->conversation["title"], $config["baseURL"] . makeLink($this->conversation["id"], $this->conversation["slug"]));
-		sendEmail($email, vsprintf($language["emails"]["privateAdd"]["subject"], $args), vsprintf($language["emails"]["privateAdd"]["body"], $args));
-		unset($language, $messages);
+	if ($result) {
+		while ($row = $this->eso->db->fetchRow($result)) {
+			list($name, $email, $language) = $row;
+			include "languages/" . sanitizeFileName(file_exists("languages/$language.php") ? $language : $config["language"]) . ".php";
+			$args = array($name, $this->conversation["title"], $config["baseURL"] . makeLink($this->conversation["id"], $this->conversation["slug"]));
+			sendEmail($email, vsprintf($language["emails"]["privateAdd"]["subject"], $args), vsprintf($language["emails"]["privateAdd"]["body"], $args));
+			unset($language, $messages);
+		}
 	}
 }
 
@@ -1480,17 +1600,18 @@ function saveTitle($title)
 
 	global $config;
 	$slug = slug($title);
-	$slashedTitle = $this->eso->db->escape($title);
-	$query = "UPDATE {$config["tablePrefix"]}conversations c SET title='$slashedTitle', slug='$slug', lastActionTime=" . time() . " WHERE c.conversationId={$this->conversation["id"]}";
+	$lastActionTime = time();
+	$conversationId = (int)$this->conversation["id"];
+	$query = "UPDATE {$config["tablePrefix"]}conversations c SET title=?, slug=?, lastActionTime=? WHERE c.conversationId=?";
 
 	$this->callHook("saveTitle", array(&$query, $title));
 	
-	$this->eso->db->query($query);
+	$this->eso->db->queryPrepared($query, "ssii", $title, $slug, $lastActionTime, $conversationId);
 	$this->conversation["title"] = $this->title = $title;
 	$this->conversation["slug"] = $slug;
 	
 	// Update the title column in the posts table as well (which is used for fulltext searching).
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}posts p SET title='$slashedTitle' WHERE conversationId={$this->conversation["id"]}");
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}posts p SET title=? WHERE conversationId=?", "si", $title, $conversationId);
 }
 
 // Save the conversation tags.
@@ -1514,18 +1635,39 @@ function saveTags($tags)
 
 	// Up the count of added tags.
 	if (count($addTags)) {
-		$query = "INSERT INTO {$config["tablePrefix"]}tags VALUES ('" . implode("', {$this->conversation["id"]}), ('", $addTags) . "', {$this->conversation["id"]})";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		$placeholders = array();
+		$values = array();
+		$types = "";
+		foreach ($addTags as $tag) {
+			$placeholders[] = "(?, ?)";
+			$values[] = $tag;
+			$values[] = $conversationId;
+			$types .= "si";
+		}
+		$query = "INSERT INTO {$config["tablePrefix"]}tags VALUES " . implode(", ", $placeholders);
+		$stmt = $this->eso->db->prepare($query);
+		if ($stmt) {
+			$stmt->bindParams($types, ...$values);
+			$stmt->execute();
+		}
 	}
 
 	// Lower the count of removed tags.
 	if (count($delTags)) {
-		$query = "DELETE FROM {$config["tablePrefix"]}tags WHERE tag IN ('" . implode("', '", $delTags) . "') AND conversationId={$this->conversation["id"]}";
-		$this->eso->db->query($query);
+		$conversationId = (int)$this->conversation["id"];
+		$placeholders = str_repeat("?,", count($delTags) - 1) . "?";
+		$types = str_repeat("s", count($delTags)) . "i";
+		$params = array_merge($delTags, array($conversationId));
+		$this->eso->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}tags WHERE tag IN ($placeholders) AND conversationId=?", $types, ...$params);
 	}
 
 	// Update the conversation.
-	if ($this->conversation["lastActionTime"] != time()) $this->eso->db->query("UPDATE {$config["tablePrefix"]}conversations SET lastActionTime=" . time() . " WHERE conversationId={$this->conversation["id"]}");
+	if ($this->conversation["lastActionTime"] != time()) {
+		$conversationId = (int)$this->conversation["id"];
+		$lastActionTime = time();
+		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}conversations SET lastActionTime=? WHERE conversationId=?", "ii", $lastActionTime, $conversationId);
+	}
 	$this->conversation["tags"] = implode(", ", $newTags);
 	
 	$this->callHook("saveTags", array($newTags, $addTags, $delTags));
@@ -1553,11 +1695,13 @@ function toggleSticky()
 	if (!$this->canSticky()) return false;
 
 	global $config;
-	$query = "UPDATE {$config["tablePrefix"]}conversations SET sticky=(!sticky), lastActionTime=" . time() . " WHERE conversationId={$this->conversation["id"]}";
+	$lastActionTime = time();
+	$conversationId = (int)$this->conversation["id"];
+	$query = "UPDATE {$config["tablePrefix"]}conversations SET sticky=(!sticky), lastActionTime=? WHERE conversationId=?";
 	
 	$this->callHook("toggleSticky", array(&$query));
 	
-	$this->eso->db->query($query);
+	$this->eso->db->queryPrepared($query, "ii", $lastActionTime, $conversationId);
 }
 
 // Toggle locked for this conversation.
@@ -1566,11 +1710,13 @@ function toggleLock()
 	if (!$this->canLock()) return false;
 
 	global $config;
-	$query = "UPDATE {$config["tablePrefix"]}conversations SET locked=(!locked), lastActionTime=" . time() . " WHERE conversationId={$this->conversation["id"]}";
+	$lastActionTime = time();
+	$conversationId = (int)$this->conversation["id"];
+	$query = "UPDATE {$config["tablePrefix"]}conversations SET locked=(!locked), lastActionTime=? WHERE conversationId=?";
 	
 	$this->callHook("toggleLock", array(&$query));
 	
-	$this->eso->db->query($query);
+	$this->eso->db->queryPrepared($query, "ii", $lastActionTime, $conversationId);
 	$this->conversation["locked"] = !$this->conversation["locked"];
 }
 
@@ -1642,9 +1788,12 @@ function canReply()
 {
 	global $config;
 	if (!$this->eso->user) return "loginRequired";
-	if ($this->eso->user and !$this->eso->db->result("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId={$this->eso->user["memberId"]}")) {
-		$this->eso->logout();
-		return "loginRequired";
+	if ($this->eso->user) {
+		$memberId = (int)$this->eso->user["memberId"];
+		if (!$this->eso->db->exists("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId)) {
+			$this->eso->logout();
+			return "loginRequired";
+		}
 	}
 	if ($this->eso->isSuspended()) return "suspended";
 	if ($this->conversation["locked"] and !$this->eso->user["moderator"]) return "locked";
@@ -1692,7 +1841,21 @@ function canStartConversation()
 function canDeleteConversation()
 {
 	global $config;
-	return $this->eso->user and ($this->eso->user["moderator"] or ($this->eso->user["memberId"] == $this->conversation["startMember"] and ($this->conversation["postCount"] <= 1 or !$this->eso->db->result("SELECT 1 FROM {$config["tablePrefix"]}posts WHERE conversationId={$this->conversation["id"]} AND memberId!={$this->eso->user["memberId"]}", 0))));
+	$canDelete = false;
+	if ($this->eso->user) {
+		if ($this->eso->user["moderator"]) {
+			$canDelete = true;
+		} elseif ($this->eso->user["memberId"] == $this->conversation["startMember"]) {
+			if ($this->conversation["postCount"] <= 1) {
+				$canDelete = true;
+			} else {
+				$conversationId = (int)$this->conversation["id"];
+				$memberId = (int)$this->eso->user["memberId"];
+				$canDelete = !$this->eso->db->exists("SELECT 1 FROM {$config["tablePrefix"]}posts WHERE conversationId=? AND memberId!=?", "ii", $conversationId, $memberId);
+			}
+		}
+	}
+	return $canDelete;
 }
 
 }
