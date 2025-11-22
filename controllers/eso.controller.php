@@ -750,6 +750,27 @@ function updateLastAction($action)
 	$this->user["lastAction"] = $_SESSION["user"]["lastAction"] = $action;
 }
 
+// Update user role flags based on account type
+// This ensures consistency when account changes or is refreshed from database
+function updateUserRoleFlags($account = null)
+{
+	if (!$this->user) return;
+	
+	// If account not provided, use current account from user object
+	if ($account === null) {
+		$account = $this->user["account"];
+	}
+	
+	// Update all role flags based on account
+	$this->user["admin"] = ($account == "Administrator");
+	$this->user["moderator"] = ($account == "Moderator" || $account == "Administrator");
+	$this->user["member"] = ($account == "Member");
+	$this->user["suspended"] = ($account == "Suspended" ? true : null);
+	$this->user["unvalidated"] = ($account == "Unvalidated" ? true : false);
+	
+	$this->callHook("updateUserRoleFlags", array(&$this->user, $account));
+}
+
 // Change a member's group.
 function changeMemberGroup($memberId, $newGroup, $currentGroup = false)
 {
@@ -768,6 +789,14 @@ function changeMemberGroup($memberId, $newGroup, $currentGroup = false)
 	
 	// Change the group!
 	$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET account=? WHERE memberId=?", "si", $newGroup, $memberId);
+	
+	// If this is the currently logged-in user, update their session and regenerate session ID
+	if ($this->user && $this->user["memberId"] == $memberId && $currentGroup != $newGroup) {
+		$_SESSION["user"]["account"] = $newGroup;
+		$this->user["account"] = $newGroup;
+		$this->updateUserRoleFlags($newGroup);
+		regenerateToken();
+	}
 }
 
 // To change $member's group $this->user must be an admin and $member != rootAdmin and $member != $this->user.
@@ -807,30 +836,23 @@ function isSuspended()
 	global $config;
 	if (!$this->user) return false;
 	
-	// If the user's suspension is unknown, get it from the database and cache it for later.
-	if ($this->user["suspended"] !== true and $this->user["suspended"] !== false) {
+	// If the user's suspension status is unknown (null), refresh from database
+	if ($this->user["suspended"] === null) {
 		$memberId = (int)$this->user["memberId"];
 		$account = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 		$this->user["account"] = $_SESSION["user"]["account"] = $account;
-		$this->user["suspended"] = $account == "Suspended";
+		$this->updateUserRoleFlags($account);
 	}
-	return $this->user["suspended"];
+	return $this->user["suspended"] ?? false;
 }
 
 // Returns whether or not the logged in user has been validated or not.
 // Does not return "Member", only "Unvalidated" if the user is unvalidated.
 function isUnvalidated()
 {
-	global $config;
 	if (!$this->user) return false;
 
-	if ($this->user["account"] = "Unvalidated") {
-		$memberId = (int)$this->user["memberId"];
-		$account = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
-		$this->user["account"] = $_SESSION["user"]["account"] = $account;
-		$this->user["unvalidated"] = $account == "Unvalidated";
-	}
-	return $this->user["unvalidated"];
+	return $this->user["account"] == "Unvalidated";
 }
 
 }
