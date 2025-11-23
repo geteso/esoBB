@@ -355,6 +355,25 @@ function getConversationIDs($search = "")
 		$params = isset($v[4]) ? $v[4] : array();
 		
 		if ($table == "conversations") {
+			// If this condition has prepared statement parameters, substitute them
+			if (!empty($types) && !empty($params)) {
+				// Escape and substitute parameters into the condition
+				$escapedParams = array();
+				foreach ($params as $i => $param) {
+					$type = isset($types[$i]) ? $types[$i] : 's';
+					if ($type == 'i') {
+						$escapedParams[] = (int)$param;
+					} elseif ($type == 'd') {
+						$escapedParams[] = (float)$param;
+					} else {
+						$escapedParams[] = "'" . $this->eso->db->escape($param) . "'";
+					}
+				}
+				// Replace ? placeholders with escaped values
+				$condition = preg_replace_callback('/\?/', function() use (&$escapedParams) {
+					return array_shift($escapedParams);
+				}, $condition);
+			}
 			$conversationConditions[] = $condition;
 			continue;
 		}

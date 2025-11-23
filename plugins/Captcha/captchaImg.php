@@ -33,6 +33,15 @@ require "../../config/config.php";
 if (file_exists("../../config/Captcha.php")) include "../../config/Captcha.php";
 $numberOfCharacters = !empty($config["Captcha"]["numberOfCharacters"]) ? $config["Captcha"]["numberOfCharacters"] : 3;
 
+// Set the session save path.
+$rootPath = realpath(dirname(dirname(dirname(__FILE__))));
+$sessionsPath = $rootPath . "/sessions";
+if (!is_dir($sessionsPath)) {
+	@mkdir($sessionsPath, 0755, true);
+}
+session_save_path($sessionsPath);
+ini_set('session.gc_probability', 1);
+
 // Start a session if one does not already exist.
 if (!session_id()) {
 	session_name("{$config["cookieName"]}_Session");

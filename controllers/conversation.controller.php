@@ -893,7 +893,7 @@ function addReply($content, $newConversation = false)
 		$result = $this->eso->db->fetchPrepared("SELECT name, email, language
 			FROM {$config["tablePrefix"]}members m
 			LEFT JOIN {$config["tablePrefix"]}status s ON (s.conversationId=? AND s.memberId=m.memberId)
-			WHERE m.memberId!=? AND m.emailVerified=1 AND m.emailOnStar=1 AND s.starred=1 AND s.lastRead>=? AND (m.lastSeen IS NULL OR ?>m.lastSeen)", "iiiii", $conversationId, $memberId, $postCount, $lastSeenCheck);
+			WHERE m.memberId!=? AND m.emailVerified=1 AND m.emailOnStar=1 AND s.starred=1 AND s.lastRead>=? AND (m.lastSeen IS NULL OR ?>m.lastSeen)", "iiii", $conversationId, $memberId, $postCount, $lastSeenCheck);
 		global $versions;
 		if ($result) {
 			while ($row = $this->eso->db->fetchRow($result)) {
