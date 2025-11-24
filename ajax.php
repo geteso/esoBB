@@ -48,7 +48,8 @@ if (isset($_GET["controller"])) {
 	
 	// Require and set it up.
 	require_once "controllers/$eso->action.controller.php";
-	$eso->controller = new $eso->action;
+	$className = str_replace("-", "", $eso->action);
+	$eso->controller = new $className;
 	$eso->controller->eso =& $eso;
 }
 

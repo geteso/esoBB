@@ -2717,7 +2717,34 @@ init: function() {
 
 };
 
+// "Forgot password" JavaScript.
+var ForgotPassword = {
 
+fieldsValidated: {}, // An array of fields and if they've been validated (set by PHP).
+formConfig: null, // Form configuration (set in init)
+
+// Initialize: set up form validation using Form.
+init: function() {
+	// Create formConfig structure for Form
+	ForgotPassword.formConfig = {
+		formId: "forgot-password",
+		fields: {},
+		fieldsValidated: ForgotPassword.fieldsValidated,
+		timeouts: {},
+		submitButtonId: "forgotPasswordSubmit",
+		ajaxController: "forgot-password"
+	};
+	
+	// Populate fields object from fieldsValidated
+	for (var fieldId in ForgotPassword.fieldsValidated) {
+		ForgotPassword.formConfig.fields[fieldId] = {};
+	}
+	
+	// Initialize Form
+	Form.init(ForgotPassword.formConfig);
+}
+
+};
 
 // Settings JavaScript.
 var Settings = {

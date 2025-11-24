@@ -110,5 +110,26 @@ function init()
 	}
 }
 
+// Run AJAX actions.
+function ajax()
+{
+	if ($return = $this->callHook("ajax", null, true)) return $return;
+	
+	switch ($_POST["action"]) {
+		
+		// Validate a form field.
+		case "validate":
+			if ($_POST["field"] == "email") {
+				$email = @$_POST["value"];
+				// Check email format.
+				if (!preg_match("/^[A-Z0-9._%-+.-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $email)) {
+					return array("validated" => false, "message" => $this->eso->htmlMessage("invalidEmail"));
+				}
+				return array("validated" => true, "message" => "");
+			}
+			break;
+	}
+}
+
 
 }

@@ -38,12 +38,20 @@ echo $this->eso->htmlMessage("forgotPassword");?>
 <ul class='form'>
 	
 <li><label><?php echo $language["Enter your email"];?></label>
-<input type='text' autocomplete='email' value='' name='email' id='email' class='text'/></li>
+<input type='text' autocomplete='email' value='' name='email' id='email' class='text'/>
+<div id='email-message'></div></li>
 
-<li><label id='lbl-fgps'></label> <?php echo $this->eso->skin->button(array("value"=>$language["Recover password"]));?></li>
+<li><label id='lbl-fgps'></label> <?php echo $this->eso->skin->button(array("id"=>"forgotPasswordSubmit","value"=>$language["Recover password"]));?></li>
 
 </ul>
 </form>
+
+<script type='text/javascript'>
+// <![CDATA[
+ForgotPassword.fieldsValidated = {'email': false};
+ForgotPassword.init();
+// ]]>
+</script>
 
 <?php
 
