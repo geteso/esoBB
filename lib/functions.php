@@ -157,29 +157,6 @@ function generateRandomString($numOfChars, $possibleChars = "abcdefghijklmnopqrs
 	return $salt;
 }
 
-// For bad server configs... ;) Pretty much just performing stripslashes on an array here.
-function undoMagicQuotes($value)
-{
-	if (!is_array($value)) return stripslashes($value);
-	else {
-		foreach ($value as $k => $v) $value[$k] = undoMagicQuotes($v);
-		return $value;
-	}
-}
-
-// For bad server configs as well. It's funny how we have to go out of our way to fix stuff like this. :(
-function undoRegisterGlobals()
-{
-    if (ini_get("register_globals")) {
-        $array = array("_REQUEST", "_SESSION", "_SERVER", "_ENV", "_FILES");
-        foreach ($array as $value) {
-        	foreach ((array)$GLOBALS[$value] as $key => $var) {
-            	if (isset($GLOBALS[$key]) and $var === $GLOBALS[$key]) unset($GLOBALS[$key]);
-        	}
-        }
-    }
-}
-
 // Encodes JSON (JavaScript Object Notation) representations of values and returns a JSON string.
 function json($array)
 {
@@ -275,6 +252,9 @@ function translateLastAction($action)
 				} else {
 					// User can view - show the title
 					$link = makeLink($id, $slug);
+					if (strpos($title, '&#') !== false) {
+						$title = desanitize($title);
+					}
 					$escapedTitle = htmlspecialchars($title, ENT_QUOTES, "UTF-8");
 					return "$viewingText <a href='$link'>$escapedTitle</a>";
 				}
@@ -886,14 +866,6 @@ function regenerateToken()
 	// Update IP address and time to match current request to prevent session validation issues
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
 	$_SESSION["time"] = time();
-}
-
-// htmlspecialchars_decode for PHP 4.
-if (!function_exists("htmlspecialchars_decode")) {
-	function htmlspecialchars_decode($text)
-	{
-		return strtr($text, array_flip(get_html_translation_table(HTML_SPECIALCHARS)));
-	}
 }
 
 ?>

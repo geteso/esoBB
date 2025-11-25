@@ -140,9 +140,6 @@ if (session_id()) {
 	if (empty($_SESSION["token"])) regenerateToken();
 }
 
-// Undo register_globals.
-undoRegisterGlobals();
-
 // Do we want to force HTTPS?
 if (!empty($config["https"]) and $_SERVER["HTTPS"] != "on") {
     header("Location: https://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"]);

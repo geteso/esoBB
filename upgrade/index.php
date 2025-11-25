@@ -43,9 +43,6 @@ require "../lib/database.php";
 require "../config/config.php";
 require "upgrade.controller.php";
 
-// Undo register_globals.
-undoRegisterGlobals();
-
 // Sanitize the request data using sanitize().
 $_POST = sanitize($_POST);
 $_GET = sanitize($_GET);

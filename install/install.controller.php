@@ -578,7 +578,7 @@ function fatalChecks()
 	}
 	
 	// Check the PHP version.
-	if (!version_compare(PHP_VERSION, "4.3.0", ">=")) $errors[] = "Your server must have <strong>PHP 4.3.0 or greater</strong> installed to run your forum.<br/><small>Please upgrade your PHP installation (preferably to version 5) or request that your host or administrator upgrade the server.</small>";
+	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = "Your server must have <strong>PHP 7.2.0 or greater</strong> installed to run your forum.<br/><small>Please upgrade your PHP installation or request that your host or administrator upgrade the server.</small>";
 	
 	// Check for the MySQLi extension.
 	if (!extension_loaded("mysqli")) $errors[] = "You must have <strong>MySQL 5.7 or greater</strong> installed and the <a href='https://php.net/manual/en/mysqli.installation.php' target='_blank'>MySQLi extension enabled in PHP</a>.<br/><small>Please install/upgrade both of these requirements or request that your host or administrator install them.</small>";
