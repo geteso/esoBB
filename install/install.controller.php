@@ -36,12 +36,64 @@ function init()
 	// Determine which step we're on:
 	// If there are fatal errors, then remain on the fatal error step.
 	// Otherwise, use the step in the URL if it's available.
-	// Otherwise, default to the warning check step.
+	// Otherwise, default to the start step.
 	if ($this->errors = $this->fatalChecks()) $this->step = "fatalChecks";
 	elseif (@$_GET["step"]) $this->step = $_GET["step"];
-	else $this->step = "warningChecks";
+	else $this->step = "start";
 	
 	switch ($this->step) {
+		
+		// On the "start" step, handle language selection.
+		case "start":
+			global $language;
+			// Get list of available languages from ../languages/ folder.
+			$this->languages = array();
+			if ($handle = opendir("../languages")) {
+				while (false !== ($v = readdir($handle))) {
+					if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
+						$v = substr($v, 0, strrpos($v, "."));
+						$this->languages[] = $v;
+					}
+				}
+				closedir($handle);
+			}
+			
+			// Handle "Next step" button click - proceed to warningChecks.
+			// Check this FIRST before checking for language changes.
+			if (isset($_POST["next"])) {
+				// If no language in session, default to "English (casual)".
+				if (empty($_SESSION["installLanguage"])) {
+					$_SESSION["installLanguage"] = "English (casual)";
+				}
+				$this->step("warningChecks");
+			}
+			// If language selected via POST (but not via Next button), store in session but stay on start step.
+			elseif (isset($_POST["language"])) {
+				// Validate CSRF token.
+				if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
+					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+					return;
+				}
+				
+				// Validate and sanitize language name.
+				$selectedLanguage = sanitizeFileName($_POST["language"]);
+				if (in_array($selectedLanguage, $this->languages) && file_exists("../languages/{$selectedLanguage}.php")) {
+					$_SESSION["installLanguage"] = $selectedLanguage;
+					// Reload language file.
+					include "../languages/{$selectedLanguage}.php";
+					// Regenerate token after successful form submission.
+					regenerateToken();
+					// Stay on start step - page will update via JavaScript
+				} else {
+					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+				}
+			}
+			// If language already selected in session, skip to warningChecks.
+			// But only if user didn't explicitly navigate to start step (e.g., via back button).
+			elseif (!empty($_SESSION["installLanguage"]) && @$_GET["step"] != "start") {
+				$this->step("warningChecks");
+			}
+			break;
 		
 		// If on the warning checks step and there are no warnings or the user has clicked "Next", go to the next step.
 		case "warningChecks":
@@ -51,6 +103,12 @@ function init()
 		
 		// On the "Specify setup information" step, handle the form processing.
 		case "info":
+		
+			// Handle back button - go back to start step.
+			if (isset($_POST["back"])) {
+				$this->step("start");
+				return;
+			}
 		
 			// Prepare a list of language packs in the ../languages folder.
 			$this->languages = array();
@@ -81,6 +139,13 @@ function init()
 			
 			// If the form has been submitted...
 			if (isset($_POST["forumTitle"])) {
+				
+				// Validate CSRF token.
+				global $language;
+				if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
+					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+					return;
+				}
 				
 				// Validate the form data - do not continue if there were errors!
 				if ($this->errors = $this->validateInfo()) return;
@@ -115,6 +180,8 @@ function init()
 					"baseURL" => $_POST["baseURL"],
 					"friendlyURLs" => $_POST["friendlyURLs"]
 				);
+				// Regenerate token after successful form submission.
+				regenerateToken();
 				$this->step("install");
 			}
 			
@@ -144,18 +211,25 @@ function init()
 			// If they clicked the 'go to my forum' button, log them in as the administrator and redirect to the forum.
 			if (isset($_POST["finish"])) {
 				include "../config/config.php";
-				$user = $_SESSION["user"];
-				session_destroy();
-				session_name("{$config["cookieName"]}_Session");
-				session_start();
-				$_SESSION["user"] = $user;
+				initSession($config, $_SESSION["user"]);
 				header("Location: ../");
 				exit;
 			}
-			// Lock the installer.
-			if (($handle = fopen("lock", "w")) === false)
-				$this->errors[1] = "Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable.";
-			else fclose($handle);
+			// Lock the installer using atomic file operation.
+			global $language;
+			if (($handle = @fopen("lock", "c")) === false) {
+				$this->errors[1] = $language["Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable."];
+			} else {
+				// Use exclusive lock to prevent race conditions.
+				if (!flock($handle, LOCK_EX | LOCK_NB)) {
+					fclose($handle);
+					$this->errors[1] = $language["Installer is locked by another process."];
+				} else {
+					fwrite($handle, time() . "\n" . $_SERVER["REMOTE_ADDR"]);
+					fflush($handle);
+					// Keep handle open to maintain lock (will be closed when script ends).
+				}
+			}
 	}
 
 }
@@ -192,6 +266,45 @@ public function query($link, $query)
 	return $result;
 }
 
+// Execute a prepared statement query, and log it.
+public function queryPrepared($link, $query, $types, ...$params)
+{
+	$stmt = mysqli_prepare($link, $query);
+	if (!$stmt) {
+		$this->queries[] = $query . " [PREPARE ERROR: " . mysqli_error($link) . "]";
+		return false;
+	}
+	
+	// Bind parameters by reference (required by mysqli_stmt_bind_param)
+	if (!empty($params)) {
+		$refs = array();
+		foreach ($params as $key => $value) {
+			$refs[$key] = &$params[$key];
+		}
+		array_unshift($refs, $types);
+		call_user_func_array(array($stmt, 'bind_param'), $refs);
+	}
+	
+	// Execute the statement
+	if (!mysqli_stmt_execute($stmt)) {
+		$this->queries[] = $query . " [EXECUTE ERROR: " . mysqli_stmt_error($stmt) . "]";
+		mysqli_stmt_close($stmt);
+		return false;
+	}
+	
+	// Log the query with parameter values for debugging
+	$logQuery = $query;
+	foreach ($params as $i => $param) {
+		$type = isset($types[$i]) ? $types[$i] : 's';
+		$value = $type == 'i' ? (int)$param : (is_string($param) ? "'" . addslashes($param) . "'" : $param);
+		$logQuery = preg_replace('/\?/', $value, $logQuery, 1);
+	}
+	$this->queries[] = $logQuery;
+	
+	mysqli_stmt_close($stmt);
+	return true;
+}
+
 // Fetch a sequential array.  $input can be a string or a MySQL result.
 public function fetchRow($link, $input)
 {
@@ -218,9 +331,16 @@ function doInstall()
 	// Make sure the base URL has a trailing slash.
 	if (substr($_SESSION["install"]["baseURL"], -1) != "/") $_SESSION["install"]["baseURL"] .= "/";
 	
-	// Make sure the language exists.
-	if (!file_exists("../languages/{$_SESSION["install"]["language"]}.php"))
+	// Validate and sanitize language filename to prevent path traversal.
+	$language = basename($_SESSION["install"]["language"]);
+	if (!preg_match("/^[a-zA-Z0-9_() -]+$/", $language)) {
 		$_SESSION["install"]["language"] = "English (casual)";
+	} else {
+		$_SESSION["install"]["language"] = $language;
+	}
+	if (!file_exists("../languages/{$_SESSION["install"]["language"]}.php")) {
+		$_SESSION["install"]["language"] = "English (casual)";
+	}
 
 	// Make sure there is a character set.
 	if (empty($_SESSION["install"]["characterEncoding"]))
@@ -264,9 +384,26 @@ function doInstall()
 	
 	// Run the queries one by one and halt if there's an error!
 	include "queries.php";
+	
+	// Execute DDL queries (CREATE TABLE, DROP TABLE, etc.) - these don't contain user data
 	foreach ($queries as $query) {
 		if (!$this->query($db, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
 	}
+	
+	// Execute prepared statement queries (contain user-provided data)
+	if (isset($preparedQueries)) {
+		foreach ($preparedQueries as $preparedQuery) {
+			if (!$this->queryPrepared($db, $preparedQuery["query"], $preparedQuery["types"], ...$preparedQuery["params"])) {
+				return array(1 => "<code>" . sanitizeHTML(mysqli_error($db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($preparedQuery["query"]) . "</pre>");
+			}
+		}
+	}
+	
+	// Clear sensitive data from session after use.
+	unset($_SESSION["install"]["mysqlPass"]);
+	unset($_SESSION["install"]["adminPass"]);
+	unset($_SESSION["install"]["adminConfirm"]);
+	unset($_SESSION["install"]["smtpPass"]);
 	
 	// Write the $config variable to config.php.
 	writeConfigFile("../config/config.php", '$config', $config);
@@ -334,31 +471,71 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 // Validate the information entered in the 'Specify setup information' form.
 function validateInfo()
 {
+	global $language;
 	$errors = array();
 
 	// Forum title must contain at least one character.
-	if (!strlen($_POST["forumTitle"])) $errors["forumTitle"] = "Your forum title must consist of at least one character";
+	if (!strlen($_POST["forumTitle"])) $errors["forumTitle"] = $language["Your forum title must consist of at least one character"];
 
 	// Forum description also must contain at least one character.
-	if (!strlen($_POST["forumDescription"])) $errors["forumDescription"] = "Your forum description must consist of at least one character";
+	if (!strlen($_POST["forumDescription"])) $errors["forumDescription"] = $language["Your forum description must consist of at least one character"];
 	
 	// Username must not be reserved, and must not contain special characters.
-	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = "The name you have entered is reserved and cannot be used";
-	if (!strlen($_POST["adminUser"])) $errors["adminUser"] = "You must enter a name";
-	if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $_POST["adminUser"])) $errors["adminUser"] = "You can't use any of these characters in your name: ! / % + -";
+	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = $language["The name you have entered is reserved and cannot be used"];
+	if (!strlen($_POST["adminUser"])) $errors["adminUser"] = $language["You must enter a name"];
+	if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $_POST["adminUser"])) $errors["adminUser"] = $language["You can't use any of these characters in your name: ! / % + -"];
 	
 	// Email must be valid.
-	if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $_POST["adminEmail"])) $errors["adminEmail"] = "You must enter a valid email address";
+	if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $_POST["adminEmail"])) $errors["adminEmail"] = $language["You must enter a valid email address"];
 	
 	// Password must be at least 6 characters.
-	if (strlen($_POST["adminPass"]) < 6) $errors["adminPass"] = "Your password must be at least 6 characters";
+	if (strlen($_POST["adminPass"]) < 6) $errors["adminPass"] = $language["Your password must be at least 6 characters"];
 	
 	// Password confirmation must match.
-	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = "Your passwords do not match";
+	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = $language["Your passwords do not match"];
+	
+	// Validate table prefix format and length.
+	if (!preg_match("/^[a-zA-Z0-9_]+$/", $_POST["tablePrefix"])) {
+		$errors["tablePrefix"] = $language["Table prefix can only contain letters, numbers, and underscores"];
+	}
+	if (strlen($_POST["tablePrefix"]) > 20) {
+		$errors["tablePrefix"] = $language["Table prefix must be 20 characters or less"];
+	}
+	if (strlen($_POST["tablePrefix"]) < 1) {
+		$errors["tablePrefix"] = $language["Table prefix must be at least 1 character"];
+	}
+	
+	// Validate character encoding.
+	$allowedEncodings = array("utf8", "utf8mb4", "latin1");
+	if (!empty($_POST["characterEncoding"]) && !in_array(strtolower($_POST["characterEncoding"]), $allowedEncodings)) {
+		$errors["characterEncoding"] = $language["Character encoding must be one of"] . " " . implode(", ", $allowedEncodings);
+	}
+	
+	// Validate base URL format.
+	if (!empty($_POST["baseURL"]) && !filter_var($_POST["baseURL"], FILTER_VALIDATE_URL)) {
+		$errors["baseURL"] = $language["Base URL must be a valid URL"];
+	}
+	
+	// Validate SMTP port if provided.
+	if (!empty($_POST["smtpPort"]) && (!is_numeric($_POST["smtpPort"]) || $_POST["smtpPort"] < 1 || $_POST["smtpPort"] > 65535)) {
+		$errors["smtpPort"] = $language["SMTP port must be a number between 1 and 65535"];
+	}
+	
+	// Validate storage engine.
+	$allowedEngines = array("InnoDB", "MyISAM");
+	if (!empty($_POST["storageEngine"]) && !in_array($_POST["storageEngine"], $allowedEngines)) {
+		$errors["storageEngine"] = $language["Storage engine must be InnoDB or MyISAM"];
+	}
+	
+	// Validate hashing method.
+	$allowedMethods = array("bcrypt", "md5");
+	if (!empty($_POST["hashingMethod"]) && !in_array($_POST["hashingMethod"], $allowedMethods)) {
+		$errors["hashingMethod"] = $language["Hashing method must be bcrypt or md5"];
+	}
 	
 	// Try and connect to the database.
 	$db = @mysqli_connect($_POST["mysqlHost"], $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
-	if (!$db) $errors["mysql"] = "The installer could not connect to the MySQL server. The error returned was:<br/> " . mysqli_connect_error();
+	if (!$db) $errors["mysql"] = $language["The installer could not connect to the MySQL server. The error returned was"] . "<br/> " . mysqli_connect_error();
 	
 	// Check to see if there are any conflicting tables already in the database.
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
@@ -391,7 +568,14 @@ function fatalChecks()
 	$errors = array();
 	
 	// Make sure the installer is not locked.
-	if (@$_GET["step"] != "finish" and file_exists("lock")) $errors[] = "<strong>Your forum is already installed.</strong><br/><small>To reinstall your forum, you must remove <strong>install/lock</strong>.</small>";
+	global $language;
+	if (@$_GET["step"] != "finish" && file_exists("lock")) {
+		// Try to read lock file to verify it's valid.
+		$lockContent = @file_get_contents("lock");
+		if ($lockContent !== false) {
+			$errors[] = $language["Your forum is already installed. To reinstall your forum, you must remove install/lock."];
+		}
+	}
 	
 	// Check the PHP version.
 	if (!version_compare(PHP_VERSION, "4.3.0", ">=")) $errors[] = "Your server must have <strong>PHP 4.3.0 or greater</strong> installed to run your forum.<br/><small>Please upgrade your PHP installation (preferably to version 5) or request that your host or administrator upgrade the server.</small>";
@@ -434,6 +618,232 @@ function warningChecks()
 	if (ini_get("safe_mode")) $errors[] = "<strong>Safe mode</strong> is enabled.<br/><small>This could potentially cause problems with your forum, but you can still proceed if you cannot turn it off.</small>";
 	
 	if (count($errors)) return $errors;
+}
+
+// Helper function to format validation error messages as HTML.
+function htmlMessage($text) {
+	return "<div class='msg warning'>" . htmlspecialchars($text, ENT_QUOTES, "UTF-8") . "</div>";
+}
+
+// Initialize forum session with proper configuration and required fields.
+// Transitions from installer session to forum session for auto-login after installation.
+function initSession($config, $user) {
+	// Destroy current installer session
+	session_destroy();
+	
+	// Set session name to match forum's cookie name
+	session_name("{$config["cookieName"]}_Session");
+	
+	// Configure session cookie parameters (matching lib/init.php)
+	$lifetime = 0; // Session cookie (expires when browser closes)
+	$path = "/";
+	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$secure = !empty($config["https"]);
+	$httponly = true;
+	
+	// session_set_cookie_params() array syntax requires PHP 7.3.0+
+	if (PHP_VERSION_ID >= 70300) {
+		session_set_cookie_params(array(
+			"lifetime" => $lifetime,
+			"path" => $path,
+			"domain" => $domain,
+			"secure" => $secure,
+			"httponly" => $httponly,
+			"samesite" => "Lax"
+		));
+	} else {
+		// PHP 7.2.x compatibility: use individual parameters
+		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
+		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+	}
+	
+	// Start new forum session
+	session_start();
+	
+	// Set user data
+	$_SESSION["user"] = $user;
+	
+	// Set required session fields that the main application expects
+	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
+	$_SESSION["time"] = time();
+	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
+	
+	// Generate token if needed (regenerateToken() will also update ip/time/userAgent, but that's fine)
+	if (empty($_SESSION["token"])) regenerateToken();
+}
+
+// Test database connection with rate limiting.
+// Returns array with "validated" (bool) and "message" (string).
+// This function is available for later implementation (e.g., optional connection testing).
+function testDatabaseConnection($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDB)
+{
+	global $language;
+	
+	// Rate limiting: check last validation time.
+	$lastCheck = @$_SESSION["install"]["lastDbCheck"];
+	$cachedResult = @$_SESSION["install"]["dbCheckResult"];
+	
+	// If checked within last 5 seconds, return cached result.
+	if ($lastCheck && (time() - $lastCheck) < 5 && isset($cachedResult)) {
+		return $cachedResult;
+	}
+	
+	// Attempt connection.
+	$db = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDB);
+	if (!$db) {
+		$result = array("validated" => false, "message" => htmlMessage($language["The installer could not connect to the MySQL server. The error returned was"] . " " . mysqli_connect_error()));
+	} else {
+		$result = array("validated" => true, "message" => "");
+		mysqli_close($db);
+	}
+	
+	// Cache result.
+	$_SESSION["install"]["lastDbCheck"] = time();
+	$_SESSION["install"]["dbCheckResult"] = $result;
+	
+	return $result;
+}
+
+// Handle AJAX validation requests.
+function ajax()
+{
+	global $language;
+	
+	if (empty($_POST["action"])) {
+		return null;
+	}
+	
+	// Handle language change via AJAX.
+	if ($_POST["action"] == "changeLanguage") {
+		// Validate CSRF token.
+		if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
+			return array("success" => false, "message" => $language["Invalid security token. Please refresh the page and try again."]);
+		}
+		
+		// Get list of available languages.
+		$languages = array();
+		if ($handle = opendir("../languages")) {
+			while (false !== ($v = readdir($handle))) {
+				if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
+					$v = substr($v, 0, strrpos($v, "."));
+					$languages[] = $v;
+				}
+			}
+			closedir($handle);
+		}
+		
+		// Validate and sanitize language name.
+		$selectedLanguage = sanitizeFileName($_POST["language"]);
+		if (in_array($selectedLanguage, $languages) && file_exists("../languages/{$selectedLanguage}.php")) {
+			$_SESSION["installLanguage"] = $selectedLanguage;
+			// Reload language file.
+			include "../languages/{$selectedLanguage}.php";
+			// Regenerate token after successful change.
+			regenerateToken();
+			return array("success" => true, "token" => $_SESSION["token"]);
+		} else {
+			return array("success" => false, "message" => $language["Invalid security token. Please refresh the page and try again."]);
+		}
+	}
+	
+	if ($_POST["action"] != "validate") {
+		return null;
+	}
+	
+	$field = @$_POST["field"];
+	$value = @$_POST["value"];
+	
+	switch ($field) {
+		case "forumTitle":
+			if (!strlen($value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Your forum title must consist of at least one character"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "forumDescription":
+			if (!strlen($value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Your forum description must consist of at least one character"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "adminUser":
+			if (!strlen($value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["You must enter a name"]));
+			}
+			if (in_array(strtolower($value), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["The name you have entered is reserved and cannot be used"]));
+			}
+			if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["You can't use any of these characters in your name: ! / % + -"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "adminEmail":
+			if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["You must enter a valid email address"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "adminPass":
+			if (strlen($value) < 6) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Your password must be at least 6 characters"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "adminConfirm":
+			// Check for password from JavaScript (sent as "password" parameter) or fallback to "adminPass"
+			$adminPass = @$_POST["password"] ?: @$_POST["adminPass"] ?: "";
+			if ($value != $adminPass) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Your passwords do not match"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "mysqlHost":
+		case "mysqlUser":
+		case "mysqlDB":
+		case "mysqlPass":
+			// Basic format check - just ensure it's not empty (mysqlPass can be empty).
+			// Note: Database connection testing has been moved to testDatabaseConnection() 
+			// for later implementation, so validation only checks if fields have values.
+			if ($field != "mysqlPass" && !strlen($value)) {
+				return array("validated" => false, "message" => "");
+			}
+			// Field has a value (or is mysqlPass which can be empty), so it's valid.
+			return array("validated" => true, "message" => "");
+			
+		case "tablePrefix":
+			if (!strlen($value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix must be at least 1 character"]));
+			}
+			if (!preg_match("/^[a-zA-Z0-9_]+$/", $value)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix can only contain letters, numbers, and underscores"]));
+			}
+			if (strlen($value) > 20) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix must be 20 characters or less"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "characterEncoding":
+			$allowedEncodings = array("utf8", "utf8mb4", "latin1");
+			if (!empty($value) && !in_array(strtolower($value), $allowedEncodings)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Character encoding must be one of"] . " " . implode(", ", $allowedEncodings)));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "baseURL":
+			if (!empty($value) && !filter_var($value, FILTER_VALIDATE_URL)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["Base URL must be a valid URL"]));
+			}
+			return array("validated" => true, "message" => "");
+			
+		case "smtpPort":
+			if (!empty($value) && (!is_numeric($value) || $value < 1 || $value > 65535)) {
+				return array("validated" => false, "message" => $this->htmlMessage($language["SMTP port must be a number between 1 and 65535"]));
+			}
+			return array("validated" => true, "message" => "");
+	}
+	
+	return null;
 }
 
 }
