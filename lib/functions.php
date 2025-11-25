@@ -475,31 +475,34 @@ function sendEmail($to, $subject, $body)
 	if (!preg_match("/^[A-Z0-9._%-+]+@[A-Z0-9.-]+.[A-Z]{2,4}$/i", $to)) return false;
 
 	try {
-		$phpmailer = PATH_LIBRARY.'/vendor/class.phpmailer.php';
+		$phpmailer = PATH_LIBRARY.'/vendor/PHPMailer.php';
 		require_once($phpmailer);
 		$mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
 		if (isset($eso) and ($return = $eso->callHook("sendEmail", array(&$to, &$subject, &$body), true)) !== null)
 			return $return;
 
-		if ($config["smtpAuth"])
-			$mail->IsSMTP();
+		if ($config["smtpAuth"]) {
+			$mail->isSMTP();
 			$mail->SMTPAuth = true;
 			$mail->SMTPSecure = $config["SMTP"]["auth"];
 			if ($config["smtpHost"]) $mail->Host = $config["smtpHost"];
 			if ($config["smtpPort"]) $mail->Port = $config["smtpPort"];
 			if ($config["smtpUser"]) $mail->Username = $config["smtpUser"];
 			if ($config["smtpPass"]) $mail->Password = $config["smtpPass"];
+		}
 		$mail->CharSet = 'UTF-8';
-		$mail->IsHTML(true);
-		$mail->AddAddress($to);
-		$mail->SetFrom($config["emailFrom"], sanitizeForHTTP($config["forumTitle"]));
+		$mail->isHTML(true);
+		$mail->addAddress($to);
+		$mail->setFrom($config["emailFrom"], sanitizeForHTTP($config["forumTitle"]));
 		$mail->Subject = sanitizeForHTTP(desanitize($subject));
 		$mail->AltBody = strip_tags($body);
 		$mail->Body = $body;
 		$mail->Encoding = 'quoted-printable';
 
-		return $mail->Send();
+		return $mail->send();
+	} catch (PHPMailer\PHPMailer\Exception $e) {
+		return false;
 	} catch (Exception $e) {
 		return false;
 	}

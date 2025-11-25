@@ -547,8 +547,9 @@ function validateInfo()
 		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
 		$conflictingTables = array_intersect($ourTables, $theirTables);
 		if (count($conflictingTables)) {
+			global $language;
 			$_POST["showAdvanced"] = true;
-			$errors["tablePrefix"] = "The installer has detected that there is another installation of the software in the same MySQL database with the same table prefix. The conflicting tables are: <code>" . implode(", ", $conflictingTables) . "</code>.<br/><br/>To overwrite this installation, click 'Next step' again. <strong>All data will be lost.</strong><br/><br/>If you wish to create another installation alongside the existing one, <strong>change the table prefix</strong>.<input type='hidden' name='confirmTablePrefix' value='{$_POST["tablePrefix"]}'/>";
+			$errors["tablePrefix"] = sprintf($language["installerTablePrefixConflict"], implode(", ", $conflictingTables), $_POST["tablePrefix"]);
 		}
 	}
 	
@@ -578,10 +579,10 @@ function fatalChecks()
 	}
 	
 	// Check the PHP version.
-	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = "Your server must have <strong>PHP 7.2.0 or greater</strong> installed to run your forum.<br/><small>Please upgrade your PHP installation or request that your host or administrator upgrade the server.</small>";
+	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = $language["installerPhpVersionError"];
 	
 	// Check for the MySQLi extension.
-	if (!extension_loaded("mysqli")) $errors[] = "You must have <strong>MySQL 5.7 or greater</strong> installed and the <a href='https://php.net/manual/en/mysqli.installation.php' target='_blank'>MySQLi extension enabled in PHP</a>.<br/><small>Please install/upgrade both of these requirements or request that your host or administrator install them.</small>";
+	if (!extension_loaded("mysqli")) $errors[] = $language["installerMysqliError"];
 	
 	// Check file permissions.
 	$fileErrors = array();
@@ -592,13 +593,13 @@ function fatalChecks()
 			$fileErrors[] = $file ? $file : substr($realPath, strrpos($realPath, "/") + 1) . "/";
 		}
 	}
-	if (count($fileErrors)) $errors[] = "The following files/folders are not writeable: <strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>.<br/><small>To resolve this, you must navigate to these files/folders in your FTP client and <strong>chmod</strong> them to <strong>777</strong> or <strong>755</strong> (recommended).</small>";
+	if (count($fileErrors)) $errors[] = sprintf($language["installerFilePermissionsError"], "<strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>");
 	
 	// Check for PCRE UTF-8 support.
-	if (!@preg_match("//u", "")) $errors[] = "<strong>PCRE UTF-8 support</strong> is not enabled.<br/><small>Please ensure that your PHP installation has PCRE UTF-8 support compiled into it.</small>";
+	if (!@preg_match("//u", "")) $errors[] = $language["installerPcreUtf8Error"];
 	
 	// Check for the gd extension.
-	if (!extension_loaded("gd") and !extension_loaded("gd2")) $errors[] = "The <strong>GD extension</strong> is not enabled.<br/><small>This is required to save avatars and generate captcha images. Get your host or administrator to install/enable it.</small>";
+	if (!extension_loaded("gd") and !extension_loaded("gd2")) $errors[] = $language["installerGdExtensionError"];
 	
 	if (count($errors)) return $errors;
 }
@@ -606,16 +607,11 @@ function fatalChecks()
 // Perform checks which will throw a warning.
 function warningChecks()
 {
+	global $language;
 	$errors = array();
 	
-	// We don't like register_globals!
-	if (ini_get("register_globals")) $errors[] = "PHP's <strong>register_globals</strong> setting is enabled.<br/><small>While your forum can run with this setting on, it is recommended that it be turned off to increase security and to prevent your forum from having problems.</small>";
-	
 	// Can we open remote URLs as files?
-	if (!ini_get("allow_url_fopen")) $errors[] = "The PHP setting <strong>allow_url_fopen</strong> is not on.<br/><small>Without this, avatars cannot be uploaded directly from remote websites.</small>";
-	
-	// Check for safe_mode.
-	if (ini_get("safe_mode")) $errors[] = "<strong>Safe mode</strong> is enabled.<br/><small>This could potentially cause problems with your forum, but you can still proceed if you cannot turn it off.</small>";
+	if (!ini_get("allow_url_fopen")) $errors[] = $language["installerAllowUrlFopenWarning"];
 	
 	if (count($errors)) return $errors;
 }
