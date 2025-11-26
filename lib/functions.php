@@ -464,7 +464,7 @@ function relativeTime($then)
 function minifyJS($js)
 {
 	require_once PATH_LIBRARY."/vendor/jsmin.php";
-	return JSMin::minify($js);
+	return \JSMin\JSMin::minify($js);
 }
 
 // Send an email with proper headers.

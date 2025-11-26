@@ -102,6 +102,8 @@ $install->init();
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
 <title>esoBB installer</title>
+<link rel="icon" type="image/ico" href="../install/favicon.ico">
+<link rel="shortcut icon" type="image/ico" href="../install/favicon.ico">
 <script type='text/javascript' src='../js/eso.js'></script>
 <script type='text/javascript'>
 // <![CDATA[
