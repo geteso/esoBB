@@ -44,7 +44,7 @@ label.checkbox, label.radio {cursor:pointer}
 .form small {color:#888; font-size:90%}
 .form small a {color:#55f}
 .form small a:hover {text-decoration:underline; color:#000}
-.form small a.external:after {height:8px; margin-left:1.5px}
+.form small a.external:after {height:9px; margin-left:2px}
 
 /* Fieldsets */
 fieldset {margin:10px 0 10px 0; padding:0 15px 15px; border:1px solid #96b3c9; border:1px solid rgba(50,81,126,0.25); box-shadow:inset 0 1px 0 rgb(255 255 255 / 0.75), 0 1px 0 rgb(255 255 255 / 0.75)}
@@ -88,8 +88,16 @@ hr.separator {color:#bbf; border:dashed #96b3c9; border:dashed rgba(50,81,126,0.
 
 /* Mobile support */
 @media only screen and (max-width:800px) {
-  body {margin:0; background:#ffffff}
-  #container {width:unset; margin:unset; background:#f5f5ff}
+  body {margin:0}
+  #container {width:unset; margin:unset; background:#f5f5ff; border-radius:0; text-shadow:0 1px 0 #ffffff}
+  h1 img {-webkit-filter:drop-shadow(0 1px 0 #ffffff); filter: drop-shadow(0 1px 0 #ffffff)}
+  .progress .step {box-shadow:0 1px 0 #ffffff}
+  #footer input.button {box-shadow:inset 0 1px 0 #eeeeee,0 1px 0 #ffffff}
+  #footer input.button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5),inset 0 1px 0 #eeeeee, 0 1px 0 #ffffff}
+  #footer input.button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25),inset 0 1px 0 #eeeeee, 0 1px 0 #ffffff}
+  #footer .button del, #footer input.button.disabled, #footer input.button.disabled:hover, #footer input.button.disabled:active {box-shadow:inset 0 1px 0 #eeeeee, 0 1px 0 #ffffff}
+  fieldset {box-shadow:inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}
+  fieldset.hidden {box-shadow:box-shadow:inset 0 1px 0 #ffffff}
 }
 
 @media only screen and (max-width:650px) {

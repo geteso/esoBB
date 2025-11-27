@@ -19,6 +19,90 @@
  */
 if (!defined("IN_ESO")) exit;
 
+// Get list of language files that have the $language["install"] array defined.
+// Returns an array of language names (without .php extension).
+function getInstallLanguages($langDir = "../languages") {
+	global $language;
+	$languages = array();
+	
+	if ($handle = opendir($langDir)) {
+		while (false !== ($v = readdir($handle))) {
+			if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
+				$v = substr($v, 0, strrpos($v, "."));
+				$langFile = "{$langDir}/{$v}.php";
+				if (file_exists($langFile)) {
+					// Save current $language state
+					$savedLanguage = isset($language) ? $language : null;
+					// Temporarily include the file to check for $language["install"] array
+					include $langFile;
+					if (isset($language["install"])) {
+						$languages[] = $v;
+					}
+					// Restore original $language state
+					if ($savedLanguage !== null) {
+						$language = $savedLanguage;
+					} else {
+						unset($language);
+					}
+				}
+			}
+		}
+		closedir($handle);
+	}
+	
+	return $languages;
+}
+
+// Takes the user from the installer session to the forum session for auto-login after installation.
+function initSession($config, $user) {
+	// Destroy current installer session
+	session_destroy();
+	
+	// Set session save path before starting new session
+	session_save_path(PATH_ROOT."/sessions");
+	ini_set('session.gc_probability', 1);
+	
+	// Set session name to match forum's cookie name
+	session_name("{$config["cookieName"]}_Session");
+	
+	// Configure session cookie parameters (matching lib/init.php)
+	$lifetime = 0; // Session cookie (expires when browser closes)
+	$path = "/";
+	$domain = $config["cookieDomain"] ?? "";
+	$secure = !empty($config["https"]);
+	$httponly = true;
+	
+	// session_set_cookie_params() array syntax requires PHP 7.3.0+
+	if (PHP_VERSION_ID >= 70300) {
+		session_set_cookie_params(array(
+			"lifetime" => $lifetime,
+			"path" => $path,
+			"domain" => $domain,
+			"secure" => $secure,
+			"httponly" => $httponly,
+			"samesite" => "Lax"
+		));
+	} else {
+		// PHP 7.2.x compatibility: use individual parameters
+		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
+		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+	}
+	
+	// Start new forum session
+	session_start();
+	
+	// Set user data
+	$_SESSION["user"] = $user;
+	
+	// Set required session fields that the main application expects
+	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
+	$_SESSION["time"] = time();
+	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
+	
+	// Generate token if needed (regenerateToken() will also update ip/time/userAgent, but that's fine)
+	if (empty($_SESSION["token"])) regenerateToken();
+}
+
 /**
  * Install controller: performs all installation tasks - checks server
  * environment, runs installation queries, creates configuration files...
@@ -33,6 +117,8 @@ var $queries = array();
 // Initialize: perform an action depending on what step the user is at in the installation.
 function init()
 {
+	global $language;
+
 	// Determine which step we're on:
 	// If there are fatal errors, then remain on the fatal error step.
 	// Otherwise, use the step in the URL if it's available.
@@ -45,18 +131,8 @@ function init()
 		
 		// On the "start" step, handle language selection.
 		case "start":
-			global $language;
 			// Get list of available languages from ../languages/ folder.
-			$this->languages = array();
-			if ($handle = opendir("../languages")) {
-				while (false !== ($v = readdir($handle))) {
-					if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
-						$v = substr($v, 0, strrpos($v, "."));
-						$this->languages[] = $v;
-					}
-				}
-				closedir($handle);
-			}
+			$this->languages = getInstallLanguages();
 			
 			// Handle "Next step" button click - proceed to warningChecks.
 			// Check this FIRST before checking for language changes.
@@ -71,7 +147,7 @@ function init()
 			elseif (isset($_POST["language"])) {
 				// Validate CSRF token.
 				if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
-					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+					$this->errors[1] = $language["install"]["invalidSecurityToken"];
 					return;
 				}
 				
@@ -85,7 +161,7 @@ function init()
 					regenerateToken();
 					// Stay on start step - page will update via JavaScript
 				} else {
-					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+					$this->errors[1] = $language["install"]["invalidSecurityToken"];
 				}
 			}
 			// If language already selected in session, skip to warningChecks.
@@ -111,15 +187,7 @@ function init()
 			}
 		
 			// Prepare a list of language packs in the ../languages folder.
-			$this->languages = array();
-			if ($handle = opendir("../languages")) {
-			    while (false !== ($v = readdir($handle))) {
-					if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
-						$v = substr($v, 0, strrpos($v, "."));
-						$this->languages[] = $v;
-					}
-				}
-			}
+			$this->languages = getInstallLanguages();
 			// Prepare a list of SMTP email authentication options.
 			$this->smtpOptions = array(
 				false => "None at all (internal email)",
@@ -143,7 +211,7 @@ function init()
 				// Validate CSRF token.
 				global $language;
 				if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
-					$this->errors[1] = $language["Invalid security token. Please refresh the page and try again."];
+					$this->errors[1] = $language["install"]["invalidSecurityToken"];
 					return;
 				}
 				
@@ -208,22 +276,38 @@ function init()
 		// Finalise the installation and redirect to the forum.
 		case "finish":
 		
-			// If they clicked the 'go to my forum' button, log them in as the administrator and redirect to the forum.
-			if (isset($_POST["finish"])) {
-				include "../config/config.php";
-				initSession($config, $_SESSION["user"]);
+		// If they clicked the 'go to my forum' button, log them in as the administrator and redirect to the forum.
+		if (isset($_POST["finish"])) {
+			// Load default config and merge with user config (matching lib/init.php)
+			require PATH_ROOT."/config.default.php";
+			@include PATH_CONFIG."/config.php";
+			if (!isset($config)) {
+				// Config file doesn't exist, this shouldn't happen but handle it
 				header("Location: ../");
 				exit;
 			}
+			// Combine config.default.php and config/config.php into $config (the latter will overwrite the former.)
+			$config = array_merge($defaultConfig, $config);
+			
+			// Save user data before destroying the installer session
+			$adminUser = $_SESSION["user"];
+			initSession($config, $adminUser);
+			
+			// Write session data before redirecting
+			session_write_close();
+			
+			header("Location: ../");
+			exit;
+		}
 			// Lock the installer using atomic file operation.
 			global $language;
 			if (($handle = @fopen("lock", "c")) === false) {
-				$this->errors[1] = $language["Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable."];
+				$this->errors[1] = $language["install"]["cannotLockInstaller"];
 			} else {
 				// Use exclusive lock to prevent race conditions.
 				if (!flock($handle, LOCK_EX | LOCK_NB)) {
 					fclose($handle);
-					$this->errors[1] = $language["Installer is locked by another process."];
+					$this->errors[1] = $language["install"]["installerLocked"];
 				} else {
 					fwrite($handle, time() . "\n" . $_SERVER["REMOTE_ADDR"]);
 					fflush($handle);
@@ -475,15 +559,15 @@ function validateInfo()
 	$errors = array();
 
 	// Forum title must contain at least one character.
-	if (!strlen($_POST["forumTitle"])) $errors["forumTitle"] = $language["Your forum title must consist of at least one character"];
+	if (!strlen($_POST["forumTitle"])) $errors["forumTitle"] = $language["install"]["forumTitleRequired"];
 
 	// Forum description also must contain at least one character.
-	if (!strlen($_POST["forumDescription"])) $errors["forumDescription"] = $language["Your forum description must consist of at least one character"];
+	if (!strlen($_POST["forumDescription"])) $errors["forumDescription"] = $language["install"]["forumDescriptionRequired"];
 	
 	// Username must not be reserved, and must not contain special characters.
-	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = $language["The name you have entered is reserved and cannot be used"];
-	if (!strlen($_POST["adminUser"])) $errors["adminUser"] = $language["You must enter a name"];
-	if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $_POST["adminUser"])) $errors["adminUser"] = $language["You can't use any of these characters in your name: ! / % + -"];
+	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = $language["install"]["nameReserved"];
+	if (!strlen($_POST["adminUser"])) $errors["adminUser"] = $language["install"]["nameRequired"];
+	if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $_POST["adminUser"])) $errors["adminUser"] = $language["install"]["nameInvalidCharacters"];
 	
 	// Email must be valid.
 	if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $_POST["adminEmail"])) $errors["adminEmail"] = $language["You must enter a valid email address"];
@@ -496,46 +580,46 @@ function validateInfo()
 	
 	// Validate table prefix format and length.
 	if (!preg_match("/^[a-zA-Z0-9_]+$/", $_POST["tablePrefix"])) {
-		$errors["tablePrefix"] = $language["Table prefix can only contain letters, numbers, and underscores"];
+		$errors["tablePrefix"] = $language["install"]["tablePrefixInvalidChars"];
 	}
 	if (strlen($_POST["tablePrefix"]) > 20) {
-		$errors["tablePrefix"] = $language["Table prefix must be 20 characters or less"];
+		$errors["tablePrefix"] = $language["install"]["tablePrefixTooLong"];
 	}
 	if (strlen($_POST["tablePrefix"]) < 1) {
-		$errors["tablePrefix"] = $language["Table prefix must be at least 1 character"];
+		$errors["tablePrefix"] = $language["install"]["tablePrefixRequired"];
 	}
 	
 	// Validate character encoding.
 	$allowedEncodings = array("utf8", "utf8mb4", "latin1");
 	if (!empty($_POST["characterEncoding"]) && !in_array(strtolower($_POST["characterEncoding"]), $allowedEncodings)) {
-		$errors["characterEncoding"] = $language["Character encoding must be one of"] . " " . implode(", ", $allowedEncodings);
+		$errors["characterEncoding"] = $language["install"]["characterEncodingInvalid"] . " " . implode(", ", $allowedEncodings);
 	}
 	
 	// Validate base URL format.
 	if (!empty($_POST["baseURL"]) && !filter_var($_POST["baseURL"], FILTER_VALIDATE_URL)) {
-		$errors["baseURL"] = $language["Base URL must be a valid URL"];
+		$errors["baseURL"] = $language["install"]["baseURLInvalid"];
 	}
 	
 	// Validate SMTP port if provided.
 	if (!empty($_POST["smtpPort"]) && (!is_numeric($_POST["smtpPort"]) || $_POST["smtpPort"] < 1 || $_POST["smtpPort"] > 65535)) {
-		$errors["smtpPort"] = $language["SMTP port must be a number between 1 and 65535"];
+		$errors["smtpPort"] = $language["install"]["smtpPortInvalid"];
 	}
 	
 	// Validate storage engine.
 	$allowedEngines = array("InnoDB", "MyISAM");
 	if (!empty($_POST["storageEngine"]) && !in_array($_POST["storageEngine"], $allowedEngines)) {
-		$errors["storageEngine"] = $language["Storage engine must be InnoDB or MyISAM"];
+		$errors["storageEngine"] = $language["install"]["storageEngineInvalid"];
 	}
 	
 	// Validate hashing method.
 	$allowedMethods = array("bcrypt", "md5");
 	if (!empty($_POST["hashingMethod"]) && !in_array($_POST["hashingMethod"], $allowedMethods)) {
-		$errors["hashingMethod"] = $language["Hashing method must be bcrypt or md5"];
+		$errors["hashingMethod"] = $language["install"]["hashingMethodInvalid"];
 	}
 	
 	// Try and connect to the database.
 	$db = @mysqli_connect($_POST["mysqlHost"], $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
-	if (!$db) $errors["mysql"] = $language["The installer could not connect to the MySQL server. The error returned was"] . "<br/> " . mysqli_connect_error();
+	if (!$db) $errors["mysql"] = $language["install"]["mysqlConnectionError"] . "<br/> " . mysqli_connect_error();
 	
 	// Check to see if there are any conflicting tables already in the database.
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
@@ -547,9 +631,8 @@ function validateInfo()
 		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
 		$conflictingTables = array_intersect($ourTables, $theirTables);
 		if (count($conflictingTables)) {
-			global $language;
 			$_POST["showAdvanced"] = true;
-			$errors["tablePrefix"] = sprintf($language["installerTablePrefixConflict"], implode(", ", $conflictingTables), $_POST["tablePrefix"]);
+			$errors["tablePrefix"] = sprintf($language["install"]["tablePrefixConflictError"], implode(", ", $conflictingTables), $_POST["tablePrefix"]);
 		}
 	}
 	
@@ -574,15 +657,15 @@ function fatalChecks()
 		// Try to read lock file to verify it's valid.
 		$lockContent = @file_get_contents("lock");
 		if ($lockContent !== false) {
-			$errors[] = $language["Your forum is already installed. To reinstall your forum, you must remove install/lock."];
+			$errors[] = $language["install"]["forumAlreadyInstalled"];
 		}
 	}
 	
 	// Check the PHP version.
-	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = $language["installerPhpVersionError"];
+	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = $language["install"]["phpVersionError"];
 	
 	// Check for the MySQLi extension.
-	if (!extension_loaded("mysqli")) $errors[] = $language["installerMysqliError"];
+	if (!extension_loaded("mysqli")) $errors[] = $language["install"]["mysqliError"];
 	
 	// Check file permissions.
 	$fileErrors = array();
@@ -593,13 +676,13 @@ function fatalChecks()
 			$fileErrors[] = $file ? $file : substr($realPath, strrpos($realPath, "/") + 1) . "/";
 		}
 	}
-	if (count($fileErrors)) $errors[] = sprintf($language["installerFilePermissionsError"], "<strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>");
+	if (count($fileErrors)) $errors[] = sprintf($language["install"]["filePermissionsError"], "<strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>");
 	
 	// Check for PCRE UTF-8 support.
-	if (!@preg_match("//u", "")) $errors[] = $language["installerPcreUtf8Error"];
+	if (!@preg_match("//u", "")) $errors[] = $language["install"]["pcreUtf8Error"];
 	
 	// Check for the gd extension.
-	if (!extension_loaded("gd") and !extension_loaded("gd2")) $errors[] = $language["installerGdExtensionError"];
+	if (!extension_loaded("gd") and !extension_loaded("gd2")) $errors[] = $language["install"]["gdExtensionError"];
 	
 	if (count($errors)) return $errors;
 }
@@ -611,7 +694,7 @@ function warningChecks()
 	$errors = array();
 	
 	// Can we open remote URLs as files?
-	if (!ini_get("allow_url_fopen")) $errors[] = $language["installerAllowUrlFopenWarning"];
+	if (!ini_get("allow_url_fopen")) $errors[] = $language["install"]["allowUrlFopenWarning"];
 	
 	if (count($errors)) return $errors;
 }
@@ -619,53 +702,6 @@ function warningChecks()
 // Helper function to format validation error messages as HTML.
 function htmlMessage($text) {
 	return "<div class='msg warning'>" . htmlspecialchars($text, ENT_QUOTES, "UTF-8") . "</div>";
-}
-
-// Initialize forum session with proper configuration and required fields.
-// Transitions from installer session to forum session for auto-login after installation.
-function initSession($config, $user) {
-	// Destroy current installer session
-	session_destroy();
-	
-	// Set session name to match forum's cookie name
-	session_name("{$config["cookieName"]}_Session");
-	
-	// Configure session cookie parameters (matching lib/init.php)
-	$lifetime = 0; // Session cookie (expires when browser closes)
-	$path = "/";
-	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
-	$secure = !empty($config["https"]);
-	$httponly = true;
-	
-	// session_set_cookie_params() array syntax requires PHP 7.3.0+
-	if (PHP_VERSION_ID >= 70300) {
-		session_set_cookie_params(array(
-			"lifetime" => $lifetime,
-			"path" => $path,
-			"domain" => $domain,
-			"secure" => $secure,
-			"httponly" => $httponly,
-			"samesite" => "Lax"
-		));
-	} else {
-		// PHP 7.2.x compatibility: use individual parameters
-		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
-		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
-	}
-	
-	// Start new forum session
-	session_start();
-	
-	// Set user data
-	$_SESSION["user"] = $user;
-	
-	// Set required session fields that the main application expects
-	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
-	$_SESSION["time"] = time();
-	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
-	
-	// Generate token if needed (regenerateToken() will also update ip/time/userAgent, but that's fine)
-	if (empty($_SESSION["token"])) regenerateToken();
 }
 
 // Test database connection with rate limiting.
@@ -687,7 +723,7 @@ function testDatabaseConnection($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDB)
 	// Attempt connection.
 	$db = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass, $mysqlDB);
 	if (!$db) {
-		$result = array("validated" => false, "message" => htmlMessage($language["The installer could not connect to the MySQL server. The error returned was"] . " " . mysqli_connect_error()));
+		$result = array("validated" => false, "message" => htmlMessage($language["install"]["mysqlConnectionError"] . " " . mysqli_connect_error()));
 	} else {
 		$result = array("validated" => true, "message" => "");
 		mysqli_close($db);
@@ -713,20 +749,12 @@ function ajax()
 	if ($_POST["action"] == "changeLanguage") {
 		// Validate CSRF token.
 		if (!isset($_POST["token"]) || $_POST["token"] !== $_SESSION["token"]) {
-			return array("success" => false, "message" => $language["Invalid security token. Please refresh the page and try again."]);
+			return array("success" => false, "message" => $language["install"]["invalidSecurityToken"]);
 		}
 		
 		// Get list of available languages.
-		$languages = array();
-		if ($handle = opendir("../languages")) {
-			while (false !== ($v = readdir($handle))) {
-				if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
-					$v = substr($v, 0, strrpos($v, "."));
-					$languages[] = $v;
-				}
-			}
-			closedir($handle);
-		}
+		// Only include languages that have the $install array defined.
+		$languages = getInstallLanguages();
 		
 		// Validate and sanitize language name.
 		$selectedLanguage = sanitizeFileName($_POST["language"]);
@@ -738,7 +766,7 @@ function ajax()
 			regenerateToken();
 			return array("success" => true, "token" => $_SESSION["token"]);
 		} else {
-			return array("success" => false, "message" => $language["Invalid security token. Please refresh the page and try again."]);
+			return array("success" => false, "message" => $language["install"]["invalidSecurityToken"]);
 		}
 	}
 	
@@ -752,37 +780,37 @@ function ajax()
 	switch ($field) {
 		case "forumTitle":
 			if (!strlen($value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Your forum title must consist of at least one character"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["forumTitleRequired"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "forumDescription":
 			if (!strlen($value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Your forum description must consist of at least one character"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["forumDescriptionRequired"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "adminUser":
 			if (!strlen($value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["You must enter a name"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["nameRequired"]));
 			}
 			if (in_array(strtolower($value), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["The name you have entered is reserved and cannot be used"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["nameReserved"]));
 			}
 			if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["You can't use any of these characters in your name: ! / % + -"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["nameInvalidCharacters"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "adminEmail":
 			if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["You must enter a valid email address"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["emailRequired"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "adminPass":
 			if (strlen($value) < 6) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Your password must be at least 6 characters"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["passwordTooShort"]));
 			}
 			return array("validated" => true, "message" => "");
 			
@@ -790,7 +818,7 @@ function ajax()
 			// Check for password from JavaScript (sent as "password" parameter) or fallback to "adminPass"
 			$adminPass = @$_POST["password"] ?: @$_POST["adminPass"] ?: "";
 			if ($value != $adminPass) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Your passwords do not match"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["passwordsDoNotMatch"]));
 			}
 			return array("validated" => true, "message" => "");
 			
@@ -809,32 +837,32 @@ function ajax()
 			
 		case "tablePrefix":
 			if (!strlen($value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix must be at least 1 character"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["tablePrefixRequired"]));
 			}
 			if (!preg_match("/^[a-zA-Z0-9_]+$/", $value)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix can only contain letters, numbers, and underscores"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["tablePrefixInvalidChars"]));
 			}
 			if (strlen($value) > 20) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Table prefix must be 20 characters or less"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["tablePrefixTooLong"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "characterEncoding":
 			$allowedEncodings = array("utf8", "utf8mb4", "latin1");
 			if (!empty($value) && !in_array(strtolower($value), $allowedEncodings)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Character encoding must be one of"] . " " . implode(", ", $allowedEncodings)));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["characterEncodingInvalid"] . " " . implode(", ", $allowedEncodings)));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "baseURL":
 			if (!empty($value) && !filter_var($value, FILTER_VALIDATE_URL)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["Base URL must be a valid URL"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["baseURLInvalid"]));
 			}
 			return array("validated" => true, "message" => "");
 			
 		case "smtpPort":
 			if (!empty($value) && (!is_numeric($value) || $value < 1 || $value > 65535)) {
-				return array("validated" => false, "message" => $this->htmlMessage($language["SMTP port must be a number between 1 and 65535"]));
+				return array("validated" => false, "message" => $this->htmlMessage($language["install"]["smtpPortInvalid"]));
 			}
 			return array("validated" => true, "message" => "");
 	}

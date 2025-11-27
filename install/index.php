@@ -197,12 +197,12 @@ switch ($install->step) {
 
 // Start step - language selection.
 case "start": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Welcome to the esoBB installer"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["welcomeTitle"]; ?></h1>
 <div class='progress'><span class='step active'></span><span class='step'></span><span class='step'></span></div>
-<p class='lead'><?php echo $language["Thank you for choosing the esoBB forum software. Using the installer, you can have your forum ready to go in three easy steps. For more information, you may consult the setup guide or get help on the esoBB support forum."]; ?></p>
+<p class='lead'><?php echo $language["install"]["welcomeDescription"]; ?></p>
 
 <ul class='form'>
-<li><label><?php echo $language["Select your language"]; ?></label> <div><select id='installLanguage' name='language' onchange='Install.changeLanguage(this.value)'>
+<li><label><?php echo $language["install"]["selectLanguage"]; ?></label> <div><select id='installLanguage' name='language' onchange='Install.changeLanguage(this.value)'>
 <?php 
 if (!empty($install->languages)) {
 	foreach ($install->languages as $lang) echo "<option value='$lang'" . ((!empty($_SESSION["installLanguage"]) ? $_SESSION["installLanguage"] : "English (casual)") == $lang ? " selected='selected'" : "") . ">$lang</option>"; 
@@ -213,7 +213,7 @@ if (!empty($install->languages)) {
 </select></div></li>
 </ul>
 
-<p id='footer'><input class='button' value='<?php echo $language["Next step"]; ?> &#155;' type='submit' name='next'/></p>
+<p id='footer'><input class='button' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' type='submit' name='next'/></p>
 <hr class='separator'/>
 <p id='version'>esoBB version <?php echo $install->getVersion(); ?></p>
 <?php break;
@@ -221,14 +221,14 @@ if (!empty($install->languages)) {
 
 // Fatal checks.
 case "fatalChecks": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Uh oh, something's not right"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["uhOh"]; ?></h1>
 <div class='progress'><span class='step active'></span><span class='step'></span><span class='step'></span></div>
-<p><?php echo $language["The following errors were found with your forum's setup. They must be resolved before you can continue the installation."]; ?></p>
+<p><?php echo $language["install"]["errorsMustResolve"]; ?></p>
 <ul>
 <?php foreach ($install->errors as $error) echo "<li>$error</li>"; ?>
 </ul>
-<p><?php echo $language["If you run into any other problems or just want some help with the installation, feel free to join the esoBB support forum where a bunch of friendly people will be happy to help you out."]; ?></p>
-<p id='footer'><input class='button' value='<?php echo $language["Try again"]; ?>' type='submit'/></p>
+<p><?php echo $language["install"]["getHelp"]; ?></p>
+<p id='footer'><input class='button' value='<?php echo $language["install"]["tryAgain"]; ?>' type='submit'/></p>
 <hr class='separator'/>
 <p id='version'>esoBB version <?php echo $install->getVersion(); ?></p>
 <?php break;
@@ -236,14 +236,14 @@ case "fatalChecks": ?>
 
 // Warning checks.
 case "warningChecks": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Warning"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["warning"]; ?></h1>
 <div class='progress'><span class='step active'></span><span class='step'></span><span class='step'></span></div>
-<p><?php echo $language["The following errors were found with your forum's setup. You can continue the installation without resolving them, but some functionality may be limited."]; ?></p>
+<p><?php echo $language["install"]["errorsCanContinue"]; ?></p>
 <ul>
 <?php foreach ($install->errors as $error) echo "<li>$error</li>"; ?>
 </ul>
-<p><?php echo $language["If you run into any other problems or just want some help with the installation, feel free to join the esoBB support forum where a bunch of friendly people will be happy to help you out."]; ?></p>
-<p id='footer'><input class='button' value='<?php echo $language["Next step"]; ?> &#155;' type='submit' name='next'/></p>
+<p><?php echo $language["install"]["getHelp"]; ?></p>
+<p id='footer'><input class='button' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' type='submit' name='next'/></p>
 <hr class='separator'/>
 <p id='version'>esoBB version <?php echo $install->getVersion(); ?></p>
 <?php break;
@@ -251,72 +251,72 @@ case "warningChecks": ?>
 
 // Specify setup information.
 case "info": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Specify setup information"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["specifySetupInfo"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step active'></span><span class='step'></span></div>
-<p class='lead'><?php echo $language["We need a few details from you so we can get your forum ready to go. If you have any trouble, read the setup guide or get help on the esoBB support forum."]; ?></p>
+<p class='lead'><?php echo $language["install"]["setupInfoDescription"]; ?></p>
 
-<fieldset id='basicDetails'><legend><?php echo $language["Specify basic details"]; ?></legend>
+<fieldset id='basicDetails'><legend><?php echo $language["install"]["specifyBasicDetails"]; ?></legend>
 <ul class='form'>
-<li><label><?php echo $language["Forum title"]; ?></label> <input id='forumTitle' name='forumTitle' tabindex='1' type='text' class='text' placeholder="e.g. Simon's Krav Maga Forum" value='<?php echo @$_POST["forumTitle"]; ?>'/>
+<li><label><?php echo $language["install"]["forumTitle"]; ?></label> <input id='forumTitle' name='forumTitle' tabindex='1' type='text' class='text' placeholder="e.g. Simon's Krav Maga Forum" value='<?php echo @$_POST["forumTitle"]; ?>'/>
 <div id='forumTitle-message'></div>
 <?php if (isset($install->errors["forumTitle"])): ?><div class='warning msg'><?php echo $install->errors["forumTitle"]; ?></div><?php endif; ?></li>
 
-<li><label><?php echo $language["Forum description"]; ?></label> <input id='forumDescription' name='forumDescription' tabindex='2' type='text' class='text' placeholder="e.g. Learn about Krav Maga." value='<?php echo @$_POST["forumDescription"]; ?>'/>
+<li><label><?php echo $language["install"]["forumDescription"]; ?></label> <input id='forumDescription' name='forumDescription' tabindex='2' type='text' class='text' placeholder="e.g. Learn about Krav Maga." value='<?php echo @$_POST["forumDescription"]; ?>'/>
 <div id='forumDescription-message'></div>
 <?php if (isset($install->errors["forumDescription"])): ?><div class='warning msg'><?php echo $install->errors["forumDescription"]; ?></div><?php endif; ?></li>
 
-<li><label><?php echo $language["Default language"]; ?></label> <div><select id='language' name='language' tabindex='3'>
+<li><label><?php echo $language["install"]["defaultLanguage"]; ?></label> <div><select id='language' name='language' tabindex='3'>
 <?php foreach ($install->languages as $lang) echo "<option value='$lang'" . ((!empty($_POST["language"]) ? $_POST["language"] : "English (casual)") == $lang ? " selected='selected'" : "") . ">$lang</option>"; ?>
 </select><br/>
-<small><?php echo $language["More language packs are available for download"]; ?></small></div></li>
+<small><?php echo $language["install"]["moreLanguagePacks"]; ?></small></div></li>
 </ul>
 </fieldset>
 
-<fieldset id='mysqlConfig'><legend><?php echo $language["Configure the database"]; ?></legend>
-<p><?php echo $language["esoBB needs a database to store all your forum's data in, such as conversations and posts. If you're unsure of any of these details, you may need to ask your hosting provider."]; ?></p>
+<fieldset id='mysqlConfig'><legend><?php echo $language["install"]["configureDatabase"]; ?></legend>
+<p><?php echo $language["install"]["databaseDescription"]; ?></p>
 
 <?php if (isset($install->errors["mysql"])): ?><div class='warning msg'><?php echo $install->errors["mysql"]; ?></div><?php endif; ?>
 
 <ul class='form'>
-<li><label><?php echo $language["MySQL host address"]; ?></label> <input id='mysqlHost' name='mysqlHost' tabindex='4' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["mysqlHost"]) ? $_POST["mysqlHost"] : "localhost"; ?>'/>
+<li><label><?php echo $language["install"]["mysqlHostAddress"]; ?></label> <input id='mysqlHost' name='mysqlHost' tabindex='4' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["mysqlHost"]) ? $_POST["mysqlHost"] : "localhost"; ?>'/>
 <div id='mysqlHost-message'></div></li>
 
-<li><label><?php echo $language["MySQL username"]; ?></label> <input id='mysqlUser' name='mysqlUser' tabindex='5' type='text' class='text' placeholder='esoman' autocomplete='off' value='<?php echo @$_POST["mysqlUser"]; ?>'/>
+<li><label><?php echo $language["install"]["mysqlUsername"]; ?></label> <input id='mysqlUser' name='mysqlUser' tabindex='5' type='text' class='text' placeholder='esoman' autocomplete='off' value='<?php echo @$_POST["mysqlUser"]; ?>'/>
 <div id='mysqlUser-message'></div></li>
 
-<li><label><?php echo $language["MySQL password"]; ?></label> <input id='mysqlPass' name='mysqlPass' tabindex='6' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["mysqlPass"]; ?>'/>
+<li><label><?php echo $language["install"]["mysqlPassword"]; ?></label> <input id='mysqlPass' name='mysqlPass' tabindex='6' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["mysqlPass"]; ?>'/>
 <div id='mysqlPass-message'></div></li>
 
-<li><label><?php echo $language["MySQL database"]; ?></label> <input id='mysqlDB' name='mysqlDB' tabindex='7' type='text' class='text' placeholder='esodb' autocomplete='off' value='<?php echo @$_POST["mysqlDB"]; ?>'/>
+<li><label><?php echo $language["install"]["mysqlDatabase"]; ?></label> <input id='mysqlDB' name='mysqlDB' tabindex='7' type='text' class='text' placeholder='esodb' autocomplete='off' value='<?php echo @$_POST["mysqlDB"]; ?>'/>
 <div id='mysqlDB-message'></div></li>
 </ul>
 </fieldset>
 
-<fieldset id='emailConfig'><legend><?php echo $language["Outgoing mail server"]; ?></legend>
-<p><?php echo $language["esoBB needs a mail server to send emails to members, but your forum will work with email sending disabled. If you haven't configured server-side email sending or are unsure of whether you can send emails, leave this disabled and change it later."]; ?></p>
+<fieldset id='emailConfig'><legend><?php echo $language["install"]["outgoingMailServer"]; ?></legend>
+<p><?php echo $language["install"]["mailServerDescription"]; ?></p>
 
 <ul class='form'>
-<li><label><?php echo $language["Send emails"]; ?></label> <input name='sendEmail' type='checkbox' tabindex='8' class='checkbox' value='1' <?php echo (!empty($_POST["sendEmail"])) ? "checked" : ""; ?>/>
+<li><label><?php echo $language["install"]["sendEmails"]; ?></label> <input name='sendEmail' type='checkbox' tabindex='8' class='checkbox' value='1' <?php echo (!empty($_POST["sendEmail"])) ? "checked" : ""; ?>/>
 <!-- <small>If you leave this disabled, the SMTP configuration will be ignored.</small> -->
 </li>
 </ul>
 
-<a href='#smtpConfig' onclick='toggleSmtpConfig();return false' title='What, you&#39;re too cool for the normal settings?' tabindex='9'><?php echo $language["SMTP mail server (optional)"]; ?></a>
+<a href='#smtpConfig' onclick='toggleSmtpConfig();return false' title='What, you&#39;re too cool for the normal settings?' tabindex='9'><?php echo $language["install"]["smtpMailServer"]; ?></a>
 <div id='smtpConfig'>
 
 <ul class='form'>
-<li><label><?php echo $language["SMTP authentication"]; ?></label><div><select id='smtpAuth' name='smtpAuth' tabindex='10'>
+<li><label><?php echo $language["install"]["smtpAuthentication"]; ?></label><div><select id='smtpAuth' name='smtpAuth' tabindex='10'>
 <?php foreach ($install->smtpOptions as $k => $v) echo "<option value='$k'" . ((!empty($_POST["smtpAuth"]) ? $_POST["smtpAuth"] : "0") == $k ? " selected='selected'" : "") . ">$v</option>"; ?>
 </select></div></li>
 
-<li><label><?php echo $language["SMTP host address"]; ?></label> <input id='smtpHost' name='smtpHost' tabindex='11' type='text' class='text' autocomplete='off' value='<?php echo @$_POST["smtpHost"]; ?>'/></li>
+<li><label><?php echo $language["install"]["smtpHostAddress"]; ?></label> <input id='smtpHost' name='smtpHost' tabindex='11' type='text' class='text' autocomplete='off' value='<?php echo @$_POST["smtpHost"]; ?>'/></li>
 
-<li><label><?php echo $language["SMTP host port"]; ?></label> <input id='smtpPort' name='smtpPort' tabindex='12' type='text' class='text' placeholder='25' autocomplete='off' value='<?php echo @$_POST["smtpPort"]; ?>'/>
+<li><label><?php echo $language["install"]["smtpHostPort"]; ?></label> <input id='smtpPort' name='smtpPort' tabindex='12' type='text' class='text' placeholder='25' autocomplete='off' value='<?php echo @$_POST["smtpPort"]; ?>'/>
 <div id='smtpPort-message'></div></li>
 
-<li><label><?php echo $language["SMTP username"]; ?></label> <input id='smtpUser' name='smtpUser' tabindex='13' type='text' class='text' placeholder='simon@example.com' autocomplete='off' value='<?php echo @$_POST["smtpUser"]; ?>'/></li>
+<li><label><?php echo $language["install"]["smtpUsername"]; ?></label> <input id='smtpUser' name='smtpUser' tabindex='13' type='text' class='text' placeholder='simon@example.com' autocomplete='off' value='<?php echo @$_POST["smtpUser"]; ?>'/></li>
 
-<li><label><?php echo $language["SMTP password"]; ?></label> <input id='smtpPass' name='smtpPass' tabindex='14' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["smtpPass"]; ?>'/></li>
+<li><label><?php echo $language["install"]["smtpPassword"]; ?></label> <input id='smtpPass' name='smtpPass' tabindex='14' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["smtpPass"]; ?>'/></li>
 </ul>
 
 <input type='hidden' name='showSmtpConfig' id='showSmtpConfig' value='<?php echo @$_POST["showSmtpConfig"]; ?>'/>
@@ -336,57 +336,57 @@ function toggleSmtpConfig() {
 </div>
 </fieldset>
 
-<fieldset id='adminConfig'><legend><?php echo $language["Administrator account"]; ?></legend>
-<p><?php echo $language["esoBB will use the following information to set up your administrator account on your forum."]; ?></p>
+<fieldset id='adminConfig'><legend><?php echo $language["install"]["administratorAccount"]; ?></legend>
+<p><?php echo $language["install"]["administratorDescription"]; ?></p>
 
 <ul class='form'>
-<li><label><?php echo $language["Administrator username"]; ?></label> <input id='adminUser' name='adminUser' tabindex='15' type='text' class='text' placeholder='Simon' autocomplete='username' value='<?php echo @$_POST["adminUser"]; ?>'/>
+<li><label><?php echo $language["install"]["administratorUsername"]; ?></label> <input id='adminUser' name='adminUser' tabindex='15' type='text' class='text' placeholder='Simon' autocomplete='username' value='<?php echo @$_POST["adminUser"]; ?>'/>
 <div id='adminUser-message'></div>
 <?php if (isset($install->errors["adminUser"])): ?><div class='warning msg'><?php echo $install->errors["adminUser"]; ?></div><?php endif; ?></li>
 	
-<li><label><?php echo $language["Administrator email"]; ?></label> <input id='adminEmail' name='adminEmail' tabindex='16' type='text' class='text' placeholder='simon@example.com' autocomplete='email' value='<?php echo @$_POST["adminEmail"]; ?>'/>
+<li><label><?php echo $language["install"]["administratorEmail"]; ?></label> <input id='adminEmail' name='adminEmail' tabindex='16' type='text' class='text' placeholder='simon@example.com' autocomplete='email' value='<?php echo @$_POST["adminEmail"]; ?>'/>
 <div id='adminEmail-message'></div>
 <?php if (isset($install->errors["adminEmail"])): ?><span class='warning msg'><?php echo $install->errors["adminEmail"]; ?></span><?php endif; ?></li>
 	
-<li><label><?php echo $language["Administrator password"]; ?></label> <input id='adminPass' name='adminPass' tabindex='17' type='password' class='text' autocomplete='new-password' value='<?php echo @$_POST["adminPass"]; ?>'/>
+<li><label><?php echo $language["install"]["administratorPassword"]; ?></label> <input id='adminPass' name='adminPass' tabindex='17' type='password' class='text' autocomplete='new-password' value='<?php echo @$_POST["adminPass"]; ?>'/>
 <div id='adminPass-message'></div>
 <?php if (isset($install->errors["adminPass"])): ?><span class='warning msg'><?php echo $install->errors["adminPass"]; ?></span><?php endif; ?></li>
 	
-<li><label><?php echo $language["Confirm password"]; ?></label> <input id='adminConfirm' name='adminConfirm' tabindex='18' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["adminConfirm"]; ?>'/>
+<li><label><?php echo $language["install"]["confirmPassword"]; ?></label> <input id='adminConfirm' name='adminConfirm' tabindex='18' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["adminConfirm"]; ?>'/>
 <div id='adminConfirm-message'></div>
 <?php if (isset($install->errors["adminConfirm"])): ?><span class='warning msg'><?php echo $install->errors["adminConfirm"]; ?></span><?php endif; ?></li>
 </ul>
 </fieldset>
 
 <fieldset id='advancedOptions'>
-<legend><a href='#' onclick='Settings.toggleFieldset("advancedOptions");return false' title='What, you&#39;re too cool for the normal settings?' tabindex='19'><?php echo $language["Advanced options"]; ?></a></legend>
+<legend><a href='#' onclick='Settings.toggleFieldset("advancedOptions");return false' title='What, you&#39;re too cool for the normal settings?' tabindex='19'><?php echo $language["install"]["advancedOptions"]; ?></a></legend>
 
 <?php if (isset($install->errors["tablePrefix"])): ?><p class='warning msg'><?php echo $install->errors["tablePrefix"]; ?></p><?php endif; ?>
 
 <ul class='form' id='advancedOptionsForm'>
-<li><label><?php echo $language["MySQL table prefix"]; ?></label> <input name='tablePrefix' id='tablePrefix' tabindex='20' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["tablePrefix"]) ? $_POST["tablePrefix"] : "et_"; ?>'/>
+<li><label><?php echo $language["install"]["mysqlTablePrefix"]; ?></label> <input name='tablePrefix' id='tablePrefix' tabindex='20' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["tablePrefix"]) ? $_POST["tablePrefix"] : "et_"; ?>'/>
 <div id='tablePrefix-message'></div></li>
 
-<li><label><?php echo $language["MySQL character set"]; ?></label> <input name='characterEncoding' id='characterEncoding' tabindex='21' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["characterEncoding"]) ? $_POST["characterEncoding"] : "utf8mb4"; ?>'/>
+<li><label><?php echo $language["install"]["mysqlCharacterSet"]; ?></label> <input name='characterEncoding' id='characterEncoding' tabindex='21' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["characterEncoding"]) ? $_POST["characterEncoding"] : "utf8mb4"; ?>'/>
 <div id='characterEncoding-message'></div></li>
 
-<li><label><?php echo $language["MySQL storage engine"]; ?></label><div><select id='storageEngine' name='storageEngine' tabindex='22'>
+<li><label><?php echo $language["install"]["mysqlStorageEngine"]; ?></label><div><select id='storageEngine' name='storageEngine' tabindex='22'>
 <?php foreach ($install->storageEngines as $k => $v) echo "<option value='$k'" . ((!empty($_POST["storageEngine"]) ? $_POST["storageEngine"] : "InnoDB") == $k ? " selected='selected'" : "") . ">$v</option>"; ?>
 </select></div></li>
 
-<li><label><?php echo $language["Hashing algorithm"]; ?></label><div><select id='hashingMethod' name='hashingMethod' tabindex='23'>
+<li><label><?php echo $language["install"]["hashingAlgorithm"]; ?></label><div><select id='hashingMethod' name='hashingMethod' tabindex='23'>
 <?php foreach ($install->hashingMethods as $k => $v) echo "<option value='$k'" . ((!empty($_POST["hashingMethod"]) ? $_POST["hashingMethod"] : "bcrypt") == $k ? " selected='selected'" : "") . ">$v</option>"; ?>
 </select></div></li>
 
-<li><label><?php echo $language["Base URL"]; ?></label> <input name='baseURL' id='baseURL' type='text' tabindex='24' class='text' autocomplete='off' value='<?php echo isset($_POST["baseURL"]) ? $_POST["baseURL"] : $install->suggestBaseUrl(); ?>'/>
+<li><label><?php echo $language["install"]["baseURL"]; ?></label> <input name='baseURL' id='baseURL' type='text' tabindex='24' class='text' autocomplete='off' value='<?php echo isset($_POST["baseURL"]) ? $_POST["baseURL"] : $install->suggestBaseUrl(); ?>'/>
 <div id='baseURL-message'></div></li>
 
-<li><label><?php echo $language["Use friendly URLs"]; ?></label> <input name='friendlyURLs' type='checkbox' tabindex='25' class='checkbox' value='1' <?php echo (!empty($_POST["friendlyURLs"]) or $install->suggestFriendlyUrls()) ? "checked" : ""; ?>/></li>
+<li><label><?php echo $language["install"]["useFriendlyURLs"]; ?></label> <input name='friendlyURLs' type='checkbox' tabindex='25' class='checkbox' value='1' <?php echo (!empty($_POST["friendlyURLs"]) or $install->suggestFriendlyUrls()) ? "checked" : ""; ?>/></li>
 </ul>
 </fieldset>
 <script type='text/javascript'>Settings.hideFieldset("advancedOptions")</script>
 
-<p id='footer' style='margin:0'><input type='submit' class='button' value='&#139; <?php echo $language["Go back"]; ?>' name='back'/> <input type='submit' id='installSubmit' tabindex='26' value='<?php echo $language["Next step"]; ?> &#155;' class='button'/></p>
+<p id='footer' style='margin:0'><input type='submit' class='button' value='&#139; <?php echo $language["install"]["goBack"]; ?>' name='back'/> <input type='submit' id='installSubmit' tabindex='26' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' class='button'/></p>
 <script type='text/javascript'>
 // <![CDATA[
 Install.fieldsValidated = {
@@ -411,17 +411,17 @@ Install.init();
 
 // Show an installation error.
 case "install": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Uh oh! It's a fatal error"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["fatalErrorTitle"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step active'></span><span class='step'></span></div>
-<p class='warning msg'><?php echo $language["The forum installer encountered an error."]; ?></p>
-<p><?php echo $language["The esoBB installer has encountered a nasty error which is making it impossible to install a forum on your server. But don't feel down, here are a few things you can try"]; ?></p>
+<p class='warning msg'><?php echo $language["install"]["installerEncounteredError"]; ?></p>
+<p><?php echo $language["install"]["fatalErrorDescription"]; ?></p>
 <ul>
-<li><?php echo $language["Try again. Everyone makes mistakes: maybe the computer made one this time."]; ?></li>
-<li><?php echo $language["Go back and check your settings. In particular, make sure your database information is correct."]; ?></li>
-<li><?php echo $language["Get help. Go on the esoBB support forum to see if anyone else is having the same problem as you are. If not, open a new issue, including the error details below."]; ?></li>
+<li><?php echo $language["install"]["tryAgainTip"]; ?></li>
+<li><?php echo $language["install"]["checkSettingsTip"]; ?></li>
+<li><?php echo $language["install"]["getHelpTip"]; ?></li>
 </ul>
 
-<a href='#' onclick='toggleError();return false'><?php echo $language["Show error information"]; ?></a>
+<a href='#' onclick='toggleError();return false'><?php echo $language["install"]["showErrorInformation"]; ?></a>
 <hr class='aboveToggle'/>
 <div id='error'>
 <?php echo $install->errors[1]; ?>
@@ -435,8 +435,8 @@ hide(document.getElementById("error"));
 // ]]>
 </script>
 <p id='footer' style='margin:0'>
-<input type='submit' class='button' value='&#139; <?php echo $language["Go back"]; ?>' name='back'/>
-<input type='submit' class='button' value='<?php echo $language["Try again"]; ?>'/>
+<input type='submit' class='button' value='&#139; <?php echo $language["install"]["goBack"]; ?>' name='back'/>
+<input type='submit' class='button' value='<?php echo $language["install"]["tryAgain"]; ?>'/>
 </p>
 <hr class='separator'/>
 <p id='version'>esoBB version <?php echo $install->getVersion(); ?></p>
@@ -445,14 +445,14 @@ hide(document.getElementById("error"));
 
 // Finish!
 case "finish": ?>
-<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["Congratulations"]; ?></h1>
+<h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["congratulations"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step'></span><span class='step active'></span></div>
-<p class='lead'><?php echo $language["Your forum has been installed, and it should be ready to go. It's highly recommended that you remove the install folder to secure your forum."]; ?></p>
+<p class='lead'><?php echo $language["install"]["forumInstalled"]; ?></p>
 
-<a href='javascript:toggleAdvanced()'><?php echo $language["Show advanced information"]; ?></a>
+<a href='javascript:toggleAdvanced()'><?php echo $language["install"]["showAdvancedInformation"]; ?></a>
 <hr class='aboveToggle'/>
 <div id='advanced'>
-<strong><?php echo $language["Queries run"]; ?></strong>
+<strong><?php echo $language["install"]["queriesRun"]; ?></strong>
 <pre>
 <?php if (isset($_SESSION["queries"]) and is_array($_SESSION["queries"]))
 	foreach ($_SESSION["queries"] as $query) echo sanitizeHTML($query) . ";<br/><br/>"; ?>
@@ -466,7 +466,7 @@ function toggleAdvanced() {
 hide(document.getElementById("advanced"));
 // ]]>
 </script>
-<p style='text-align:center' id='footer'><input type='submit' class='button' value='<?php echo $language["Take me to my forum"]; ?>' name='finish'/></p>
+<p style='text-align:center' id='footer'><input type='submit' class='button' value='<?php echo $language["install"]["takeMeToForum"]; ?>' name='finish'/></p>
 <hr class='separator'/>
 <p id='version'>esoBB version <?php echo $install->getVersion(); ?></p>
 <?php break;

@@ -28,7 +28,7 @@ h3 {font-size:120%; font-weight:bold}
 /* Header */
 #hdr {overflow:hidden; padding:0 25px; position:relative}
 #hdr h1 {float:left; font-size:190%; font-weight:normal; margin:0; padding:17px 0}
-#hdr h1 img {height:36px; padding-right:15px}
+#hdr h1 img {height:36px; margin-right:13px}
 #hdr h1 img, #forumTitle {vertical-align:middle}
 #hdr p#stats {float:right; font-size:90%; line-height:1.5em; margin-top:1em; text-align:right}
 .small #hdr h1 {float:left; font-size:150%; overflow:hidden; padding:7px 0; margin-right:5%; white-space:nowrap}
@@ -39,6 +39,7 @@ h3 {font-size:120%; font-weight:bold}
 /* Forum description */
 #forumTitle, #forumDescription {overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
 #wrapper:not(.small) #forumTitle {position:absolute; max-width:calc(100% - 160px)}
+#wrapper:not(.small) h1:not(#hasForumDescription) #forumTitle {line-height:35px}
 #forumDescription {font-size:12px; display:block}
 h1#hasForumDescription #forumTitle {font-size:20px}
 
@@ -482,7 +483,7 @@ ul.fl, ul.fr {white-space:nowrap}
 #admin .menu {float:none; margin-top:0; margin-left:25px; margin-right:25px; padding:0; width:-webkit-fill-available}
 #admin .menu li {display:block; margin-right:0}
 #admin .menu li a {display:block; margin:0}
-#admin .menu li.active a {margin-right:0; border-left:unset!important; border-bottom:unset!important}
+/*#admin .menu li.active a {margin-right:0; border-left:unset!important; border-bottom:unset!important}*/
 #admin .inner {min-height:unset; padding-top:10px; border-left:0}
 }
 

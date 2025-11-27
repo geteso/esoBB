@@ -126,7 +126,7 @@ if(!defined("IN_ESO"))exit;
 <div id='ftr'>
 <div id='ftr-content'>
 <p id='copyright'><!-- The following text constitutes a copyright notification. -->
-<?php echo $language["Powered by"];?> <a href='https://geteso.org/'>esoBB</a><!-- A derivative of esoTalk.  Not directly affiliated with Simon or Toby Zerner. --> <?php if ($this->user["admin"]) echo ESO_VERSION; ?>
+<?php echo $language["Powered by"];?> <a href='https://geteso.org/' target='_blank' class='external' onclick='return Conversation.externalLink()'>esoBB</a><!-- A derivative of esoTalk.  Not directly affiliated with Simon or Toby Zerner. --> <?php if ($this->user["admin"]) echo ESO_VERSION; ?>
 <!-- End copyright notification. --></p>
 <?php if ($this->action !== "search"):
 	$stats = "";

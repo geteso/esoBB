@@ -172,7 +172,7 @@ $preparedQueries[] = array(
 // Create default conversations.
 $time = time();
 $forumTitle = $_SESSION["install"]["forumTitle"];
-$welcomeTitle = sprintf($language["installerWelcomeTitle"], $forumTitle);
+$welcomeTitle = sprintf($language["install"]["defaultWelcomeTitle"], $forumTitle);
 $welcomeSlug = slug($welcomeTitle);
 // Store first conversation as prepared statement query (user-provided data: forumTitle)
 $preparedQueries[] = array(
@@ -181,8 +181,8 @@ $preparedQueries[] = array(
 	"params" => array($welcomeTitle, $welcomeSlug)
 );
 // Other conversations don't contain user data, use regular query
-$howToUseTitle = $language["installerConversationHowToUse"];
-$howToCustomizeTitle = $language["installerConversationHowToCustomize"];
+$howToUseTitle = $language["install"]["conversationHowToUse"];
+$howToCustomizeTitle = $language["install"]["conversationHowToCustomize"];
 $queries[] = "INSERT INTO {$config["tablePrefix"]}conversations (conversationId, title, slug, sticky, posts, startMember, startTime, lastActionTime, private) VALUES
 (2, '" . mysqli_real_escape_string($db, $howToUseTitle) . "', '" . mysqli_real_escape_string($db, slug($howToUseTitle)) . "', 1, 1, 1, $time, $time, 0),
 (3, '" . mysqli_real_escape_string($db, $howToCustomizeTitle) . "', '" . mysqli_real_escape_string($db, slug($howToCustomizeTitle)) . "', 0, 1, 1, $time, $time, 1)";
@@ -191,8 +191,8 @@ $queries[] = "INSERT INTO {$config["tablePrefix"]}conversations (conversationId,
 $forumTitle = $_SESSION["install"]["forumTitle"];
 $adminUser = $_SESSION["install"]["adminUser"];
 $time = time();
-$post1Title = sprintf($language["installerWelcomeTitle"], $forumTitle);
-$post1Content = sprintf($language["installerPostWelcomeContent"], $forumTitle, $forumTitle, makeLink(2), $forumTitle);
+$post1Title = sprintf($language["install"]["defaultWelcomeTitle"], $forumTitle);
+$post1Content = sprintf($language["install"]["postWelcomeContent"], $forumTitle, $forumTitle, makeLink(2), $forumTitle);
 // Store post 1 as prepared statement (user-provided data: forumTitle)
 $preparedQueries[] = array(
 	"query" => "INSERT INTO {$config["tablePrefix"]}posts (conversationId, memberId, time, title, content) VALUES (1, 1, $time, ?, ?)",
@@ -200,13 +200,13 @@ $preparedQueries[] = array(
 	"params" => array($post1Title, $post1Content)
 );
 // Post 2 has no user data, use regular query
-$post2Title = $language["installerConversationHowToUse"];
-$post2Content = $language["installerPostHowToUseContent"];
+$post2Title = $language["install"]["conversationHowToUse"];
+$post2Content = $language["install"]["postHowToUseContent"];
 $queries[] = "INSERT INTO {$config["tablePrefix"]}posts (conversationId, memberId, time, title, content) VALUES
 (2, 1, $time, '" . mysqli_real_escape_string($db, $post2Title) . "', '" . mysqli_real_escape_string($db, $post2Content) . "')";
 // Store post 3 as prepared statement (user-provided data: adminUser)
-$post3Title = $language["installerConversationHowToCustomize"];
-$post3Content = sprintf($language["installerPostHowToCustomizeContent"], $adminUser, $adminUser);
+$post3Title = $language["install"]["conversationHowToCustomize"];
+$post3Content = sprintf($language["install"]["postHowToCustomizeContent"], $adminUser, $adminUser);
 $preparedQueries[] = array(
 	"query" => "INSERT INTO {$config["tablePrefix"]}posts (conversationId, memberId, time, title, content) VALUES (3, 1, $time, ?, ?)",
 	"types" => "ss",
@@ -217,7 +217,7 @@ $preparedQueries[] = array(
 $queries[] = "INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, allowed) VALUES (3, 1, 1)";
 
 // Add tags for the default conversations.
-$tags = $language["installerDefaultTags"];
+$tags = $language["install"]["defaultTags"];
 $tagValues = array();
 $tagValues[] = "(1, '" . mysqli_real_escape_string($db, $tags["welcome"]) . "')";
 $tagValues[] = "(1, '" . mysqli_real_escape_string($db, $tags["introduction"]) . "')";
@@ -230,5 +230,14 @@ $tagValues[] = "(3, '" . mysqli_real_escape_string($db, $tags["customization"]) 
 $tagValues[] = "(3, '" . mysqli_real_escape_string($db, $tags["tutorial"]) . "')";
 $tagValues[] = "(3, '" . mysqli_real_escape_string($db, $tags["administration"]) . "')";
 $queries[] = "INSERT INTO {$config["tablePrefix"]}tags (conversationId, tag) VALUES " . implode(", ", $tagValues);
+
+// Create login record for root user.
+$ip = cookieIp();
+$userAgent = md5($_SERVER["HTTP_USER_AGENT"]);
+$preparedQueries[] = array(
+	"query" => "INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (NULL, ?, ?, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())",
+	"types" => "is",
+	"params" => array($ip, $userAgent)
+);
 
 ?>
