@@ -33,7 +33,7 @@ function init()
 {
 	global $language, $config;
 
-	if ($config["onlineMembers"] == false) redirect("");
+	if (!$config["onlineMembers"]) redirect("");
 
 	// Set the title and make sure this page isn't indexed.
 	$this->title = $language["Online members"];
@@ -46,4 +46,3 @@ function init()
 	
 }
 
-?>

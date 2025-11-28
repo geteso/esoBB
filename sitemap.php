@@ -123,4 +123,3 @@ $handle = fopen("sitemap.xml", "r");
 echo fread($handle, filesize("sitemap.xml"));
 fclose($handle);
 
-?>

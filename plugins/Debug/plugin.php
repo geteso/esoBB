@@ -45,7 +45,7 @@ function __construct()
 	
 	// Start the page load timer.
 	$this->start = $this->microtimeFloat();
-	if (empty($_SESSION["queries"]) or !is_array($_SESSION["queries"])) $_SESSION["queries"] = array();
+	if (empty($_SESSION["queries"]) or !is_array($_SESSION["queries"])) $_SESSION["queries"] = [];
 	
 	parent::__construct();
 }
@@ -129,7 +129,7 @@ function addInformationToAjaxResult($eso, &$result)
 	$result["debugCookie"] = sanitize(print_r($_COOKIE, true));
 	$result["log"] = sanitize($this->log);
 	$result["hookedFunctions"] = $this->getHookedFunctions();
-	$_SESSION["queries"] = array();
+	$_SESSION["queries"] = [];
 }
 
 function microtimeFloat()
@@ -183,7 +183,7 @@ function renderDebug($eso)
 	<ul id='debugQueries' class='fixed'>";
 	if (!count($_SESSION["queries"])) echo "<li></li>";
 	else foreach ($_SESSION["queries"] as $query) echo "<li>" . sanitizeHTML($query[0]) . " <small>(" . $query[1] . " {$language["seconds"]})</small></li>";
-	$_SESSION["queries"] = array();
+	$_SESSION["queries"] = [];
 	
 	// POST + GET + FILES information.
 	echo "</ul>
@@ -236,4 +236,3 @@ function getHookedFunctions()
 	
 }
 
-?>

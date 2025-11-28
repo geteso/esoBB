@@ -373,7 +373,7 @@ function login($name = false, $password = false, $hash = false)
 function logout()
 {
 	global $config;
-	$memberId = isset($_SESSION["user"]["memberId"]) ? $_SESSION["user"]["memberId"] : 0;
+	$memberId = $_SESSION["user"]["memberId"] ?? 0;
 	$ip = cookieIp();
 	
 	// Destroy session data and regenerate the unique token.
@@ -498,7 +498,7 @@ function fatalError($message, $esoSearch = "")
 		header("HTTP/1.0 500 Internal Server Error");
 		echo strip_tags("{$language["Fatal error"]} - $message");
 	} else {
-		$messageTitle = isset($language["Fatal error"]) ? $language["Fatal error"] : "Fatal error";
+		$messageTitle = $language["Fatal error"] ?? "Fatal error";
 		$messageBody = sprintf($language["fatalErrorMessage"], $esoSearch) . ($message ? "<div class='info'>$message</div>" : "");
 		include "views/message.php";
 	}
@@ -617,7 +617,7 @@ function head()
 	}
 
 	// Custom favicon if any or skin favicon.
-	$head .= "<link rel='shortcut icon' type='image/ico' href='" . (!empty($config["shortcutIcon"]) ? $config["shortcutIcon"] : "skins/{$config["skin"]}/" . (isset($this->skin->favicon) ? $this->skin->favicon : "favicon.ico")) . "'/>";
+	$head .= "<link rel='shortcut icon' type='image/ico' href='" . ($config["shortcutIcon"] ?: "skins/{$config["skin"]}/" . ($this->skin->favicon ?? "favicon.ico")) . "'/>";
 
 	// JavaScript: add the scripts collected in the $this->scripts array (via $this->addScript()).
  	ksort($this->scripts);
@@ -632,9 +632,9 @@ function head()
 		"user" => $this->user ? $this->user["name"] : false,
 		"skin" => $config["skin"],
 		"colors" => $this->skin->numberOfColors,
-		"avatarLeft" => isset($this->skin->avatarLeft) ? $this->skin->avatarLeft : "avatarLeft.svg",
-		"avatarRight" => isset($this->skin->avatarRight) ? $this->skin->avatarRight : "avatarRight.svg",
-		"avatarThumb" => isset($this->skin->avatarThumb) ? $this->skin->avatarThumb : "avatarThumb.svg",
+		"avatarLeft" => $this->skin->avatarLeft ?? "avatarLeft.svg",
+		"avatarRight" => $this->skin->avatarRight ?? "avatarRight.svg",
+		"avatarThumb" => $this->skin->avatarThumb ?? "avatarThumb.svg",
 		"disableAnimation" => !empty($this->eso->user["disableJSEffects"]),
 		"disableLinkAlerts" => !empty($this->eso->user["disableLinkAlerts"]),
 		"avatarAlignment" => !empty($this->eso->user["avatarAlignment"]) ? $this->eso->user["avatarAlignment"] : $_SESSION["avatarAlignment"],
@@ -728,9 +728,9 @@ function getAvatar($memberId, $avatarFormat, $type = false)
 	if (!$avatarFormat) {
 		global $config;
 		switch ($type) {
-			case "l": return "skins/{$config["skin"]}/" . (isset($this->skin->avatarLeft) ? $this->skin->avatarLeft : "avatarLeft.svg");
-			case "r": return "skins/{$config["skin"]}/" . (isset($this->skin->avatarRight) ? $this->skin->avatarRight : "avatarRight.svg");
-			case "thumb": return "skins/{$config["skin"]}/" . (isset($this->skin->avatarThumb) ? $this->skin->avatarThumb : "avatarThumb.svg");
+			case "l": return "skins/{$config["skin"]}/" . ($this->skin->avatarLeft ?? "avatarLeft.svg");
+			case "r": return "skins/{$config["skin"]}/" . ($this->skin->avatarRight ?? "avatarRight.svg");
+			case "thumb": return "skins/{$config["skin"]}/" . ($this->skin->avatarThumb ?? "avatarThumb.svg");
 		}
 	}
 }

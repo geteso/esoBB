@@ -23,7 +23,7 @@ if (!defined("IN_ESO")) exit;
 // Returns an array of language names (without .php extension).
 function getInstallLanguages($langDir = "../languages") {
 	global $language;
-	$languages = array();
+	$languages = [];
 	
 	if ($handle = opendir($langDir)) {
 		while (false !== ($v = readdir($handle))) {
@@ -32,7 +32,7 @@ function getInstallLanguages($langDir = "../languages") {
 				$langFile = "{$langDir}/{$v}.php";
 				if (file_exists($langFile)) {
 					// Save current $language state
-					$savedLanguage = isset($language) ? $language : null;
+					$savedLanguage = $language ?? null;
 					// Temporarily include the file to check for $language["install"] array
 					include $langFile;
 					if (isset($language["install"])) {
@@ -348,7 +348,7 @@ public function queryPrepared($link, $query, $types, ...$params)
 	
 	// Bind parameters by reference (required by mysqli_stmt_bind_param)
 	if (!empty($params)) {
-		$refs = array();
+		$refs = [];
 		foreach ($params as $key => $value) {
 			$refs[$key] = &$params[$key];
 		}
@@ -366,7 +366,7 @@ public function queryPrepared($link, $query, $types, ...$params)
 	// Log the query with parameter values for debugging
 	$logQuery = $query;
 	foreach ($params as $i => $param) {
-		$type = isset($types[$i]) ? $types[$i] : 's';
+		$type = $types[$i] ?? 's';
 		$value = $type == 'i' ? (int)$param : (is_string($param) ? "'" . addslashes($param) . "'" : $param);
 		$logQuery = preg_replace('/\?/', $value, $logQuery, 1);
 	}
@@ -543,7 +543,7 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 function validateInfo()
 {
 	global $language;
-	$errors = array();
+	$errors = [];
 
 	// Forum title must contain at least one character.
 	if (!strlen($_POST["forumTitle"])) $errors["forumTitle"] = $language["install"]["forumTitleRequired"];
@@ -612,7 +612,7 @@ function validateInfo()
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
 	// proceed to perform the installation regardless.
 	elseif ($_POST["tablePrefix"] != @$_POST["confirmTablePrefix"] and !count($errors)) {
-		$theirTables = array();
+		$theirTables = [];
 		$result = $this->query($db, "SHOW TABLES");
 		while (list($table) = $this->fetchRow($db, $result)) $theirTables[] = $table;
 		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
@@ -636,7 +636,7 @@ function step($step)
 // Check for fatal errors.
 function fatalChecks()
 {
-	$errors = array();
+	$errors = [];
 	
 	// Make sure the installer is not locked.
 	global $language;
@@ -655,7 +655,7 @@ function fatalChecks()
 	if (!extension_loaded("mysqli")) $errors[] = $language["install"]["mysqliError"];
 	
 	// Check file permissions.
-	$fileErrors = array();
+	$fileErrors = [];
 	$filesToCheck = array("", "avatars/", "plugins/", "skins/", "config/", "install/", "upgrade/");
 	foreach ($filesToCheck as $file) {
 		if ((!file_exists("../$file") and !@mkdir("../$file")) or (!is_writable("../$file") and !@chmod("../$file", 0777))) {
@@ -678,7 +678,7 @@ function fatalChecks()
 function warningChecks()
 {
 	global $language;
-	$errors = array();
+	$errors = [];
 	
 	// Can we open remote URLs as files?
 	if (!ini_get("allow_url_fopen")) $errors[] = $language["install"]["allowUrlFopenWarning"];
@@ -859,4 +859,3 @@ function ajax()
 
 }
 
-?>

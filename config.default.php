@@ -148,4 +148,3 @@ $defaultConfig = array(
 "changeAvatar" => true, // Whether or not to let users change their avatar. Useful if your forum is tight on space or can't host images.
 );
 
-?>

@@ -52,4 +52,3 @@ $_COOKIE = sanitize($_COOKIE);
 $upgrade = new Upgrade();
 $upgrade->init();
 
-?>

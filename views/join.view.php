@@ -68,7 +68,7 @@ endforeach;
 // <![CDATA[
 // Construct a JavaScript array of the fields in the form.
 Join.fieldsValidated = {<?php
-$fieldsValidated=array();
+$fieldsValidated=[];
 foreach($this->fields as $field){
     if(!empty($field["ajax"]))
         $fieldsValidated[]="'{$field["id"]}':".((@$field["required"] and !@$field["success"])?"false":"true");

@@ -113,7 +113,7 @@ public function fetchObject(\mysqli_result|string $input): object|false|null
 protected function fetchResult(\mysqli_result $input, int $row, int|string $field = 0): mixed
 {
 	$input->data_seek($row);
-	$datarow = $input->fetch_array();
+	$datarow = $input->fetch_[];
 	return $datarow[$field] ?? null;
 }
 

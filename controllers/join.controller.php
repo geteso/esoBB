@@ -122,7 +122,7 @@ function init()
 	$this->callHook("init");
 	
 	// Make an array of just fields (without the enclosing fieldsets) for easy access.
-	$this->fields = array();
+	$this->fields = [];
 	foreach ($this->form as $k => $fieldset) {
 		if (!is_array($fieldset)) continue;
 		foreach ($fieldset as $j => $field) {
@@ -202,7 +202,7 @@ function addMember()
 	
 	// Construct the data to insert the member into the database.
 	// Loop through the form fields and use their "databaseField" and "input" attributes.
-	$insertData = array();
+	$insertData = [];
 	foreach ($this->fields as $field) {
 		if (!is_array($field)) continue;
 		if (!empty($field["databaseField"])) $insertData[$field["databaseField"]] = !empty($field["checkbox"])
@@ -230,9 +230,9 @@ function addMember()
 	$this->callHook("beforeAddMember", array(&$insertData));
 	
 	// Build prepared statement parameters
-	$fields = array();
-	$placeholders = array();
-	$values = array();
+	$fields = [];
+	$placeholders = [];
+	$values = [];
 	$types = "";
 	
 	foreach ($insertData as $field => $value) {

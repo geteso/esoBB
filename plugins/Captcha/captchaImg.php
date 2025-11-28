@@ -84,4 +84,3 @@ for ($i = 0; $i < $length; $i++) {
 imagejpeg($img, null, 40);
 imagedestroy($img);
 
-?>

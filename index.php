@@ -83,6 +83,5 @@ if (!$isFeed) {
 }
 
 // Clear messages from the session.
-$_SESSION["messages"] = array();
+$_SESSION["messages"] = [];
 
-?>

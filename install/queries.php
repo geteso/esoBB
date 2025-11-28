@@ -35,8 +35,8 @@ if (file_exists("../languages/{$installLanguage}.php")) {
 	include "../languages/{$installLanguage}.php";
 }
 
-$queries = array();
-$preparedQueries = array();
+$queries = [];
+$preparedQueries = [];
 
 // Create the conversations table.
 $queries[] = "DROP TABLE IF EXISTS {$config["tablePrefix"]}conversations";
@@ -218,7 +218,7 @@ $queries[] = "INSERT INTO {$config["tablePrefix"]}status (conversationId, member
 
 // Add tags for the default conversations.
 $tags = $language["install"]["defaultTags"];
-$tagValues = array();
+$tagValues = [];
 $tagValues[] = "(1, '" . mysqli_real_escape_string($db, $tags["welcome"]) . "')";
 $tagValues[] = "(1, '" . mysqli_real_escape_string($db, $tags["introduction"]) . "')";
 $tagValues[] = "(2, '" . mysqli_real_escape_string($db, $tags["esobb"]) . "')";
@@ -240,4 +240,3 @@ $preparedQueries[] = array(
 	"params" => array($ip, $userAgent)
 );
 
-?>

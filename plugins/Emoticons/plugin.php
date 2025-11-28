@@ -101,7 +101,7 @@ function upgrade($oldVersion)
 class Formatter_Emoticons {
 	
 var $formatter;
-var $emoticons = array();
+var $emoticons = [];
 	
 function __construct(&$formatter)
 {
@@ -193,7 +193,7 @@ function emoticon($match, $state)
 function format()
 {
 	// Make an array of regular-expression-safe emoticon patterns.
-	$patterns = array();
+	$patterns = [];
 	foreach ($this->emoticons as $k => $v) $patterns[] = preg_quote(sanitizeHTML($k), "/");
 	
 	// Map a function to handle emoticons.
@@ -214,4 +214,3 @@ function revert($string)
 
 }
 
-?>

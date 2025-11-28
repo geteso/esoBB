@@ -144,7 +144,7 @@ function settingsInit(&$adminController)
 
 function saveSettings()
 {
-	$newConfig = array();
+	$newConfig = [];
 	
     // Forum title must contain at least one character.
 	if (empty($_POST["forumTitle"]) or !strlen($_POST["forumTitle"])) {$this->eso->message("forumTitleError"); return false;}
@@ -167,7 +167,7 @@ function saveSettings()
 
 function saveAdvancedSettings()
 {
-	$newConfig = array();
+	$newConfig = [];
 
 	$newConfig["gzipOutput"] = (bool)!empty($_POST["gzipOutput"]);
 
@@ -417,7 +417,7 @@ function languagesInit()
 
 function changeLanguage($language)
 {
-	$newConfig = array();
+	$newConfig = [];
 
 	if (in_array($language, $this->languages)) $newConfig["language"] = $language;
 	else return false;
@@ -472,7 +472,7 @@ function membersInit(&$adminController)
 
 function saveMembersSettings()
 {
-	$newConfig = array();
+	$newConfig = [];
 
 	$newConfig["registrationOpen"] = (bool)!empty($_POST["registrationOpen"]);
 	if (!empty($config["sendEmail"])) $newConfig["requireEmailApproval"] = (bool)!empty($_POST["requireEmailApproval"]);
@@ -644,7 +644,7 @@ function installPlugin()
 	unlink("plugins/{$_FILES["installPlugin"]["name"]}");
 }
 
-var $skins = array();
+var $skins = [];
 
 // Get all the skins into an array.
 function skinsInit()
@@ -769,4 +769,3 @@ function installSkin()
 	
 }
 
-?>

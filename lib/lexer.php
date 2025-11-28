@@ -40,8 +40,8 @@ class ParallelRegex {
      */
     function __construct($case) {
         $this->case = $case;
-        $this->patterns = array();
-        $this->labels = array();
+        $this->patterns = [];
+        $this->labels = [];
         $this->regex = null;
     }
 
@@ -198,11 +198,11 @@ class SimpleLexer {
      */
     function __construct($parser, $start = "accept", $case = false) {
         $this->case = $case;
-        $this->regexes = array();
+        $this->regexes = [];
         $this->parser = $parser;
         $this->mode = new SimpleStateStack($start);
         $this->mode_handlers = array($start => $start);
-		$this->mode_functions = array();
+		$this->mode_functions = [];
     }
 
     /**
@@ -452,4 +452,3 @@ class SimpleLexer {
         return true;
     }
 }
-?>

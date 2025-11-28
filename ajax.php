@@ -86,7 +86,7 @@ else {
 }
 
 // $result is the variable that we will pass through json() and output for parsing.
-$result = array("messages" => array(), "result" => $controllerResult);
+$result = array("messages" => [], "result" => $controllerResult);
 
 // If the token the user has is invalid, send them a new one.
 if (isset($_POST["token"]) and $_POST["token"] != $_SESSION["token"]) $result["token"] = $_SESSION["token"];
@@ -109,6 +109,5 @@ echo json($result);
 ob_end_flush();
 
 // Clear the messages array.
-$_SESSION["messages"] = array();
+$_SESSION["messages"] = [];
 
-?>

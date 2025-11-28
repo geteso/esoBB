@@ -112,7 +112,7 @@ function init()
 	if (isset($_SESSION["warnings"]) and is_array($_SESSION["warnings"])) {
 		$messageBody .= "<strong>Warnings</strong><ul>";
 		foreach ($_SESSION["warnings"] as $msg) $messageBody .= "<li>$msg</li>";
-		$_SESSION["warnings"] = array();
+		$_SESSION["warnings"] = [];
 		$messageBody .= "</ul>";
 	}
 	
@@ -120,7 +120,7 @@ function init()
 	if (isset($_SESSION["queries"]) and is_array($_SESSION["queries"])) {
 		$messageBody .= "<strong>Queries run</strong><pre style='overflow:auto'>";
 		foreach ($_SESSION["queries"] as $query) $messageBody .= sanitizeHTML($query) . ";<br/><br/>";
-		$_SESSION["queries"] = array();
+		$_SESSION["queries"] = [];
 		$messageBody .= "</pre>";
 	}
 	
@@ -143,7 +143,7 @@ function init()
 function query($query, $fatal = true)
 {
 	// Log the query.
-	if (!isset($_SESSION["queries"]) or !is_array($_SESSION["queries"])) $_SESSION["queries"] = array();
+	if (!isset($_SESSION["queries"]) or !is_array($_SESSION["queries"])) $_SESSION["queries"] = [];
 	$_SESSION["queries"][] = $query;
 	
 	// Perform the query and return its result if successful.
@@ -177,7 +177,7 @@ function writeFile($file, $contents)
 // Store a warning message for display in the advanced information section at the end of the upgrade.
 function warning($msg)
 {
-	if (!isset($_SESSION["warnings"]) or !is_array($_SESSION["warnings"])) $_SESSION["warnings"] = array();
+	if (!isset($_SESSION["warnings"]) or !is_array($_SESSION["warnings"])) $_SESSION["warnings"] = [];
 	$_SESSION["warnings"][] = $msg;	
 }
 
@@ -406,4 +406,3 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 
 }
 
-?>

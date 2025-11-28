@@ -306,7 +306,7 @@ function init()
 		// If there's a member name in the querystring, make the conversation that we're starting private with them and
 		// redirect.
 		if (isset($_GET["member"]) and $this->eso->validateToken(@$_GET["token"])) {
-			$_SESSION["membersAllowed"] = array();
+			$_SESSION["membersAllowed"] = [];
 			$this->conversation["membersAllowed"] = null;
 			$this->addMember($_GET["member"]);
 			redirect("conversation", "new");
@@ -650,7 +650,7 @@ function getConversation($id = false)
 		// Explode the labels string and determine which labels are active. See the massive comment about a
 		// screen-height up.
 		$labels = explode(",", $conversation["labels"]); $i = 0;
-		$conversation["labels"] = array();
+		$conversation["labels"] = [];
 		foreach ($this->eso->labels as $k => $v) {
 			if ($labels[$i]) $conversation["labels"][] = $k;
 			$i++;
@@ -667,7 +667,7 @@ function getConversation($id = false)
 	else {
 		$conversation = array(
 			"id" => false,
-			"labels" => array(),
+			"labels" => [],
 			"private" => true,
 			"tags" => !empty($_POST["cTags"]) ? $_POST["cTags"] : $language["exampleTags"],
 			"title" => !empty($_POST["cTitle"]) ? $_POST["cTitle"] :
@@ -696,7 +696,7 @@ function getConversation($id = false)
 function &getMembersAllowed()
 {
 	global $config;
-	$membersAllowed = array();
+	$membersAllowed = [];
 	
 	// If the conversation is not private, then everyone can view it - return an empty array.
 	if (!$this->conversation["private"]) return $membersAllowed;
@@ -728,7 +728,7 @@ function &getMembersAllowed()
 // "lastActionTime": get all posts created or modified after this time
 // "postIds": get posts matching this comma-separated list of post ids.
 // $display determines whether or not to run the post content through the $this->displayPost() function.
-function getPosts($criteria = array(), $display = false)
+function getPosts($criteria = [], $display = false)
 {
 	global $language, $config;
 	
@@ -758,7 +758,7 @@ function getPosts($criteria = array(), $display = false)
 	// Run the query.
 	$query = $this->eso->db->constructSelectQuery($components);
 	$result = $this->eso->db->query($query);
-	$posts = array();
+	$posts = [];
 	$i = $startFrom;
 
 	// Loop through the posts and compile them into an array.
@@ -772,7 +772,7 @@ function getPosts($criteria = array(), $display = false)
 		// $k is the position of the post within the conversation, and will depend on if we've fetched posts
 		// sequentially ($i) or arbitrarily ($post["number"] if $criteria["lastActionTime"] or $criteria["postIds"] have
 		// been used.)
-		$k = isset($post["number"]) ? $post["number"] : $i;
+		$k = $post["number"] ?? $i;
 				
 		// Build the post array.
 		$posts[$k] = array(
@@ -784,8 +784,8 @@ function getPosts($criteria = array(), $display = false)
 			"editTime" => $post["editTime"],
 			"canEdit" => $this->canEditPost($post["id"], $post["memberId"], $post["account"]) === true,
 			"canDelete" => $this->canDeletePost($post["id"], $post["memberId"], $post["account"]) === true,
-			"info" => array(),
-			"controls" => array()
+			"info" => [],
+			"controls" => []
 		) + (!$post["deleteMember"]
 		// Extra information if the post *hasn't* been deleted.
 		? array(
@@ -1038,7 +1038,7 @@ function getEditArea($postId, $content)
 // Convert a post from HTML back to formatting code.
 function formatForEditing($content)
 {
-	$formatters = array();
+	$formatters = [];
 	$this->callHook("formatForEditing", array(&$content, &$formatters));
 	return $this->eso->formatter->revert($content, count($formatters) ? $formatters : false);
 }
@@ -1046,7 +1046,7 @@ function formatForEditing($content)
 // Convert a post from formatting code into HTML.
 function formatForDisplay($content)
 {
-	$formatters = array();
+	$formatters = [];
 	$this->callHook("formatForDisplay", array(&$content, &$formatters));
 	return $this->eso->formatter->format($content, count($formatters) ? $formatters : false);
 }
@@ -1304,8 +1304,8 @@ function startConversation($conversation)
 	if (is_array($conversation["membersAllowed"]) and count($conversation["membersAllowed"])) {
 		$conversationId = (int)$this->conversation["id"];
 		// Build prepared statement for multiple inserts
-		$placeholders = array();
-		$values = array();
+		$placeholders = [];
+		$values = [];
 		$types = "";
 		foreach ($conversation["membersAllowed"] as $memberId => $name) {
 			$placeholders[] = "(?, ?, 1)";
@@ -1394,7 +1394,7 @@ function addMember($name)
 			default:
 				$nameSearch = $name;
 				$nameLike = $name . "%";
-				$excludedNames = array();
+				$excludedNames = [];
 				if (isset($this->conversation["membersAllowed"]) and is_array($this->conversation["membersAllowed"])) {
 					$excludedNames = array_values($this->conversation["membersAllowed"]);
 				}
@@ -1443,7 +1443,7 @@ function addMember($name)
 	}
 
 	// Update the membersAllowed array (which may in turn update the $_SESSION["membersAllowed"] array.)
-	if (!is_array($this->conversation["membersAllowed"])) $this->conversation["membersAllowed"] = array();
+	if (!is_array($this->conversation["membersAllowed"])) $this->conversation["membersAllowed"] = [];
 	if (!array_key_exists($memberId, $this->conversation["membersAllowed"]))
 		$this->conversation["membersAllowed"][$memberId] = $memberName;
 		
@@ -1636,8 +1636,8 @@ function saveTags($tags)
 	// Up the count of added tags.
 	if (count($addTags)) {
 		$conversationId = (int)$this->conversation["id"];
-		$placeholders = array();
-		$values = array();
+		$placeholders = [];
+		$values = [];
 		$types = "";
 		foreach ($addTags as $tag) {
 			$placeholders[] = "(?, ?)";

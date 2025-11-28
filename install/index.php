@@ -57,7 +57,7 @@ if (empty($_SESSION["token"])) {
 
 // Load language file early.
 // Get available languages from ../languages/ folder.
-$availableLanguages = array();
+$availableLanguages = [];
 if ($handle = opendir("../languages")) {
 	while (false !== ($v = readdir($handle))) {
 		if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {

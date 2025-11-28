@@ -156,7 +156,7 @@ function init()
 function saveSettings()
 {
 	// Get the fields which we are saving into an array (we don't need fieldsets.)
-	$fields = array();
+	$fields = [];
 	foreach ($this->form as $k => $fieldset) {
 		foreach ($fieldset as $j => $field) {
 			if (!is_array($field)) continue;
@@ -184,7 +184,7 @@ function saveSettings()
 	// Construct the query to save the member's settings.
 	// Loop through the form fields and use their "databaseField" and "input" attributes for the query.
 	global $config;
-	$updateData = array();
+	$updateData = [];
 	foreach ($fields as $field) {
 		if (!is_array($field)) continue;
 		if (!empty($field["databaseField"])) {
@@ -200,9 +200,9 @@ function saveSettings()
 	
 	// Build UPDATE query with prepared statement placeholders
 	if (count($updateData)) {
-		$setClause = array();
+		$setClause = [];
 		$types = "";
-		$params = array();
+		$params = [];
 		foreach ($updateData as $field => $value) {
 			$setClause[] = "$field=?";
 			$types .= is_int($value) ? "i" : "s";
@@ -230,7 +230,7 @@ function changeUsername()
 {
 	global $config;
 	if ($this->eso->isSuspended()) return false;
-	$updateData = array();
+	$updateData = [];
 	$memberId = (int)$this->eso->user["memberId"];
 	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 	if ($row) {
@@ -265,9 +265,9 @@ function changeUsername()
 
 	// Everything is valid and good to go! Run the query if necessary.
 	elseif (count($updateData)) {
-		$setClause = array();
+		$setClause = [];
 		$types = "";
-		$params = array();
+		$params = [];
 		foreach ($updateData as $field => $value) {
 			$setClause[] = "$field=?";
 			$types .= is_int($value) ? "i" : "s";
@@ -277,7 +277,7 @@ function changeUsername()
 		$types .= "i";
 		$params[] = $memberId;
 		$this->eso->db->queryPrepared($query, $types, ...$params);
-		$this->messages = array();
+		$this->messages = [];
 		return true;
 	}
 
@@ -288,7 +288,7 @@ function changeUsername()
 function changePasswordEmail()
 {
 	global $config;
-	$updateData = array();
+	$updateData = [];
 	$memberId = (int)$this->eso->user["memberId"];
 	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 	if ($row) {
@@ -339,9 +339,9 @@ function changePasswordEmail()
 
 	// Everything is valid and good to go! Run the query if necessary.
 	elseif (count($updateData)) {
-		$setClause = array();
+		$setClause = [];
 		$types = "";
-		$params = array();
+		$params = [];
 		foreach ($updateData as $field => $value) {
 			$setClause[] = "$field=?";
 			$types .= is_int($value) ? "i" : "s";
@@ -351,7 +351,7 @@ function changePasswordEmail()
 		$types .= "i";
 		$params[] = $memberId;
 		$this->eso->db->queryPrepared($query, $types, ...$params);
-		$this->messages = array();
+		$this->messages = [];
 		return true;
 	}
 	
@@ -669,4 +669,3 @@ function validateFieldAjax($fieldId, $formId, $value, $newPassword = null)
 
 }
 
-?>

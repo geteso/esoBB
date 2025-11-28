@@ -74,12 +74,12 @@ function init()
 		array(array($this, "gambitAuthor"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["author:"])) === 0; }),
 		array(array($this, "gambitContributor"), function($term) use ($language) { return strpos($term, strtolower($language["gambits"]["contributor:"])) === 0; }),
 		array(array($this, "gambitActive"), function($term) use ($language, &$searchInstance) { 
-			if (!isset($searchInstance->matches)) $searchInstance->matches = array();
+			if (!isset($searchInstance->matches)) $searchInstance->matches = [];
 			$result = preg_match($language["gambits"]["gambitActive"], $term, $searchInstance->matches);
 			return $result;
 		}),
 		array(array($this, "gambitHasNPosts"), function($term) use ($language, &$searchInstance) { 
-			if (!isset($searchInstance->matches)) $searchInstance->matches = array();
+			if (!isset($searchInstance->matches)) $searchInstance->matches = [];
 			$result = preg_match($language["gambits"]["gambitHasNPosts"], $term, $searchInstance->matches);
 			return $result;
 		}),
@@ -176,7 +176,7 @@ function init()
 		
 		// Get the most common tags from the tags table and assign them a text-size class based upon their frequency.
 		$result = $this->eso->db->query("SELECT t.tag, COUNT(t.tag) AS count FROM {$config["tablePrefix"]}tags t LEFT JOIN {$config["tablePrefix"]}conversations c ON (t.conversationId=c.conversationId) WHERE c.private=0 AND c.posts>=1 GROUP BY t.tag ORDER BY count DESC LIMIT {$config["numberOfTagsInTagCloud"]}");
-		$tags = array();
+		$tags = [];
 		if ($rows = $this->eso->db->numRows($result)) {
 			for ($i = 1; list($tag) = $this->eso->db->fetchRow($result); $i++) {
 				$this->tagCloud[$tag] = "s" . ceil($i * (5 / $rows));
@@ -297,7 +297,7 @@ function getConversationIDs($search = "")
 	// Process the search string into individial terms.
 	// Replace all "-" signs with "+!", and then split the string by "+".  Negated terms will then be prefixed with "!".
 	// Only keep the first 5 terms, just to keep the load on the database down!
-	$terms = !empty($search) ? explode("+", strtolower(str_replace("-", "+!", trim($search, " +-")))) : array();
+	$terms = !empty($search) ? explode("+", strtolower(str_replace("-", "+!", trim($search, " +-")))) : [];
 //	$terms = array_slice($terms, 0, 10);
 	$terms = array_slice(array_filter($terms), 0, 5);
 	
@@ -347,23 +347,23 @@ function getConversationIDs($search = "")
 	
 	// Now we need to loop through the conditions and run them as queries one-by-one. When a query returns a selection
 	// of conversation IDs, subsequent queries are restricted to filtering those conversation IDs.
-	$goodConversationIds = $badConversationIds = array();
-	$conversationConditions = array();
+	$goodConversationIds = $badConversationIds = [];
+	$conversationConditions = [];
 	$idCondition = "";
 	foreach ($this->conditions as $v) {
 		$table = $v[0];
 		$condition = $v[1];
 		$negate = $v[2];
-		$types = isset($v[3]) ? $v[3] : "";
-		$params = isset($v[4]) ? $v[4] : array();
+		$types = $v[3] ?? "";
+		$params = $v[4] ?? [];
 		
 		if ($table == "conversations") {
 			// If this condition has prepared statement parameters, substitute them
 			if (!empty($types) && !empty($params)) {
 				// Escape and substitute parameters into the condition
-				$escapedParams = array();
+				$escapedParams = [];
 				foreach ($params as $i => $param) {
-					$type = isset($types[$i]) ? $types[$i] : 's';
+					$type = $types[$i] ?? 's';
 					if ($type == 'i') {
 						$escapedParams[] = (int)$param;
 					} elseif ($type == 'd') {
@@ -389,7 +389,7 @@ function getConversationIDs($search = "")
 		} else {
 			$result = $this->eso->db->query($query);
 		}
-		$ids = array();
+		$ids = [];
 		if ($result) {
 			while (list($conversationId) = $this->eso->db->fetchRow($result)) $ids[] = $conversationId;
 		}
@@ -439,7 +439,7 @@ function getConversationIDs($search = "")
 	$result = $this->eso->db->query($query);
 	
 	// Collect the final set of conversation IDs and return it.
-	$conversationIds = array();
+	$conversationIds = [];
 	while (list($conversationId) = $this->eso->db->fetchRow($result)) $conversationIds[] = $conversationId;
 	return count($conversationIds) ? $conversationIds : false;
 }
@@ -450,7 +450,7 @@ function doSearch($search = "")
 	global $config;
 	
 	// Reset highlighted keywords.
-	$_SESSION["highlight"] = array();
+	$_SESSION["highlight"] = [];
 	
 	// If they are searching for something, take some flood control measures.
 	if ($search and $config["searchesPerMinute"] > 0) {
@@ -480,7 +480,7 @@ function doSearch($search = "")
 	$result = $this->eso->db->query($query);
 	
 	// Put the details of the conversations into an array to be displayed in the view.
-	$results = array();
+	$results = [];
 	$conversationsToDisplay = $this->limit == ($config["results"] + 1) ? $config["results"] : $config["moreResults"];
 	if ($this->numberOfConversations = $this->eso->db->numRows($result)) {
 		for ($i = 0; $i < $conversationsToDisplay and ($conversation = $this->eso->db->fetchAssoc($result)); $i++)
@@ -533,7 +533,7 @@ function ajax()
 			$result = $this->eso->db->query($query);
 			
 			// Loop through these conversations and construct an array of details to return in JSON format.
-			$conversations = array();
+			$conversations = [];
 			while (list($id, $color, $unread, $lastPostMember, $lastPostMemberId, $lastPostTime, $postCount, $starred) = $this->eso->db->fetchRow($result)) {
 				$conversations[$id] = array(
 					"color" => $color,
@@ -556,7 +556,7 @@ function ajax()
 			
 			// If the "random" gambit is in the search string, then don't go any further (because the results will 
 			// obviously differ!)
-			$terms = $this->searchString ? explode("+", strtolower(str_replace("-", "+!", trim($this->searchString, " +-")))) : array();
+			$terms = $this->searchString ? explode("+", strtolower(str_replace("-", "+!", trim($this->searchString, " +-")))) : [];
 			foreach ($terms as $v) {
 				if (trim($v) == $language["gambits"]["random"]) return array("newActivity" => false);
 			}
@@ -770,7 +770,7 @@ function fulltext(&$search, $term, $negate)
 	$search->condition("posts", "MATCH (title, content) AGAINST (? IN BOOLEAN MODE)", $negate, "s", $term);
 	
 	// Add the keywords in $term to be highlighted. Make sure we keep ones "in quotes" together.
-	$words = array();
+	$words = [];
 	if (preg_match_all('/"(.+?)"/', $term, $matches)) {
 		$words += $matches[1];
 		$term = preg_replace('/".+?"/', '', $term);
@@ -781,4 +781,3 @@ function fulltext(&$search, $term, $negate)
 
 }
 
-?>

@@ -151,4 +151,3 @@ function format($post)
 
 }
 
-?>

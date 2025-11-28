@@ -111,4 +111,3 @@ function updateLastAction($memberId)
 
 }
 
-?>

@@ -65,7 +65,7 @@ $controllerResult = $install->ajax();
 
 // Wrap the result in the expected format (same as main ajax.php)
 // JavaScript expects: { "messages": [], "result": <controller result>, "token": <optional> }
-$result = array("messages" => array(), "result" => $controllerResult);
+$result = array("messages" => [], "result" => $controllerResult);
 
 // If the token the user has is invalid, send them a new one.
 if (isset($_POST["token"]) && $_POST["token"] !== $_SESSION["token"]) {
