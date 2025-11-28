@@ -24,12 +24,12 @@ if (!defined("IN_ESO")) exit;
  * color, and handles settings forms.
  */
 class settings extends Controller {
-	
-var $view = "settings.view.php";
-var $messages = array();
-var $emailVerified = 1;
-var $languages;
-var $form;
+
+public ?string $view = "settings.view.php";
+public array $messages = [];
+public int|string $emailVerified = 1;
+public ?array $languages = null;
+public ?array $form = null;
 
 // Initialize: perform any necessary saving actions, and define the form contents.
 function init()

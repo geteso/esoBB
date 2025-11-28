@@ -25,30 +25,31 @@ if (!defined("IN_ESO")) exit;
  */
 class eso extends Controller {
 
-var $db;
-var $user;
-var $action;
-var $allowedActions = array("admin", "conversation", "feed", "forgot-password", "join", "online", "post", "profile", "search", "settings");
-var $controller;
-var $view = "wrapper.php";
-var $language;
-var $skin;
-var $head = "";
-var $scripts = array();
-var $jsLanguage = array();
-var $jsVars = array();
-var $styleSheets = array();
-var $footer = array();
-var $labels = array(
+public ?Database $db = null;
+public array|false|null $user = null;
+public ?string $action = null;
+public array $allowedActions = ["admin", "conversation", "feed", "forgot-password", "join", "online", "post", "profile", "search", "settings"];
+public ?Controller $controller = null;
+public ?string $view = "wrapper.php";
+public ?string $language = null;
+public ?Skin $skin = null;
+public string $head = "";
+public array $scripts = [];
+public array $jsLanguage = [];
+public array $jsVars = [];
+public array $styleSheets = [];
+public array $footer = [];
+public array $labels = [
 	"sticky" => "IF(sticky=1,1,0)",
 	"private" => "IF(private=1,1,0)",
 	"locked" => "IF(locked=1,1,0)",
 	"draft" => "IF(s.draft IS NOT NULL,1,0)"
-);
-var $memberGroups = array("Administrator", "Moderator", "Member", "Suspended");
-var $bar = array("left" => array(), "right" => array());
-var $plugins = array();
-var $uploader;
+];
+public array $memberGroups = ["Administrator", "Moderator", "Member", "Suspended"];
+public array $bar = ["left" => [], "right" => []];
+public array $plugins = [];
+public ?Uploader $uploader = null;
+public ?Formatter $formatter = null;
 
 // Class constructor: connect to the database and perform other initializations.
 function __construct()
@@ -62,7 +63,7 @@ function __construct()
 		$this->fatalError($config["verboseFatalErrors"] ? $this->db->connectError() : "", "mysql");
 	
 	// Clear messages in the SESSION messages variable.
-	if (!isset($_SESSION["messages"]) or !is_array($_SESSION["messages"])) $_SESSION["messages"] = array();
+	if (!isset($_SESSION["messages"]) || !is_array($_SESSION["messages"])) $_SESSION["messages"] = [];
 	
 	// Create an instance of the Formatter class.
 	$this->formatter = new Formatter();
@@ -72,7 +73,7 @@ function __construct()
 }
 
 // Initialize: set up the user and initialize the bar and other components of the page.
-function init()
+public function init(): void
 {
 	global $language, $config;
 
@@ -188,11 +189,11 @@ function init()
 }
 
 // Run AJAX actions.
-function ajax()
+public function ajax(): void
 {
 	global $config;
 	
-	if ($return = $this->callHook("ajax", null, true)) return $return;
+	if ($this->callHook("ajax", null, true)) return;
 	
 	switch (@$_POST["action"]) {
 		
@@ -428,7 +429,7 @@ function getStatistics()
 // Get an array of language packs from the languages/ directory.
 function getLanguages()
 {
-	$languages = array();
+	$languages = [];
 	if ($handle = opendir("languages")) {
 		while (false !== ($v = readdir($handle))) {
 			if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
@@ -445,7 +446,7 @@ function getLanguages()
 function getSkins()
 {
 	global $language, $config;
-	$skins = array();
+	$skins = [];
 	if ($handle = opendir("skins")) {
 		while (false !== ($file = readdir($handle))) {
 			// Make sure the skin is valid, and set up its class.

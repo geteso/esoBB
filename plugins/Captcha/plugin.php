@@ -24,15 +24,15 @@ if (!defined("IN_ESO")) exit;
  * prevent bots from joining the forum.
  */
 class Captcha extends Plugin {
-	
-var $id = "Captcha";
-var $name = "Captcha";
-var $version = "1.0";
-var $description = "Provides image verification to prevent bots from joining";
-var $author = "the esoBB team";
-var $defaultConfig = array(
+
+public ?string $id = "Captcha";
+public ?string $name = "Captcha";
+public ?string $version = "1.0";
+public ?string $description = "Provides image verification to prevent bots from joining";
+public ?string $author = "the esoBB team";
+public ?array $defaultConfig = [
 	"numberOfCharacters" => 3
-);
+];
 
 function init()
 {

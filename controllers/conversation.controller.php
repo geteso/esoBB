@@ -25,11 +25,11 @@ if (!defined("IN_ESO")) exit;
  */
 class conversation extends Controller {
 
-var $view = "conversation.view.php";
-var $editingPost = false; // Are we editing a post (specified in $_GET["editPost"])?
-var $showingDeletedPost = false; // Are we showing a delete post (specified in $_GET["showDeletedPost"])?
-var $conversation = array(); // An array of conversation details.
-var $startFrom = 0; // Which post to start viewing from.
+public ?string $view = "conversation.view.php";
+public int|false $editingPost = false; // Are we editing a post (specified in $_GET["editPost"])?
+public int|false $showingDeletedPost = false; // Are we showing a delete post (specified in $_GET["showDeletedPost"])?
+public array $conversation = []; // An array of conversation details.
+public int $startFrom = 0; // Which post to start viewing from.
 
 // Initialize the conversation and its posts. Handle non-AJAX conversation actions such as delete, edit, etc.
 function init()

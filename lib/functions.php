@@ -24,10 +24,10 @@
 if (!defined("IN_ESO")) exit;
 
 // Substitute sensitive characters with a replacement character.
-function sanitize($value)
+function sanitize(array|string $value): array|string
 {
 	if (!is_array($value)) {
-		$replace = array("&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "'" => "&#39;", "\"" => "&quot;", "\\" => "&#92;", "\x00" => "");
+		$replace = ["&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "'" => "&#39;", "\"" => "&quot;", "\\" => "&#92;", "\x00" => ""];
 		return strtr(trim($value), $replace);
 	} else {
 		foreach ($value as $k => $v) $value[$k] = sanitize($v);
@@ -36,10 +36,10 @@ function sanitize($value)
 }
 
 // Replace sanitized sensitive characters with their raw values.
-function desanitize($value)
+function desanitize(array|string $value): array|string
 {
 	if (!is_array($value)) {
-		$replace = array("&amp;" => "&", "&lt;" => "<", "&gt;" => ">", "&#39;" => "'", "&#039;" => "'", "&quot;" => "\"", "&#92;" => "\\", "&#092;" => "\\");
+		$replace = ["&amp;" => "&", "&lt;" => "<", "&gt;" => ">", "&#39;" => "'", "&#039;" => "'", "&quot;" => "\"", "&#92;" => "\\", "&#092;" => "\\"];
 		return strtr($value, $replace);
 	} else {
 		foreach ($value as $k => $v) $value[$k] = desanitize($v);
@@ -48,31 +48,31 @@ function desanitize($value)
 }
 
 // Sanitize a string for outputting in a HTML context.
-function sanitizeHTML($value)
+function sanitizeHTML(string $value): string
 {
 	return htmlentities($value, ENT_QUOTES, "UTF-8");
 }
 
 // Sanitize HTTP header-sensitive characters (CR and LF.)
-function sanitizeForHTTP($value)
+function sanitizeForHTTP(string $value): string
 {
-	return str_replace(array("\r", "\n", "%0a", "%0d", "%0A", "%0D"), "", $value);
+	return str_replace(["\r", "\n", "%0a", "%0d", "%0A", "%0D"], "", $value);
 }
 
 // Sanitize file-system sensitive characters - filter anything but [A-Za-z0-9.-].
-function sanitizeFileName($value)
+function sanitizeFileName(?string $value): string
 {
-	return preg_replace("/(?:[\/:\\\]|\.{2,}|\\x00)/", "", $value);
+	return preg_replace("/(?:[\/:\\\]|\.{2,}|\\x00)/", "", $value ?? "");
 }
 
 // Add slashes before double quotes.
-function escapeDoubleQuotes($value)
+function escapeDoubleQuotes(?string $value): string
 {
-	return str_replace('"', '\"', $value);
+	return str_replace('"', '\"', $value ?? "");
 }
 
 // Create a conversation title slug from a given string. Any non-alphanumeric characters will be converted to "-".
-function slug($string)
+function slug(string $string): string
 {
 	// If there are any characters other than basic alphanumeric, space, punctuation, then we need to attempt transliteration.
 	if (preg_match("/[^\x20-\x7f]/", $string)) {
@@ -82,43 +82,42 @@ function slug($string)
 
 			// Unicode decomposition rules states that these cannot be decomposed, hence we have to deal with them manually.
 			// Note: even though "scharfe s" is commonly transliterated as "sz", in this context "ss" is preferred as it's the most popular method among German speakers.
-			$src = array('œ', 'æ', 'đ', 'ø', 'ł', 'ß', 'Œ', 'Æ', 'Đ', 'Ø', 'Ł');
-			$dst = array('oe','ae','d', 'o', 'l', 'ss', 'OE', 'AE', 'D', 'O', 'L');
+			$src = ['œ', 'æ', 'đ', 'ø', 'ł', 'ß', 'Œ', 'Æ', 'Đ', 'Ø', 'Ł'];
+			$dst = ['oe','ae','d', 'o', 'l', 'ss', 'OE', 'AE', 'D', 'O', 'L'];
 			$string = str_replace($src, $dst, $string);
 
 			// Using transliterator to get rid of accents and convert non-Latin to Latin.
 			$string = transliterator_transliterate("Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC; [:Punctuation:] Remove; Lower();", $string);
 		
-		}
-		else {
+		} else {
 
 			// A fallback to the old method.
 			// Convert special Latin letters and other characters to HTML entities.
 			$string = htmlentities($string, ENT_NOQUOTES, "UTF-8");
 
 			// With those HTML entities, either convert them back to a normal letter, or remove them.
-			$string = preg_replace(array("/&([a-z]{1,2})(acute|cedil|circ|grave|lig|orn|ring|slash|th|tilde|uml|caron);/i", "/&[^;]{2,6};/"), array("$1", " "), $string);
+			$string = preg_replace(["/&([a-z]{1,2})(acute|cedil|circ|grave|lig|orn|ring|slash|th|tilde|uml|caron);/i", "/&[^;]{2,6};/"], ["$1", " "], $string);
 
 		}
 	}
 
 	// Allow plugins to alter the slug.
 	global $eso;
-	if (!empty($eso)) $eso->callHook("GenerateSlug", array(&$string));
+	if (!empty($eso)) $eso->callHook("GenerateSlug", [&$string]);
 
 	// Now replace non-alphanumeric characters with a hyphen, and remove multiple hyphens.
 	if (extension_loaded("mbstring")) {
 		$slug = str_replace(' ','-',trim(preg_replace('~[^\\pL\d]+~u',' ',mb_strtolower($string, "UTF-8"))));
 		return mb_substr($slug, 0, 63, "UTF-8");
 	} else {
-		$slug = strtolower(trim(preg_replace(array("/[^0-9a-z]/i", "/-+/"), "-", $string), "-"));
+		$slug = strtolower(trim(preg_replace(["/[^0-9a-z]/i", "/-+/"], "-", $string), "-"));
 		return substr($slug, 0, 63);
 	}
 
 }
 
 // Finds $words in $text and puts a span with class='highlight' around them.
-function highlight($text, $words)
+function highlight(string $text, array $words): string
 {
 	foreach ($words as $word) {
 		if (!$word = trim($word)) continue;
@@ -130,7 +129,7 @@ function highlight($text, $words)
 // Returns an array of the parameters in a mod_rewrite or index.php/... request.
 // ex. passing /eso/forum/index.php/conversation/123 returns [conversation, 123]
 //     passing /base/path/to/forum/search/test?query=string returns [search, test]
-function processRequestURI($requestURI)
+function processRequestURI(string $requestURI): array
 {
 	// Extract the path from the base URL.
 	global $config;
@@ -147,7 +146,7 @@ function processRequestURI($requestURI)
 }
 
 // Generate a salt of $numOfChars characters long containing random letters, numbers, and symbols.
-function generateRandomString($numOfChars, $possibleChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890~!@#%^&*()_+=-{}[]:;<,>.?/`")
+function generateRandomString(int $numOfChars, string $possibleChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890~!@#%^&*()_+=-{}[]:;<,>.?/`"): string
 {
 	$salt = "";
 	$maxIndex = strlen($possibleChars) - 1;
@@ -158,7 +157,7 @@ function generateRandomString($numOfChars, $possibleChars = "abcdefghijklmnopqrs
 }
 
 // Encodes JSON (JavaScript Object Notation) representations of values and returns a JSON string.
-function json($array)
+function json(mixed $array): string|false
 {
 	// Use PHP's built-in json_encode for strict JSON compliance (required for JSON.parse() in JavaScript)
 	// This replaces the old JavaScript object notation output with proper JSON
@@ -166,7 +165,7 @@ function json($array)
 }
 
 // Function to quickly translate a string by using the $language variable.
-function translate($string)
+function translate(string $string): string
 {
 	global $language;
 	return array_key_exists($string, $language) ? $language[$string] : $string;
@@ -176,14 +175,14 @@ function translate($string)
 // Handles format: "key" or "key|param1|param2|..." for actions with dynamic content.
 // Returns translated text with HTML links reconstructed as needed.
 // Maintains backward compatibility: if input doesn't match key format, returns as-is (legacy data).
-function translateLastAction($action)
+function translateLastAction(?string $action): string
 {
 	if (empty($action)) return "";
 	
 	global $language;
 	
 	// Backward compatibility: if action contains HTML tags or doesn't look like a key, return as-is
-	if (strpos($action, "<") !== false or strpos($action, ">") !== false) {
+	if (str_contains($action, "<") || str_contains($action, ">")) {
 		return $action;
 	}
 	
@@ -195,14 +194,14 @@ function translateLastAction($action)
 	// Handle different action types
 	switch ($key) {
 		case "Starting a conversation":
-			return isset($language[$key]) ? $language[$key] : $action;
+			return $language[$key] ?? $action;
 		
 		case "viewing_conversation":
 			// Format: viewing_conversation|{id}|{slug}|{title}|{isPrivate}
 			if (count($params) >= 4) {
-				list($id, $slug, $title, $isPrivate) = $params;
+				[$id, $slug, $title, $isPrivate] = $params;
 				$id = (int)$id;
-				$viewingText = isset($language["Viewing"]) ? $language["Viewing"] : "Viewing:";
+				$viewingText = $language["Viewing"] ?? "Viewing:";
 				
 				// Security: Verify current permissions before showing title
 				// Check if conversation is currently private and if current viewer has access
@@ -218,7 +217,7 @@ function translateLastAction($action)
 						$posts = (int)$conversation["posts"];
 						
 						// If conversation is private or has no posts, check permissions
-						if ($isCurrentlyPrivate == 1 or $posts == 0) {
+						if ($isCurrentlyPrivate == 1 || $posts == 0) {
 							$canViewTitle = false;
 							
 							// Check if current user can view this conversation
@@ -247,12 +246,12 @@ function translateLastAction($action)
 				
 				// If user can't view the title, show generic "private conversation" text
 				if (!$canViewTitle) {
-					$privateText = isset($language["a private conversation"]) ? $language["a private conversation"] : "a private conversation";
+					$privateText = $language["a private conversation"] ?? "a private conversation";
 					return "$viewingText $privateText";
 				} else {
 					// User can view - show the title
 					$link = makeLink($id, $slug);
-					if (strpos($title, '&#') !== false) {
+					if (str_contains($title, '&#')) {
 						$title = desanitize($title);
 					}
 					$escapedTitle = htmlspecialchars($title, ENT_QUOTES, "UTF-8");
@@ -264,8 +263,8 @@ function translateLastAction($action)
 		case "viewing_profile":
 			// Format: viewing_profile|{memberId}|{title}
 			if (count($params) >= 2) {
-				list($memberId, $title) = $params;
-				$viewingText = isset($language["Viewing"]) ? $language["Viewing"] : "Viewing:";
+				[$memberId, $title] = $params;
+				$viewingText = $language["Viewing"] ?? "Viewing:";
 				$link = makeLink("profile", $memberId);
 				$escapedTitle = htmlspecialchars($title, ENT_QUOTES, "UTF-8");
 				return "$viewingText <a href='$link'>$escapedTitle</a>";
@@ -286,19 +285,18 @@ function translateLastAction($action)
 // The exact output of the function depends on the values of $config["useFriendlyURLs"] and $config["useModRewrite"].
 // ex. makeLink(123, "?start=4") -> "123?start=4", "index.php/123?start=4", "?q1=123&start=4"
 // another ex. makeLink(61, "test-conversation", "?editPost=425", "&start=20", "#p425")
-function makeLink()
+function makeLink(mixed ...$args): string
 {
 	global $config;
 	$link = "";
-	$args = func_get_args();
 	// Loop through the arguments.
 	foreach ($args as $k => $q) {
 		// Skip empty arrays, empty strings, false, null (but allow numeric 0 as it's a valid ID)
-		if ($q === [] or $q === false or $q === null or ($q === "" and !is_numeric($q))) continue;
+		if ($q === [] || $q === false || $q === null || ($q === "" && !is_numeric($q))) continue;
 		// If we are using friendly URLs, append a "/" to the argument if it's not prefixed with "#", "?", or "&".
 		if (!empty($config["useFriendlyURLs"])) {
 			// Check if the argument is a string and starts with a special character (query string, anchor, etc.)
-			if (is_string($q) and strlen($q) > 0 and ($q[0] == "#" or $q[0] == "?" or $q[0] == "&")) {
+			if (is_string($q) && strlen($q) > 0 && ($q[0] == "#" || $q[0] == "?" || $q[0] == "&")) {
 				$link .= $q;
 			} else {
 				$link .= "$q/";
@@ -307,11 +305,11 @@ function makeLink()
 		// Otherwise, convert anything not prefixed with "#", "?", or "&" to a "?q1=x" argument.
 		else {
 			// Convert "?" to "&" for non-first arguments
-			if (is_string($q) and strlen($q) > 0 and $q[0] == "?" and $k != 0) {
+			if (is_string($q) && strlen($q) > 0 && $q[0] == "?" && $k != 0) {
 				$q = "&" . substr($q, 1);
 			}
 			// If it starts with a special character, append as-is
-			if (is_string($q) and strlen($q) > 0 and ($q[0] == "#" or $q[0] == "?" or $q[0] == "&")) {
+			if (is_string($q) && strlen($q) > 0 && ($q[0] == "#" || $q[0] == "?" || $q[0] == "&")) {
 				$link .= $q;
 			} else {
 				$link .= ($k == 0 ? "?" : "&") . "q" . ($k + 1) . "=$q";
@@ -319,20 +317,21 @@ function makeLink()
 		}
 	}
 	// If we're not using mod_rewrite, we need to prepend "index.php/" to the link.
-	if (!empty($config["useFriendlyURLs"]) and empty($config["useModRewrite"])) $link = "index.php/$link";
+	if (!empty($config["useFriendlyURLs"]) && empty($config["useModRewrite"])) $link = "index.php/$link";
 	return $link;
 }
 
-function cookieIp()
+// Get the IP address as a long integer for cookie/session validation.
+function cookieIp(): int|false
 {
 	$ip = htmlspecialchars($_SERVER["REMOTE_ADDR"]);
 	// A fix for web servers that are not fully IPv6 compatible.
-	if (strpos($ip, "::")) $ip = substr($ip, strrpos($ip, ":")+1);
+	if (str_contains($ip, "::")) $ip = substr($ip, strrpos($ip, ":")+1);
 	return ip2long($ip);
 }
 
 // Generate a link to the current page. To get a form to submit to the same page: <form action='curLink()'.
-function curLink()
+function curLink(): string
 {
 	// Remove the base path from the request URI, and return it as the curLink.
 	global $curLink, $config;
@@ -343,17 +342,16 @@ function curLink()
 }
 
 // Send a HTTP Location header to redirect to a specific page. (Uses the same argument syntax as makeLink().)
-function redirect($return = false)
+function redirect(mixed ...$args): never
 {
 	global $config;
-	$args = func_get_args();
-	header("Location: " . sanitizeForHTTP($config["baseURL"] . call_user_func_array("makeLink", $args)));
+	header("Location: " . sanitizeForHTTP($config["baseURL"] . makeLink(...$args)));
 	flush(); // Opera sometimes displays a blank "redirection" page if this isn't here. :/
 	exit;
 }
 
 // Refresh the page by redirect()ing to the curLink() URL.
-function refresh()
+function refresh(): never
 {
 	global $config;
 	header("Location: " . sanitizeForHTTP($config["baseURL"] . curLink()));
@@ -362,29 +360,29 @@ function refresh()
 }
 
 // Validate an email field: check it against a regular expression and make sure no validated account is using it.
-function validateEmail(&$email)
+function validateEmail(string &$email): ?string
 {
 	global $eso, $config;
 	$email = substr($email, 0, 63);
 	if (!preg_match("/^[A-Z0-9._%-+.-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $email)) return "invalidEmail";
 	elseif ($eso->db->numRows($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE email='" . $eso->db->escape($email) . "' AND account!='Unvalidated'"))) return "emailTaken";
+	return null;
 }
 
 // Validate the name field: make sure it's not reserved, is long enough, doesn't contain invalid characters, and is not already taken by another member.
-function validateName(&$name)
+function validateName(string &$name): ?string
 {
 	global $eso, $config;
 	$reservedNames = $config["reservedNames"];
 
-	if (!empty($eso)) $eso->callHook("beforeValidateName", array(&$name));
+	if (!empty($eso)) $eso->callHook("beforeValidateName", [&$name]);
 
 	// Make sure the name isn't a reserved word.
 	if (in_array(strtolower($name), $reservedNames)) return "nameTaken";
 
 	// Make sure the name is not too small or large.
-	if (extension_loaded("mbstring")) $length = mb_strlen($name, "UTF-8");
-	else $length = strlen($name);
-	if ($length < 3 or $length > 20) return "nameEmpty";
+	$length = extension_loaded("mbstring") ? mb_strlen($name, "UTF-8") : strlen($name);
+	if ($length < 3 || $length > 20) return "nameEmpty";
 
 	// It can't be empty either!
 	if (!strlen($name)) return "nameEmpty";
@@ -397,20 +395,21 @@ function validateName(&$name)
 	
 	if (@$eso->db->result($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE name='" . $eso->db->escape($name) . "' AND account!='Unvalidated'"), 0))
 		return "nameTaken";
+	
+	return null;
 }
 
-// Validate a password field: make sure it's not too long, then encrypt it with a salt.
-function validatePassword(&$password)
+// Validate a password field: make sure it's not too short.
+function validatePassword(string &$password): ?string
 {
 	global $config;
 	if (strlen($password) < $config["minPasswordLength"]) return "passwordTooShort";
-//	$hash = md5($salt . $password);
-//	return $hash;
+	return null;
 }
 
 // Work out the relative difference between the current time and a given timestamp.
 // Returns a human-friendly string, ex. '1 hour ago'.
-function relativeTime($then)
+function relativeTime(int|string|null $then): string
 {
 	global $language;
 	
@@ -418,7 +417,7 @@ function relativeTime($then)
 	if (!$then) return $language["Never"];
 	
 	// Work out how many seconds it has been since $then.
-	$ago = time() - $then;
+	$ago = time() - (int)$then;
 	
 	// If $then happened less than 1 second ago (or is yet to happen,) say "Just now".
 	if ($ago < 1) return $language["Just now"];
@@ -429,46 +428,44 @@ function relativeTime($then)
 		return sprintf($language[($years == 1 ? "year" : "years") . " ago"], $years);
 	}
 	// 2626560 seconds = 1 month
-	elseif ($ago >= 2626560) {
+	if ($ago >= 2626560) {
 		$months = floor($ago / 2626560);
 		return sprintf($language[($months == 1 ? "month" : "months") . " ago"], $months);
 	}
 	// 604800 seconds = 1 week
-	elseif ($ago >= 604800) {
+	if ($ago >= 604800) {
 		$weeks = floor($ago / 604800);
 		return sprintf($language[($weeks == 1 ? "week" : "weeks") . " ago"], $weeks);
 	}
 	// 86400 seconds = 1 day
-	elseif ($ago >= 86400) {
+	if ($ago >= 86400) {
 		$days = floor($ago / 86400);
 		return sprintf($language[($days == 1 ? "day" : "days") . " ago"], $days);
 	}
 	// 3600 seconds = 1 hour
-	elseif ($ago >= 3600) {
+	if ($ago >= 3600) {
 		$hours = floor($ago / 3600);
 		return sprintf($language[($hours == 1 ? "hour" : "hours") . " ago"], $hours);
 	}
 	// 60 seconds = 1 minute
-	elseif ($ago >= 60) {
+	if ($ago >= 60) {
 		$minutes = floor($ago / 60);
 		return sprintf($language[($minutes == 1 ? "minute" : "minutes") . " ago"], $minutes);
 	}
 	// 1 second = 1 second. Duh.
-	elseif ($ago >= 1) {
-		$seconds = floor($ago / 1);
-		return sprintf($language[($seconds == 1 ? "second" : "seconds") . " ago"], $seconds);
-	}
+	$seconds = floor($ago / 1);
+	return sprintf($language[($seconds == 1 ? "second" : "seconds") . " ago"], $seconds);
 }
 
 // Minify a JavaScript string using JSMin.
-function minifyJS($js)
+function minifyJS(string $js): string
 {
 	require_once PATH_LIBRARY."/vendor/jsmin.php";
 	return \JSMin\JSMin::minify($js);
 }
 
 // Send an email with proper headers.
-function sendEmail($to, $subject, $body)
+function sendEmail(string $to, string $subject, string $body): bool
 {
 	global $config, $language, $eso;
 	if (empty($config["sendEmail"])) return false;
@@ -479,7 +476,7 @@ function sendEmail($to, $subject, $body)
 		require_once($phpmailer);
 		$mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
-		if (isset($eso) and ($return = $eso->callHook("sendEmail", array(&$to, &$subject, &$body), true)) !== null)
+		if (isset($eso) && ($return = $eso->callHook("sendEmail", [&$to, &$subject, &$body], true)) !== null)
 			return $return;
 
 		if ($config["smtpAuth"]) {
@@ -509,9 +506,9 @@ function sendEmail($to, $subject, $body)
 }
 
 // Return a list of files and their contents from a zip file.
-function unzip($filename)
+function unzip(string $filename): array|false
 {
-	$files = array();	
+	$files = [];	
 	$handle = fopen($filename, "rb");
 
 	// Seek to the end of central directory record.
@@ -555,19 +552,19 @@ function unzip($filename)
 		if ($localHeader["extraLen"] > 0) fread($handle, $localHeader["extraLen"]);
 		
 		// Extract the file (if it's not a folder.)
-		$directory = substr($header["filename"], -1) == "/";
-		if (!$directory and $header["compressedSize"] > 0) {
+		$directory = str_ends_with($header["filename"], "/");
+		if (!$directory && $header["compressedSize"] > 0) {
 			if ($header["compression"] == 0) $content = fread($handle, $header["compressedSize"]);
 			else $content = gzinflate(fread($handle, $header["compressedSize"]));
 	    } else $content = "";
 		
 		// Add to the files array.
-		$files[] = array(
+		$files[] = [
 			"name" => $header["filename"],
 			"size" => $header["size"],
 			"directory" => $directory,
 			"content" => !$directory ? $content : false
-		);
+		];
 		
 	}
 
@@ -577,11 +574,11 @@ function unzip($filename)
 	return $files;
 }
 
-// Add an element to an array after a specifed a position.
-// ex. $test = array(0 => "test", 3 => "asdf")
-// addToArray($test, "foo", 2) : array(0 => "test", 2 => "foo", 3 => "asdf")
-// addToArray($test, "foo", 3) : array(0 => "test", 3 => "asdf", 4 => "foo")
-function addToArray(&$array, $add, $position = false)
+// Add an element to an array after a specified position.
+// ex. $test = [0 => "test", 3 => "asdf"]
+// addToArray($test, "foo", 2) : [0 => "test", 2 => "foo", 3 => "asdf"]
+// addToArray($test, "foo", 3) : [0 => "test", 3 => "asdf", 4 => "foo"]
+function addToArray(array &$array, mixed $add, int|false $position = false): int
 {
 	// If no position is specified, add it to the end and return the key
 	if ($position === false) {
@@ -603,20 +600,20 @@ function addToArray(&$array, $add, $position = false)
 }
 
 // Add an element to an array using a string for a key but in a specified position.
-// ex. $test = array("foo" => 1, "bar" => 2)
-// addToArrayString($test, "test", 3, 0) : array("test" => 3, "foo" => 1, "bar" => 2)
-// addToArrayString($test, "test", 3, 2) : array("foo" => 1, "test" => 3, "bar" => 2)
-function addToArrayString(&$array, $key, $value, $position = false)
+// ex. $test = ["foo" => 1, "bar" => 2]
+// addToArrayString($test, "test", 3, 0) : ["test" => 3, "foo" => 1, "bar" => 2]
+// addToArrayString($test, "test", 3, 2) : ["foo" => 1, "test" => 3, "bar" => 2]
+function addToArrayString(array &$array, string $key, mixed $value, int|false $position = false): void
 {
 	// If we're intending to add it to the end of the array, that's easy.
 	$count = count($array) + 1;
-	if ($position >= $count or $position === false) {
+	if ($position >= $count || $position === false) {
 		$array[$key] = $value;
 		return;
 	}
 	// Otherwise, loop through the array one-by-one, constructing a new array as we go.
 	// When we reach $position, add our new element, and then continue adding the elements from the old array.
-	$newArray = array();
+	$newArray = [];
 	for ($i = 0, reset($array); $i < $count; $i++) {
 		if ($i == $position) $newArray[$key] = $value;
 		else {
@@ -629,7 +626,7 @@ function addToArrayString(&$array, $key, $value, $position = false)
 }
 
 // Convert a PHP variable to text so it can be outputted to a file and included later.
-function variableToText($variable, $indent = "")
+function variableToText(mixed $variable, string $indent = ""): string
 {
 	$text = "";
 	
@@ -659,18 +656,18 @@ function variableToText($variable, $indent = "")
 	elseif (is_string($variable)) $text .= "\"" . escapeDoubleQuotes($variable) . "\"";
 	elseif (is_bool($variable)) $text .= $variable ? "true" : "false";
 	elseif (is_null($variable)) $text .= "null";
-	elseif (!is_object($variable) and !is_resource($variable)) $text .= $variable;
+	elseif (!is_object($variable) && !is_resource($variable)) $text .= $variable;
 	return $text;
 }
 
 // Write a standard config.php file containing an array.
-function writeConfigFile($file, $variable, $settings)
+function writeConfigFile(string $file, string $variable, mixed $settings): bool
 {
 	return writeFile($file, "<?php\n$variable = " . variableToText($settings, "\t") . ";\n?>");
 }
 
 // A shorthand version of fopen/fwrite/fclose. Returns false if the file can't be opened for writing.
-function writeFile($file, $contents)
+function writeFile(string $file, string $contents): bool
 {
 	// Attempt to open the file for writing.
 	if (($handle = @fopen($file, "w")) === false) return false;
@@ -682,7 +679,7 @@ function writeFile($file, $contents)
 
 // Validate a remote URL to prevent SSRF attacks.
 // Returns the validated URL if safe, or false if unsafe.
-function validateRemoteUrl($url)
+function validateRemoteUrl(string $url): string|false
 {
 	// Decode HTML entities and normalize spaces
 	$url = str_replace(" ", "%20", html_entity_decode($url));
@@ -695,7 +692,7 @@ function validateRemoteUrl($url)
 	if (!$parsed || !isset($parsed["scheme"]) || !isset($parsed["host"])) return false;
 	
 	// Only allow http:// and https:// schemes
-	$allowedSchemes = array("http", "https");
+	$allowedSchemes = ["http", "https"];
 	if (!in_array(strtolower($parsed["scheme"]), $allowedSchemes)) return false;
 	
 	// Block file://, ftp://, and other non-HTTP schemes (extra check)
@@ -715,20 +712,20 @@ function validateRemoteUrl($url)
 	
 	// Block private/internal IP ranges:
 	// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, ::1
-	$privateRanges = array(
-		array(ip2long("10.0.0.0"), ip2long("10.255.255.255")),
-		array(ip2long("172.16.0.0"), ip2long("172.31.255.255")),
-		array(ip2long("192.168.0.0"), ip2long("192.168.255.255")),
-		array(ip2long("127.0.0.0"), ip2long("127.255.255.255")),
-		array(ip2long("169.254.0.0"), ip2long("169.254.255.255"))
-	);
+	$privateRanges = [
+		[ip2long("10.0.0.0"), ip2long("10.255.255.255")],
+		[ip2long("172.16.0.0"), ip2long("172.31.255.255")],
+		[ip2long("192.168.0.0"), ip2long("192.168.255.255")],
+		[ip2long("127.0.0.0"), ip2long("127.255.255.255")],
+		[ip2long("169.254.0.0"), ip2long("169.254.255.255")]
+	];
 	
 	foreach ($privateRanges as $range) {
 		if ($ipLong >= $range[0] && $ipLong <= $range[1]) return false;
 	}
 	
 	// Block IPv6 localhost (simplified check - full IPv6 validation would be more complex)
-	if (strpos($host, "::1") !== false || strtolower($host) === "localhost") return false;
+	if (str_contains($host, "::1") || strtolower($host) === "localhost") return false;
 	
 	// Block 0.0.0.0
 	if ($ipLong === 0) return false;
@@ -738,7 +735,7 @@ function validateRemoteUrl($url)
 
 // Check flood control for a given action. Returns true if allowed, false if rate limited.
 // Sets error message via $eso->message() if rate limited.
-function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $memberId = null)
+function checkFloodControl(string $action, int $rateLimit, string $sessionKey, string $errorMessage, ?int $memberId = null): bool
 {
 	global $eso, $config;
 	
@@ -756,7 +753,7 @@ function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $mem
 		}
 		// Have they performed >= $rateLimit attempts in the last minute? If so, don't continue.
 		if (count($_SESSION[$sessionKey]) >= $rateLimit) {
-			$eso->message($errorMessage, true, array(60 - time() + min($_SESSION[$sessionKey])));
+			$eso->message($errorMessage, true, [60 - time() + min($_SESSION[$sessionKey])]);
 			return false;
 		}
 	}
@@ -776,91 +773,73 @@ function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $mem
 	}
 	
 	// Log this attempt in the session array.
-	if (!isset($_SESSION[$sessionKey]) or !is_array($_SESSION[$sessionKey])) $_SESSION[$sessionKey] = array();
+	if (!isset($_SESSION[$sessionKey]) || !is_array($_SESSION[$sessionKey])) $_SESSION[$sessionKey] = [];
 	$_SESSION[$sessionKey][] = time();
 	
 	return true;
 }
 
 // Set a secure cookie with proper security flags (Secure, HttpOnly, SameSite).
-// Handles PHP 7.2.x compatibility for SameSite attribute.
-function setSecureCookie($name, $value, $expires, $config)
+function setSecureCookie(string $name, string $value, int $expires, array $config): void
 {
 	$path = "/";
-	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$domain = $config["cookieDomain"] ?: "";
 	$secure = !empty($config["https"]);
 	$httponly = true;
 	
-	if (PHP_VERSION_ID >= 70300) {
-		setcookie($name, sanitizeForHTTP($value), array(
-			"expires" => $expires,
-			"path" => $path,
-			"domain" => $domain,
-			"secure" => $secure,
-			"httponly" => $httponly,
-			"samesite" => "Lax"
-		));
-	} else {
-		// PHP 7.2.x compatibility: set cookie and add SameSite via header
-		setcookie($name, sanitizeForHTTP($value), $expires, $path, $domain, $secure, $httponly);
-		// Set SameSite attribute manually for PHP 7.2.x
-		header("Set-Cookie: $name=" . sanitizeForHTTP($value) . "; Expires=" . gmdate("D, d M Y H:i:s", $expires) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
-	}
+	setcookie($name, sanitizeForHTTP($value), [
+		"expires" => $expires,
+		"path" => $path,
+		"domain" => $domain,
+		"secure" => $secure,
+		"httponly" => $httponly,
+		"samesite" => "Lax"
+	]);
 }
 
 // Delete a secure cookie with proper security flags.
-// Handles PHP 7.2.x compatibility for SameSite attribute.
-function deleteSecureCookie($name, $config)
+function deleteSecureCookie(string $name, array $config): void
 {
-	$expires = -1;
 	$path = "/";
-	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
+	$domain = $config["cookieDomain"] ?: "";
 	$secure = !empty($config["https"]);
 	$httponly = true;
 	
-	if (PHP_VERSION_ID >= 70300) {
-		setcookie($name, "", array(
-			"expires" => $expires,
-			"path" => $path,
-			"domain" => $domain,
-			"secure" => $secure,
-			"httponly" => $httponly,
-			"samesite" => "Lax"
-		));
-	} else {
-		// PHP 7.2.x compatibility
-		setcookie($name, "", $expires, $path, $domain, $secure, $httponly);
-		header("Set-Cookie: $name=; Expires=" . gmdate("D, d M Y H:i:s", 0) . " GMT; Path=$path" . ($domain ? "; Domain=$domain" : "") . ($secure ? "; Secure" : "") . "; HttpOnly; SameSite=Lax", false);
-	}
+	setcookie($name, "", [
+		"expires" => -1,
+		"path" => $path,
+		"domain" => $domain,
+		"secure" => $secure,
+		"httponly" => $httponly,
+		"samesite" => "Lax"
+	]);
 }
 
 // Hash a password using the configured hashing method (bcrypt or md5).
 // Returns the hashed password.
-function hashPassword($password, $salt = null, $config)
+function hashPassword(string $password, ?string $salt, array $config): string
 {
 	if ($config["hashingMethod"] == "bcrypt") {
 		return password_hash($password, PASSWORD_DEFAULT);
 	} else {
-		if ($salt === null) {
-			$salt = generateRandomString(32);
-		}
+		$salt ??= generateRandomString(32);
 		return md5($salt . $password);
 	}
 }
 
 // Verify a password against a hash using the configured hashing method.
 // Returns true if password matches, false otherwise.
-function verifyPassword($password, $hash, $salt, $config)
+function verifyPassword(string $password, string $hash, ?string $salt, array $config): bool
 {
 	if ($config["hashingMethod"] == "bcrypt") {
 		return password_verify($password, $hash);
 	} else {
-		return $hash === md5($salt . $password);
+		return $hash === md5(($salt ?? "") . $password);
 	}
 }
 
 // Regenerate the session token.
-function regenerateToken()
+function regenerateToken(): void
 {
 	session_regenerate_id(true);
 	// Generate a cryptographically secure token using random_bytes (32 hex characters = 128 bits entropy)
@@ -870,5 +849,3 @@ function regenerateToken()
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
 	$_SESSION["time"] = time();
 }
-
-?>

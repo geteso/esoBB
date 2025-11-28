@@ -32,7 +32,7 @@ define("PAGE_START_TIME", microtime(true));
 // By default, only report important errors (no warnings or notices.)
 error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR);
 
-// Make sure a default timezone is set... silly PHP 5.
+// Make sure a default timezone is set.
 if (ini_get("date.timezone") == "") date_default_timezone_set("GMT");
 
 // Define directory constants.
@@ -89,21 +89,18 @@ ini_set('session.gc_probability', 1);
 
 if (session_id()) {
 	// Only validate session if it has the required fields (prevents issues after session regeneration)
-	if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
+	if (isset($_SESSION["ip"], $_SESSION["time"], $_SESSION["userAgent"])) {
 		// Destroy sessions that are started longer ago than sessionExpire.
 		$sessionExpired = (time() - $_SESSION["time"] > $config["sessionExpire"]);
 		
 		// IP validation is optional (disabled by default) as it breaks for users behind proxies/VPNs/load balancers
 		// When enabled, it provides additional security but may cause legitimate users to be logged out
-		$ipMismatch = false;
-		if (!empty($config["validateSessionIp"])) {
-			$ipMismatch = ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]);
-		}
+		$ipMismatch = !empty($config["validateSessionIp"]) && ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]);
 		
 		// Check the current user agent against the one that initiated the session.
 		$userAgentMismatch = (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]);
 		
-		if ($sessionExpired or $ipMismatch or $userAgentMismatch) {
+		if ($sessionExpired || $ipMismatch || $userAgentMismatch) {
 			session_unset();
 			session_destroy();
 		}
@@ -111,28 +108,15 @@ if (session_id()) {
 // Start a session if one does not already exist.
 } else {
 	session_name("{$config["cookieName"]}_Session");
-	// Configure session cookie parameters
-	$lifetime = 0; // Session cookie (expires when browser closes)
-	$path = "/";
-	$domain = $config["cookieDomain"] ? $config["cookieDomain"] : "";
-	$secure = !empty($config["https"]); // Only send over HTTPS if enabled
-	$httponly = true; // Prevent JavaScript access
-	// session_set_cookie_params() array syntax requires PHP 7.3.0+
-	if (PHP_VERSION_ID >= 70300) {
-		session_set_cookie_params(array(
-			"lifetime" => $lifetime,
-			"path" => $path,
-			"domain" => $domain,
-			"secure" => $secure,
-			"httponly" => $httponly,
-			"samesite" => "Lax"
-		));
-	} else {
-		// PHP 7.2.x compatibility: use individual parameters
-		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
-		// Regular cookies (remember me) will still get SameSite via manual header setting
-		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
-	}
+	// Configure session cookie parameters (PHP 8.0+ array syntax)
+	session_set_cookie_params([
+		"lifetime" => 0, // Session cookie (expires when browser closes)
+		"path" => "/",
+		"domain" => $config["cookieDomain"] ?: "",
+		"secure" => !empty($config["https"]), // Only send over HTTPS if enabled
+		"httponly" => true, // Prevent JavaScript access
+		"samesite" => "Lax"
+	]);
 	session_start();
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
 	$_SESSION["time"] = time();
@@ -141,7 +125,7 @@ if (session_id()) {
 }
 
 // Do we want to force HTTPS?
-if (!empty($config["https"]) and $_SERVER["HTTPS"] != "on") {
+if (!empty($config["https"]) && ($_SERVER["HTTPS"] ?? "") !== "on") {
     header("Location: https://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"]);
     exit;
 }
@@ -153,7 +137,7 @@ header("X-XSS-Protection: 1; mode=block");
 header("Referrer-Policy: strict-origin-when-cross-origin");
 
 // Replace GET values with ones from the request URI.  (ex. index.php/test/123 -> ?q1=test&q2=123)
-if (!empty($config["useFriendlyURLs"]) and isset($_SERVER["REQUEST_URI"])) {
+if (!empty($config["useFriendlyURLs"]) && isset($_SERVER["REQUEST_URI"])) {
 	$parts = processRequestURI($_SERVER["REQUEST_URI"]);
 	for ($i = 1, $count = count($parts); $i <= $count; $i++) $_GET["q$i"] = $parts[$i - 1];
 }
@@ -169,10 +153,10 @@ $eso = new eso();
 $eso->eso =& $eso;
 
 // Redirect if the 'Start a conversation' button was pressed.
-if (isset($_POST["new"]) and !defined("AJAX_REQUEST")) redirect("conversation", "new");
+if (isset($_POST["new"]) && !defined("AJAX_REQUEST")) redirect("conversation", "new");
 
 // Include the language file.
-$eso->language = sanitizeFileName((!empty($_SESSION["user"]["language"]) and file_exists("languages/{$_SESSION["user"]["language"]}.php")) ? $_SESSION["user"]["language"] : $config["language"]);
+$eso->language = sanitizeFileName((!empty($_SESSION["user"]["language"]) && file_exists("languages/{$_SESSION["user"]["language"]}.php")) ? $_SESSION["user"]["language"] : $config["language"]);
 if (file_exists("languages/$eso->language.php")) include "languages/$eso->language.php";
 // If we haven't got a working language, show an error!
 if (empty($language)) $eso->fatalError("We can't find a language file to use. Please make sure <code>languages/$eso->language.php</code> exists or change the default language by adding <code>\"language\" => \"YourLanguage\",</code> to <code>config/config.php</code>.", "language");
@@ -198,5 +182,3 @@ foreach ($config["loadedPlugins"] as $v) {
 		$eso->plugins[$v]->eso =& $eso;
 	}
 }
-
-?>

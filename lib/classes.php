@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * This file is part of the esoBB project, a derivative of esoTalk.
  * It has been modified by several contributors.  (contact@geteso.org)
@@ -28,27 +29,28 @@ if (!defined("IN_ESO")) exit;
 // Extend this class and then use $this->callHook("uniqueMarker") in the class code to call any code which has been hooked via $classInstance->addHook("uniqueMarker", "function").
 class Hookable {
 
-var $hookedFunctions = array();
+public array $hookedFunctions = [];
 
 // Run all collective hooked functions for the specified marker.
-function callHook($marker, $parameters = array(), $return = false)
+public function callHook(string $marker, array|null $parameters = [], bool $return = false): mixed
 {
-	if (isset($this->hookedFunctions[$marker]) and count($this->hookedFunctions[$marker])) {
+	if (isset($this->hookedFunctions[$marker]) && count($this->hookedFunctions[$marker])) {
 		
 		// Add the instance of this class to the parameters.
 		// We can't use array_unshift here because call-time pass-by-reference has been deprecated.
-		$parameters = is_array($parameters) ? array_merge(array(&$this), $parameters) : array(&$this);
+		$parameters = is_array($parameters) ? array_merge([&$this], $parameters) : [&$this];
 		
 		// Loop through the functions which have been hooked on this hook and execute them.
 		// If this hook requires a return value and the function we're running returns something, return that.
 		foreach ($this->hookedFunctions[$marker] as $function) {
-			if (($returned = call_user_func_array($function, $parameters)) and $return) return $returned;
+			if (($returned = call_user_func_array($function, $parameters)) && $return) return $returned;
 		}
 	}
+	return null;
 }
 
-// Hook a function.
-function addHook($hook, $function)
+// Hook a function to a specific marker.
+public function addHook(string $hook, callable $function): void
 {
 	$this->hookedFunctions[$hook][] = $function;
 }
@@ -60,16 +62,16 @@ function addHook($hook, $function)
 // Extend this class and then use $eso->registerController() to register your new controller.
 class Controller extends Hookable {
 
-var $action;
-var $view;
-var $title;
-var $eso;
+public ?string $action = null;
+public ?string $view = null;
+public ?string $title = null;
+public ?object $eso = null;
 
-function init() {}
-function ajax() {}
+public function init() {}
+public function ajax() {}
 
 // Render the page according to the controller's $view.
-function render()
+public function render(): void
 {
 	global $language, $messages, $config;
 	include $this->eso->skin->getView($this->view);
@@ -81,14 +83,16 @@ function render()
 // Extend this class to make a plugin. See the plugin documentation for more information.
 class Plugin extends Hookable {
 
-var $id;
-var $name;
-var $version;
-var $author;
-var $description;
+public ?string $id = null;
+public ?string $name = null;
+public ?string $version = null;
+public ?string $author = null;
+public ?string $description = null;
+public ?array $defaultConfig = null;
+public ?object $eso = null;
 
 // Constructor: include the config file or write the default config if it doesn't exist.
-function __construct()
+public function __construct()
 {
 	if (!empty($this->defaultConfig)) {
 		global $config;
@@ -99,22 +103,22 @@ function __construct()
 }
 
 // For automatic version checking, call this function (parent::init()) at the beginning of a plugin's init() function.
-function init()
+public function init()
 {
 	// Compare the version of the code ($this->version) to the installed one (config/versions.php).
 	// If it's different, run the upgrade() function, and write the new version number to config/versions.php.
 	global $versions;
-	if (!isset($versions[$this->id]) or $versions[$this->id] != $this->version) {
-		$this->upgrade(@$versions[$this->id]);
+	if (!isset($versions[$this->id]) || $versions[$this->id] != $this->version) {
+		$this->upgrade($versions[$this->id] ?? null);
 		$versions[$this->id] = $this->version;
 		writeConfigFile("config/versions.php", '$versions', $versions);	
 	}
 }
 
-function settings() {}
-function saveSettings() {}
-function upgrade($oldVersion) {}
-function enable() {}
+public function settings() {}
+public function saveSettings() {}
+public function upgrade($oldVersion) {}
+public function enable() {}
 
 }
 
@@ -122,15 +126,16 @@ function enable() {}
 // Extend this class to make a skin.
 class Skin {
 
-var $name;
-var $version;
-var $author;
-var $views;
+public ?string $name = null;
+public ?string $version = null;
+public ?string $author = null;
+public array $views = [];
+public ?object $eso = null;
 
-function init() {}
+public function init() {}
 
 // Generate button HTML.
-function button($attributes)
+public function button($attributes)
 {
 	$attr = " type='submit'";
 	foreach ($attributes as $k => $v) $attr .= " $k='$v'";
@@ -139,31 +144,34 @@ function button($attributes)
 
 // Register a custom view.
 // Whenever a controller attempts to include $view, this new $file associated with $view will be included instead.
-function registerView($view, $file)
+public function registerView(string $view, string $file): void
 {
 	$this->views[$view] = $file;
 }
 
-function getView($view)
+// Get the path to a view file, using a custom view if registered.
+public function getView(string $view): string
 {
-	return empty($this->views[$view]) ? "views/$view" : $this->views[$view];
+	return $this->views[$view] ?? "views/$view";
 }
 
-function getForumLogo()
+// Get the path to the forum logo.
+public function getForumLogo(): string
 {
 	global $config;
-	if (isset($this->eso->skin->logo) and file_exists("skins/{$config["skin"]}/" . $this->eso->skin->logo)) $logo = $this->eso->skin->logo;
+	$logo = "";
+	if (isset($this->eso->skin->logo) && file_exists("skins/{$config["skin"]}/" . $this->eso->skin->logo)) $logo = $this->eso->skin->logo;
 	elseif (file_exists("skins/{$config["skin"]}/logo.svg")) $logo = "logo.svg";
-	else $logo = "";
 	return !empty($config["forumLogo"]) ? $config["forumLogo"] : "skins/{$config["skin"]}/" . $logo;
 }
 
-function getForumIcon()
+// Get the path to the forum icon.
+public function getForumIcon(): string
 {
 	global $config;
-	if (isset($this->eso->skin->icon) and file_exists("skins/{$config["skin"]}/" . $this->eso->skin->icon)) $icon = $this->eso->skin->icon;
+	$icon = "";
+	if (isset($this->eso->skin->icon) && file_exists("skins/{$config["skin"]}/" . $this->eso->skin->icon)) $icon = $this->eso->skin->icon;
 	elseif (file_exists("skins/{$config["skin"]}/icon.png")) $icon = "icon.png";
-	else $icon = "";
 	return !empty($config["forumIcon"]) ? $config["forumIcon"] : "skins/{$config["skin"]}/" . $icon;
 }
 

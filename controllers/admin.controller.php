@@ -24,10 +24,11 @@ if (!defined("IN_ESO")) exit;
  * admin dashboard and a way to change forum settings.
  */
 class admin extends Controller {
-	
-var $view = "admin/admin.view.php";
-var $subView = "";
-var $sections = array();
+
+public ?string $view = "admin/admin.view.php";
+public string $subView = "";
+public array $sections = [];
+public array $defaultSections = [];
 
 function init()
 {

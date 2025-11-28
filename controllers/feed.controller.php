@@ -26,12 +26,12 @@ if (!defined("IN_ESO")) exit;
 class feed extends Controller {
 
 // Feed data variables, outputted in the view.
-var $items = array();
-var $updated = "";
-var $title = "";
-var $subtitle = "";
-var $link = "";
-var $id = "";
+public array $items = [];
+public string $updated = "";
+public ?string $title = "";
+public string $subtitle = "";
+public string $link = "";
+public string $id = "";
 
 function init()
 {

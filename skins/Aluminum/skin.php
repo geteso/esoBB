@@ -25,18 +25,18 @@ if (!defined("IN_ESO")) exit;
  */
 class Aluminum extends Skin {
 
-var $name = "Aluminum";
-var $version = "2.0";
-var $author = "the esoBB team";
-var $numberOfColors = 27;
+public ?string $name = "Aluminum";
+public ?string $version = "2.0";
+public ?string $author = "the esoBB team";
+public int $numberOfColors = 27;
 
 // Define name and file type of resources.
-var $logo = "logo.svg";
-var $icon = "icon.png";
-var $favicon = "favicon.ico";
-var $avatarLeft = "avatarLeft.svg";
-var $avatarRight = "avatarRight.svg";
-var $avatarThumb = "avatarThumb.svg";
+public string $logo = "logo.svg";
+public string $icon = "icon.png";
+public string $favicon = "favicon.ico";
+public string $avatarLeft = "avatarLeft.svg";
+public string $avatarRight = "avatarRight.svg";
+public string $avatarThumb = "avatarThumb.svg";
 
 // Add stylesheets and a favicon to the page header.
 function init()

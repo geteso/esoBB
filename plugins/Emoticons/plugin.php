@@ -25,14 +25,14 @@ if (!defined("IN_ESO")) exit;
  */
 class Emoticons extends Plugin {
 
-var $id = "Emoticons";
-var $name = "Emoticons";
-var $version = "1.1";
-var $description = "Converts emoticon text entities into graphic emoticons";
-var $author = "the esoBB team";
+public ?string $id = "Emoticons";
+public ?string $name = "Emoticons";
+public ?string $version = "1.1";
+public ?string $description = "Converts emoticon text entities into graphic emoticons";
+public ?string $author = "the esoBB team";
 
-var $emoticonDir = "plugins/Emoticons/";
-var $emoticons = array();
+public string $emoticonDir = "plugins/Emoticons/";
+public array $emoticons = [];
 
 function init()
 {

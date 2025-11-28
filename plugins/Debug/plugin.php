@@ -24,18 +24,18 @@ if (!defined("IN_ESO")) exit;
  */
 class Debug extends Plugin {
 
-var $id = "Debug";
-var $name = "Debug";
-var $version = "1.0";
-var $description = "Shows programming debug information for administrators";
-var $author = "the esoBB team";
-var $defaultConfig = array(
+public ?string $id = "Debug";
+public ?string $name = "Debug";
+public ?string $version = "1.0";
+public ?string $description = "Shows programming debug information for administrators";
+public ?string $author = "the esoBB team";
+public ?array $defaultConfig = [
 	"showToNonAdmins" => false
-);
+];
 
-var $start;
-var $queryTimer;
-var $log = "";
+public float $start = 0;
+public float $queryTimer = 0;
+public string $log = "";
 
 function __construct()
 {

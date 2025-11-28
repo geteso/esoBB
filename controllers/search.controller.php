@@ -25,27 +25,30 @@ if (!defined("IN_ESO")) exit;
  */
 class search extends Controller {
 
-var $view = "search.view.php";
-var $tagCloud = array();
-var $searchString = "";
+public ?string $view = "search.view.php";
+public array $tagCloud = [];
+public string $searchString = "";
 
 // Fields to select, conditions, orders, and more.
-var $select = array();
-var $from = array();
-var $conditions = array();
-var $orderBy = array();
-var $limit;
-var $reverse = false;
+public array $select = [];
+public array $from = [];
+public array $conditions = [];
+public array $orderBy = [];
+public ?int $limit = null;
+public bool $reverse = false;
 
 // Gambit arrays.
-var $gambitCloud = array();
-var $aliases = array();
-var $gambits = array();
+public array $gambitCloud = [];
+public array $aliases = [];
+public array $gambits = [];
 
 // Results.
-var $results = array();
-var $resultsTable = array();
-var $numberOfConversations = 0;
+public ?array $results = [];
+public array $resultsTable = [];
+public int $numberOfConversations = 0;
+
+// For gambit matching.
+public array $matches = [];
 
 function __construct()
 {

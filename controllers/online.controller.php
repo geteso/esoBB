@@ -24,8 +24,10 @@ if (!defined("IN_ESO")) exit;
  * to be displayed in the view.
  */
 class online extends Controller {
-	
-var $view = "online.view.php";
+
+public ?string $view = "online.view.php";
+public \mysqli_result|bool $online = false;
+public int|string|false $numberOnline = 0;
 
 function init()
 {

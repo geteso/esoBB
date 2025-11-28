@@ -25,9 +25,9 @@ if (!defined("IN_ESO")) exit;
  */
 class profile extends Controller {
 
-var $view = "profile.view.php";
-var $member = array();
-var $sections = array();
+public ?string $view = "profile.view.php";
+public array $member = [];
+public array $sections = [];
 
 // Set up the page and fetch the member data.
 function init()

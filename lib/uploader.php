@@ -27,13 +27,14 @@
  */
 class Uploader {
 
-var $lastError = false;
-var $lastFileInfo = false;
+public string|false $lastError = false;
+public array|false $lastFileInfo = false;
 
-function iniToBytes($value)
+// Convert INI size notation to bytes.
+public function iniToBytes(string $value): int
 {
 	$l = substr($value, -1);
-	$ret = substr($value, 0, -1);
+	$ret = (int)substr($value, 0, -1);
 	switch(strtoupper($l)){
 		case "P":
 			$ret *= 1024;
@@ -51,20 +52,20 @@ function iniToBytes($value)
 }
 
 // Get the maximum file upload size in bytes.
-function maxUploadSize()
+public function maxUploadSize(): int
 {
 	return min($this->iniToBytes(ini_get("post_max_size")), $this->iniToBytes(ini_get("upload_max_filesize")));
 }
 
 // Validate an uploaded file and return its temporary file name.
-// Returns array with "success", "file", "error", "mime", "size" keys, or false on failure.
-function getUploadedFile($key, $allowedTypes = array())
+// Returns temporary file path on success, false on failure.
+public function getUploadedFile(string $key, array $allowedTypes = []): string|false
 {
 	$this->lastError = false;
 	$this->lastFileInfo = false;
 
 	// If the uploaded file doesn't exist, then we have to fail.
-	if (!isset($_FILES[$key]) or !is_uploaded_file($_FILES[$key]["tmp_name"])) {
+	if (!isset($_FILES[$key]) || !is_uploaded_file($_FILES[$key]["tmp_name"])) {
 		$this->lastError = "fileUploadFailed";
 		return false;
 	}
@@ -97,7 +98,7 @@ function getUploadedFile($key, $allowedTypes = array())
 		// Validate file extension matches expected image type.
 		$fileName = $file["name"];
 		$fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-		$allowedExtensions = array();
+		$allowedExtensions = [];
 		foreach ($allowedTypes as $mime) {
 			switch ($mime) {
 				case "image/jpeg":
@@ -141,7 +142,7 @@ function getUploadedFile($key, $allowedTypes = array())
 }
 
 // Save an uploaded file to the specified destination.
-function saveAs($source, $destination)
+public function saveAs(string $source, string $destination): string|false
 {
 	$this->lastError = false;
 	
@@ -171,7 +172,7 @@ function saveAs($source, $destination)
 
 // Download a file from a remote URL and return the temporary file path.
 // Returns temporary file path on success, false on failure.
-function downloadFromUrl($url, $allowedTypes = array())
+public function downloadFromUrl(string $url, array $allowedTypes = []): string|false
 {
 	$this->lastError = false;
 	$this->lastFileInfo = false;
@@ -248,7 +249,7 @@ function downloadFromUrl($url, $allowedTypes = array())
 
 // Validate file content by checking magic bytes (file signatures).
 // Returns true if the file matches the expected image type, false otherwise.
-function validateImageMagicBytes($filePath, $expectedMimeType)
+public function validateImageMagicBytes(string $filePath, string $expectedMimeType): bool
 {
 	if (!file_exists($filePath) || !is_readable($filePath)) return false;
 	
@@ -278,7 +279,6 @@ function validateImageMagicBytes($filePath, $expectedMimeType)
 		
 		case "image/webp":
 			// WebP: RIFF (bytes 0-3) + WEBP (bytes 8-11)
-			// Header is already 12 bytes, so we can check both signatures
 			return (substr($header, 0, 4) === "RIFF" && substr($header, 8, 4) === "WEBP");
 		
 		default:
@@ -287,7 +287,7 @@ function validateImageMagicBytes($filePath, $expectedMimeType)
 }
 
 // Validate an image file (MIME type and magic bytes).
-function validateImage($filePath, $allowedTypes = array())
+public function validateImage(string $filePath, array $allowedTypes = []): bool
 {
 	if (!file_exists($filePath) || !is_readable($filePath)) return false;
 	
@@ -300,23 +300,23 @@ function validateImage($filePath, $allowedTypes = array())
 }
 
 // Get image information (dimensions and MIME type).
-function getImageInfo($filePath)
+public function getImageInfo(string $filePath): array|false
 {
 	if (!file_exists($filePath) || !is_readable($filePath)) return false;
 	
 	$info = @getimagesize($filePath);
 	if (!$info) return false;
 	
-	return array(
+	return [
 		"width" => $info[0],
 		"height" => $info[1],
 		"mime" => $info["mime"],
 		"type" => $info[2]
-	);
+	];
 }
 
 // Create a GD image resource from a file.
-function createImageResource($filePath, $mimeType)
+public function createImageResource(string $filePath, string $mimeType): \GdImage|false
 {
 	switch ($mimeType) {
 		case "image/jpeg":
@@ -340,28 +340,28 @@ function createImageResource($filePath, $mimeType)
 
 // Calculate resize dimensions for an image.
 // Returns array with new width and height, or false on failure.
-function resizeImage($curWidth, $curHeight, $maxWidth = null, $maxHeight = null, $exactWidth = null, $exactHeight = null)
+public function resizeImage(int $curWidth, int $curHeight, ?int $maxWidth = null, ?int $maxHeight = null, ?int $exactWidth = null, ?int $exactHeight = null): array
 {
 	// If exact dimensions are specified, use those.
 	if ($exactWidth !== null && $exactHeight !== null) {
-		return array("width" => $exactWidth, "height" => $exactHeight, "needsResize" => ($exactWidth != $curWidth || $exactHeight != $curHeight));
+		return ["width" => $exactWidth, "height" => $exactHeight, "needsResize" => ($exactWidth != $curWidth || $exactHeight != $curHeight)];
 	}
 	
 	// Otherwise, calculate based on max dimensions.
-	if (($maxWidth or $maxHeight) and (($maxWidth and $maxWidth < $curWidth) or ($maxHeight and $maxHeight < $curHeight))) {
+	if (($maxWidth || $maxHeight) && (($maxWidth && $maxWidth < $curWidth) || ($maxHeight && $maxHeight < $curHeight))) {
 		$widthRatio = $maxWidth ? ($maxWidth / $curWidth) : null;
 		$heightRatio = $maxHeight ? ($maxHeight / $curHeight) : null;
-		$ratio = ($widthRatio and (!$heightRatio or $widthRatio <= $heightRatio)) ? $widthRatio : $heightRatio;
+		$ratio = ($widthRatio && (!$heightRatio || $widthRatio <= $heightRatio)) ? $widthRatio : $heightRatio;
 		$width = $ratio * $curWidth;
 		$height = $ratio * $curHeight;
-		return array("width" => $width, "height" => $height, "needsResize" => true);
+		return ["width" => (int)$width, "height" => (int)$height, "needsResize" => true];
 	}
 	
-	return array("width" => $curWidth, "height" => $curHeight, "needsResize" => false);
+	return ["width" => $curWidth, "height" => $curHeight, "needsResize" => false];
 }
 
 // Save an image resource to a file.
-function saveImageResource($image, $destination, $format, $quality = 85)
+public function saveImageResource(\GdImage $image, string $destination, string $format, int $quality = 85): bool
 {
 	switch ($format) {
 		case "jpg":
@@ -386,26 +386,26 @@ function saveImageResource($image, $destination, $format, $quality = 85)
 // Save an uploaded or downloaded image with processing options.
 // Options: maxWidth, maxHeight, width, height, format, quality, preserveAnimation, thumbnail, maxDimension
 // Returns array with "success", "path", "format", "error" keys.
-function saveAsImage($source, $destination, $options = array())
+public function saveAsImage(string $source, string $destination, array $options = []): array
 {
 	$this->lastError = false;
 	
 	// Default options.
-	$maxWidth = isset($options["maxWidth"]) ? $options["maxWidth"] : null;
-	$maxHeight = isset($options["maxHeight"]) ? $options["maxHeight"] : null;
-	$exactWidth = isset($options["width"]) ? $options["width"] : null;
-	$exactHeight = isset($options["height"]) ? $options["height"] : null;
-	$format = isset($options["format"]) ? $options["format"] : "auto";
-	$quality = isset($options["quality"]) ? $options["quality"] : 85;
-	$preserveAnimation = isset($options["preserveAnimation"]) ? $options["preserveAnimation"] : true;
-	$thumbnail = isset($options["thumbnail"]) ? $options["thumbnail"] : false;
-	$maxDimension = isset($options["maxDimension"]) ? $options["maxDimension"] : null; // Maximum width or height (prevents memory exhaustion)
+	$maxWidth = $options["maxWidth"] ?? null;
+	$maxHeight = $options["maxHeight"] ?? null;
+	$exactWidth = $options["width"] ?? null;
+	$exactHeight = $options["height"] ?? null;
+	$format = $options["format"] ?? "auto";
+	$quality = $options["quality"] ?? 85;
+	$preserveAnimation = $options["preserveAnimation"] ?? true;
+	$thumbnail = $options["thumbnail"] ?? false;
+	$maxDimension = $options["maxDimension"] ?? null; // Maximum width or height (prevents memory exhaustion)
 	
 	// Get image information.
 	$info = $this->getImageInfo($source);
 	if (!$info) {
 		$this->lastError = "avatarError";
-		return array("success" => false, "error" => "avatarError");
+		return ["success" => false, "error" => "avatarError"];
 	}
 	
 	$curWidth = $info["width"];
@@ -415,29 +415,22 @@ function saveAsImage($source, $destination, $options = array())
 	// Check maximum dimension limits to prevent memory exhaustion attacks.
 	if ($maxDimension !== null && ($curWidth > $maxDimension || $curHeight > $maxDimension)) {
 		$this->lastError = "avatarError";
-		return array("success" => false, "error" => "avatarError");
+		return ["success" => false, "error" => "avatarError"];
 	}
 	
 	// Determine output format.
 	if ($format == "auto") {
-		switch ($mimeType) {
-			case "image/jpeg":
-			case "image/pjpeg":
-				$outputFormat = "jpg";
-				break;
-			case "image/png":
-			case "image/x-png":
-				$outputFormat = "png";
-				break;
-			case "image/gif":
-				$outputFormat = "gif";
-				break;
-			case "image/webp":
-				$outputFormat = "webp";
-				break;
-			default:
-				$this->lastError = "avatarError";
-				return array("success" => false, "error" => "avatarError");
+		$outputFormat = match($mimeType) {
+			"image/jpeg", "image/pjpeg" => "jpg",
+			"image/png", "image/x-png" => "png",
+			"image/gif" => "gif",
+			"image/webp" => "webp",
+			default => null
+		};
+		
+		if ($outputFormat === null) {
+			$this->lastError = "avatarError";
+			return ["success" => false, "error" => "avatarError"];
 		}
 	} else {
 		$outputFormat = $format;
@@ -454,7 +447,7 @@ function saveAsImage($source, $destination, $options = array())
 	if (!is_dir($dir)) {
 		if (!@mkdir($dir, 0755, true)) {
 			$this->lastError = "fileUploadFailed";
-			return array("success" => false, "error" => "fileUploadFailed");
+			return ["success" => false, "error" => "fileUploadFailed"];
 		}
 	}
 	
@@ -469,8 +462,8 @@ function saveAsImage($source, $destination, $options = array())
 			// Filter the first 256 characters, making sure there are no HTML tags of any kind.
 			// We have to do this because IE6 has a major security issue where if it finds any HTML in the first 256
 			// characters, it interprets the rest of the document as HTML (even though it's clearly an image!)
-			$tags = array("!-", "a hre", "bgsound", "body", "br", "div", "embed", "frame", "head", "html", "iframe", "input", "img", "link", "meta", "object", "plaintext", "script", "style", "table");
-			$re = array();
+			$tags = ["!-", "a hre", "bgsound", "body", "br", "div", "embed", "frame", "head", "html", "iframe", "input", "img", "link", "meta", "object", "plaintext", "script", "style", "table"];
+			$re = [];
 			foreach ($tags as $tag) {
 				$part = "(?:<";
 				$length = strlen($tag);
@@ -488,7 +481,7 @@ function saveAsImage($source, $destination, $options = array())
 					if ($thumbnail) {
 						$this->createThumbnail($source, $destination, $thumbnail, $mimeType, $curWidth, $curHeight);
 					}
-					return array("success" => true, "path" => $destination . ".gif", "format" => "gif");
+					return ["success" => true, "path" => $destination . ".gif", "format" => "gif"];
 				}
 			}
 		}
@@ -498,7 +491,7 @@ function saveAsImage($source, $destination, $options = array())
 	$image = $this->createImageResource($source, $mimeType);
 	if (!$image) {
 		$this->lastError = "avatarError";
-		return array("success" => false, "error" => "avatarError");
+		return ["success" => false, "error" => "avatarError"];
 	}
 	
 	// If we need to resize or process the image...
@@ -507,7 +500,7 @@ function saveAsImage($source, $destination, $options = array())
 		$newImage = imagecreatetruecolor($width, $height);
 		
 		// Preserve the alpha for PNGs, GIFs, and WebP.
-		if (in_array($mimeType, array("image/png", "image/gif", "image/x-png", "image/webp"))) {
+		if (in_array($mimeType, ["image/png", "image/gif", "image/x-png", "image/webp"])) {
 			imagecolortransparent($newImage, imagecolorallocate($newImage, 0, 0, 0));
 			imagealphablending($newImage, false);
 			imagesavealpha($newImage, true);
@@ -525,7 +518,7 @@ function saveAsImage($source, $destination, $options = array())
 			imagedestroy($newImage);
 			imagedestroy($image);
 			$this->lastError = "avatarError";
-			return array("success" => false, "error" => "avatarError");
+			return ["success" => false, "error" => "avatarError"];
 		}
 		
 		imagedestroy($newImage);
@@ -536,7 +529,7 @@ function saveAsImage($source, $destination, $options = array())
 		}
 		
 		imagedestroy($image);
-		return array("success" => true, "path" => $destPath, "format" => $outputFormat);
+		return ["success" => true, "path" => $destPath, "format" => $outputFormat];
 	}
 	
 	// If we don't need to resize, just copy the file.
@@ -544,7 +537,7 @@ function saveAsImage($source, $destination, $options = array())
 	if (!copy($source, $destPath)) {
 		imagedestroy($image);
 		$this->lastError = "fileUploadFailed";
-		return array("success" => false, "error" => "fileUploadFailed");
+		return ["success" => false, "error" => "fileUploadFailed"];
 	}
 	
 	imagedestroy($image);
@@ -554,15 +547,15 @@ function saveAsImage($source, $destination, $options = array())
 		$this->createThumbnail($source, $destination, $thumbnail, $mimeType, $curWidth, $curHeight);
 	}
 	
-	return array("success" => true, "path" => $destPath, "format" => $outputFormat);
+	return ["success" => true, "path" => $destPath, "format" => $outputFormat];
 }
 
 // Create a thumbnail of an image.
-function createThumbnail($source, $destination, $thumbnailOptions, $mimeType, $curWidth, $curHeight)
+public function createThumbnail(string $source, string $destination, array $thumbnailOptions, string $mimeType, int $curWidth, int $curHeight): bool
 {
-	$thumbWidth = isset($thumbnailOptions["width"]) ? $thumbnailOptions["width"] : 64;
-	$thumbHeight = isset($thumbnailOptions["height"]) ? $thumbnailOptions["height"] : 64;
-	$suffix = isset($thumbnailOptions["suffix"]) ? $thumbnailOptions["suffix"] : "_thumb";
+	$thumbWidth = $thumbnailOptions["width"] ?? 64;
+	$thumbHeight = $thumbnailOptions["height"] ?? 64;
+	$suffix = $thumbnailOptions["suffix"] ?? "_thumb";
 	
 	// Calculate thumbnail dimensions.
 	$resizeInfo = $this->resizeImage($curWidth, $curHeight, $thumbWidth, $thumbHeight);
@@ -577,7 +570,7 @@ function createThumbnail($source, $destination, $thumbnailOptions, $mimeType, $c
 	$thumbImage = imagecreatetruecolor($thumbW, $thumbH);
 	
 	// Preserve alpha for PNGs, GIFs, and WebP.
-	if (in_array($mimeType, array("image/png", "image/gif", "image/x-png", "image/webp"))) {
+	if (in_array($mimeType, ["image/png", "image/gif", "image/x-png", "image/webp"])) {
 		imagecolortransparent($thumbImage, imagecolorallocate($thumbImage, 0, 0, 0));
 		imagealphablending($thumbImage, false);
 		imagesavealpha($thumbImage, true);
@@ -586,21 +579,14 @@ function createThumbnail($source, $destination, $thumbnailOptions, $mimeType, $c
 	// Copy and resize.
 	imagecopyresampled($thumbImage, $image, 0, 0, 0, 0, $thumbW, $thumbH, $curWidth, $curHeight);
 	
-	// Determine format from destination extension or MIME type.
+	// Determine format from MIME type.
 	$thumbDest = $destination . $suffix;
-	if ($mimeType == "image/jpeg" || $mimeType == "image/pjpeg") {
-		$thumbDest .= ".jpg";
-		$thumbFormat = "jpg";
-	} elseif ($mimeType == "image/png" || $mimeType == "image/x-png") {
-		$thumbDest .= ".png";
-		$thumbFormat = "png";
-	} elseif ($mimeType == "image/webp") {
-		$thumbDest .= ".webp";
-		$thumbFormat = "webp";
-	} else {
-		$thumbDest .= ".gif";
-		$thumbFormat = "gif";
-	}
+	[$thumbDest, $thumbFormat] = match($mimeType) {
+		"image/jpeg", "image/pjpeg" => [$thumbDest . ".jpg", "jpg"],
+		"image/png", "image/x-png" => [$thumbDest . ".png", "png"],
+		"image/webp" => [$thumbDest . ".webp", "webp"],
+		default => [$thumbDest . ".gif", "gif"]
+	};
 	
 	// Save thumbnail.
 	$this->saveImageResource($thumbImage, $thumbDest, $thumbFormat, 85);

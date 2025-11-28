@@ -26,7 +26,7 @@ if (!defined("IN_ESO")) exit;
  */
 class join extends Controller {
 
-var $view = "join.view.php";
+public ?string $view = "join.view.php";
 
 // Initialize: define the form contents, and check to see if form data was submitted.
 function init()

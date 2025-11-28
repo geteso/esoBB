@@ -29,29 +29,30 @@ require_once "lexer.php";
  */
 class Formatter extends Hookable {
 
-var $output = "";
-var $modes = array();
+public string $output = "";
+public array $modes = [];
+public ?SimpleLexer $lexer = null;
 
-var $allowedModes = array(
+public array $allowedModes = [
 	
 	// Modes in which inline-level formatting (bold, italic, links, etc.) can be applied.
-	"inline" => array("text", "quote", "cite", "list", "heading", "italic", "bold", "strike", "link", "superscript", "subscript"),
+	"inline" => ["text", "quote", "cite", "list", "heading", "italic", "bold", "strike", "link", "superscript", "subscript"],
 	
 	// Modes in which paragraph-level formatting (whitespace and images) can be applied.
-	"whitespace" => array("text", "quote", "list", "italic", "bold", "strike", "link"),
+	"whitespace" => ["text", "quote", "list", "italic", "bold", "strike", "link"],
 	
 	// Modes in which block-level formatting (headings, lists, quotes, etc.) can be applied.
-	"block" => array("text", "quote")
+	"block" => ["text", "quote"]
 	
-);
+];
 
-function __construct()
+public function __construct()
 {
 	// Set up the lexer.
 	$this->lexer = new SimpleLexer($this, "text", false);
 	
 	// Define the modes.
-	$this->modes = array(
+	$this->modes = [
 		"bold" => new Formatter_Bold($this),
 		"italic" => new Formatter_Italic($this),
 		"heading" => new Formatter_Heading($this),
@@ -68,17 +69,17 @@ function __construct()
 		"horizontalRule" => new Formatter_Horizontal_Rule($this),
 		"specialCharacters" => new Formatter_Special_Characters($this),
 		"whitespace" => new Formatter_Whitespace($this)
-	);
+	];
 }
 
 // Add a formatter to the array of modes.
-function addFormatter($name, $class)
+public function addFormatter(string $name, string $class): void
 {
-	$this->modes = array($name => new $class($this)) + $this->modes;
+	$this->modes = [$name => new $class($this)] + $this->modes;
 }
 
 // Pass $string through the lexer, using the formatters defined in $formatters.
-function format($string, $formatters = false)
+public function format(string $string, array|false $formatters = false): string
 {
 	$this->output = "";
 	
@@ -87,7 +88,7 @@ function format($string, $formatters = false)
 	else $formatters = array_keys($this->modes);
 	
 	// Clean up newline characters - make sure the only ones we are using are \n!
-	$string = strtr($string, array("\r\n" => "\n", "\r" => "\n")) . "\n";
+	$string = strtr($string, ["\r\n" => "\n", "\r" => "\n"]) . "\n";
 	
 	// Set up the lexer with all of the different formatting modes.
 	foreach ($formatters as $v) {
@@ -106,7 +107,7 @@ function format($string, $formatters = false)
 }
 
 // Revert formatting on $string using formatters defined in $formatters.
-function revert($string, $formatters = false)
+public function revert(string $string, array|false $formatters = false): string
 {
 	// Work out which formatters are going to be used.
 	if (is_array($formatters)) $formatters = array_intersect(array_keys($this->modes), $formatters);
@@ -114,9 +115,9 @@ function revert($string, $formatters = false)
 	
 	// Collect simple reversion patterns from each of the individual formatters, and run them together.
 	// e.g. <b> -> &lt;b&gt;
-	$translations = array();
+	$translations = [];
 	foreach ($formatters as $v) {
-		if (isset($this->modes[$v]->revert) and is_array($this->modes[$v]->revert)) $translations += $this->modes[$v]->revert;
+		if (isset($this->modes[$v]->revert) && is_array($this->modes[$v]->revert)) $translations += $this->modes[$v]->revert;
 	}
 	$string = strtr($string, $translations);
 
@@ -130,16 +131,17 @@ function revert($string, $formatters = false)
 }
 
 // The lexer callback function for plain text - add it to the output variable.
-function text($match, $state) {
+public function text(string $match, int $state): bool
+{
  	$this->output .= $match;
  	return true;
 }
 
 // Get a list of specific mode names which apply to a mode category.
-// For example, getModes(array("bold")) returns array("bold_tag_b", "bold_tag_strong", "bold_bbcode", "bold_wiki").
-function getModes($modes, $exclude = false)
+// For example, getModes(["bold"]) returns ["bold_tag_b", "bold_tag_strong", "bold_bbcode", "bold_wiki"].
+public function getModes(array $modes, string|false $exclude = false): array
 {
-	$newModes = array();
+	$newModes = [];
 	foreach ($modes as $mode) {
 		if ($mode == $exclude) continue;
 		if (isset($this->modes[$mode])) $newModes = array_merge($newModes, $this->modes[$mode]->modes);
@@ -153,19 +155,19 @@ function getModes($modes, $exclude = false)
 
 class Formatter_Whitespace {
 
-var $formatter;
-var $revert = array("<br/>" => "\n", "<p>" => "", "</p>" => "\n\n");
+public Formatter $formatter;
+public array $revert = ["<br/>" => "\n", "<p>" => "", "</p>" => "\n\n"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map functions for the whitespace modes.
-	$this->formatter->lexer->mapFunction("paragraph", array($this, "paragraph"));
-	$this->formatter->lexer->mapFunction("linebreak", array($this, "linebreak"));
+	$this->formatter->lexer->mapFunction("paragraph", [$this, "paragraph"]);
+	$this->formatter->lexer->mapFunction("linebreak", [$this, "linebreak"]);
 	
 	// Add these whitespace modes to the lexer - they are allowed in paragraph-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["whitespace"]);
@@ -176,24 +178,24 @@ function format()
 }
 
 // After the lexer has finish parsing: strip empty paragraphs.
-function finish($output)
+public function finish(string $output): string
 {
 	$output = "<p>$output</p>";
-	$output = preg_replace(array("/<p>\s*<\/p>/i", "/(?<=<p>)\s*(?:<br\/>)*/i", "/\s*(?:<br\/>)*\s*(?=<\/p>)/i"), "", $output);
+	$output = preg_replace(["/<p>\s*<\/p>/i", "/(?<=<p>)\s*(?:<br\/>)*/i", "/\s*(?:<br\/>)*\s*(?=<\/p>)/i"], "", $output);
 	$output = str_replace("<p></p>", "", $output);
 	
 	return $output;
 }
 
 // End a paragraph and start a new one.
-function paragraph($match, $state)
+public function paragraph(string $match, int $state): bool
 {
 	$this->formatter->output .= "</p><p>";
 	return true;
 }
 
 // Insert a linebreak.
-function linebreak($match, $state)
+public function linebreak(string $match, int $state): bool
 {
 	$this->formatter->output .= "<br/>";
 	return true;
@@ -204,18 +206,19 @@ function linebreak($match, $state)
 
 class Formatter_Bold {
 
-var $modes = array("bold_tag_b", "bold_tag_strong", "bold_bbcode", "bold_wiki");
-var $revert = array("<b>" => "&lt;b&gt;", "</b>" => "&lt;/b&gt;");
+public Formatter $formatter;
+public array $modes = ["bold_tag_b", "bold_tag_strong", "bold_bbcode", "bold_wiki"];
+public array $revert = ["<b>" => "&lt;b&gt;", "</b>" => "&lt;/b&gt;"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of bold to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("bold", array($this, "bold"));
+	$this->formatter->lexer->mapFunction("bold", [$this, "bold"]);
 	$this->formatter->lexer->mapHandler("bold_tag_b", "bold");
 	$this->formatter->lexer->mapHandler("bold_tag_strong", "bold");
 	$this->formatter->lexer->mapHandler("bold_bbcode", "bold");
@@ -236,7 +239,7 @@ function format()
 }
 
 // Add HTML bold tags to the output.
-function bold($match, $state)
+public function bold(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<b>"; break;
@@ -251,19 +254,19 @@ function bold($match, $state)
 
 class Formatter_Italic {
 
-var $formatter;
-var $modes = array("italic_tag_i", "italic_tag_em", "italic_bbcode", "italic_wiki");
-var $revert = array("<i>" => "&lt;i&gt;", "</i>" => "&lt;/i&gt;");
+public Formatter $formatter;
+public array $modes = ["italic_tag_i", "italic_tag_em", "italic_bbcode", "italic_wiki"];
+public array $revert = ["<i>" => "&lt;i&gt;", "</i>" => "&lt;/i&gt;"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of italic to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("italic", array($this, "italic"));
+	$this->formatter->lexer->mapFunction("italic", [$this, "italic"]);
 	$this->formatter->lexer->mapHandler("italic_tag_i", "italic");
 	$this->formatter->lexer->mapHandler("italic_tag_em", "italic");
 	$this->formatter->lexer->mapHandler("italic_bbcode", "italic");
@@ -284,7 +287,7 @@ function format()
 }
 
 // Add HTML italic tags to the output.
-function italic($match, $state)
+public function italic(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<i>"; break;
@@ -299,19 +302,19 @@ function italic($match, $state)
 
 class Formatter_Strikethrough {
 
-var $formatter;
-var $modes = array("strike_html", "strike_bbcode", "strike_wiki");
-var $revert = array("<del>" => "&lt;s&gt;", "</del>" => "&lt;/s&gt;");
+public Formatter $formatter;
+public array $modes = ["strike_html", "strike_bbcode", "strike_wiki"];
+public array $revert = ["<del>" => "&lt;s&gt;", "</del>" => "&lt;/s&gt;"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of strikethrough to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("strike", array($this, "strike"));
+	$this->formatter->lexer->mapFunction("strike", [$this, "strike"]);
 	$this->formatter->lexer->mapHandler("strike_html", "strike");
 	$this->formatter->lexer->mapHandler("strike_bbcode", "strike");
 	$this->formatter->lexer->mapHandler("strike_wiki", "strike");
@@ -329,7 +332,7 @@ function format()
 }
 
 // Add HTML strikethrough (del) tags to the output.
-function strike($match, $state)
+public function strike(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<del>"; break;
@@ -345,20 +348,20 @@ function strike($match, $state)
 class Formatter_Superscript {
 // and Subscript
 
-var $formatter;
-var $modes = array("superscript", "subscript");
-var $revert = array("<sup>" => "&lt;sup&gt;", "</sup>" => "&lt;/sup&gt;", "<sub>" => "&lt;sub&gt;", "</sub>" => "&lt;/sub&gt;");
+public Formatter $formatter;
+public array $modes = ["superscript", "subscript"];
+public array $revert = ["<sup>" => "&lt;sup&gt;", "</sup>" => "&lt;/sup&gt;", "<sub>" => "&lt;sub&gt;", "</sub>" => "&lt;/sub&gt;"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of super/subscript to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("superscript", array($this, "superscript"));
-	$this->formatter->lexer->mapFunction("subscript", array($this, "subscript"));
+	$this->formatter->lexer->mapFunction("superscript", [$this, "superscript"]);
+	$this->formatter->lexer->mapFunction("subscript", [$this, "subscript"]);
 
 	// Add these super/subscript modes to the lexer - they are allowed in practically all modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["inline"], "superscript");
@@ -371,7 +374,7 @@ function format()
 }
 
 // Add HTML superscript tags to the output.
-function superscript($match, $state)
+public function superscript(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<sup>"; break;
@@ -382,7 +385,7 @@ function superscript($match, $state)
 }
 
 // Add HTML subscript tags to the output.
-function subscript($match, $state)
+public function subscript(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<sub>"; break;
@@ -397,19 +400,19 @@ function subscript($match, $state)
 
 class Formatter_Heading {
 
-var $formatter;
-var $modes = array("heading_html", "heading_bbcode", "heading_wiki");
-var $revert = array("<h3>" => "&lt;h1&gt;", "</h3>" => "&lt;/h1&gt;\n\n");
+public Formatter $formatter;
+public array $modes = ["heading_html", "heading_bbcode", "heading_wiki"];
+public array $revert = ["<h3>" => "&lt;h1&gt;", "</h3>" => "&lt;/h1&gt;\n\n"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {
 	// Map the different forms of heading to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("heading", array($this, "heading"));
+	$this->formatter->lexer->mapFunction("heading", [$this, "heading"]);
 	$this->formatter->lexer->mapHandler("heading_html", "heading");
 	$this->formatter->lexer->mapHandler("heading_bbcode", "heading");
 	$this->formatter->lexer->mapHandler("heading_wiki", "heading");
@@ -427,7 +430,7 @@ function format()
 }
 
 // Add HTML heading tags to the output.
-function heading($match, $state)
+public function heading(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "</p><h3>"; break;
@@ -442,27 +445,27 @@ function heading($match, $state)
 
 class Formatter_Quote {
 
-var $formatter;
-var $modes = array("quote_html", "quote_bbcode");
-var $revert = array(
+public Formatter $formatter;
+public array $modes = ["quote_html", "quote_bbcode"];
+public array $revert = [
 	"<blockquote>" => "\n&lt;blockquote&gt;",
 	"<blockquote><p>" => "\n&lt;blockquote&gt;",
 	"</blockquote>" => "\n&lt;/blockquote&gt;\n\n",
 	"</p></blockquote>" => "\n&lt;/blockquote&gt;\n\n",
 	"<p><cite>" => "&lt;cite&gt;",
 	"</cite></p>" => "&lt;/cite&gt;\n",
-);
+];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of quote/cite to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("quote", array($this, "quote"));
-	$this->formatter->lexer->mapFunction("cite", array($this, "cite"));
+	$this->formatter->lexer->mapFunction("quote", [$this, "quote"]);
+	$this->formatter->lexer->mapFunction("cite", [$this, "cite"]);
 	$this->formatter->lexer->mapHandler("quote_html", "quote");
 	$this->formatter->lexer->mapHandler("quote_bbcode", "quote");
 
@@ -481,7 +484,7 @@ function format()
 }
 
 // Add HTML cite tags to the output.
-function cite($match, $state)
+public function cite(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "</p><p><cite>"; break;
@@ -492,7 +495,7 @@ function cite($match, $state)
 }
 
 // Add HTML blockquote tags to the output.
-function quote($match, $state)
+public function quote(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "</p><blockquote><p>"; break;
@@ -507,19 +510,19 @@ function quote($match, $state)
 
 class Formatter_Fixed_Block {
 
-var $formatter;
-var $modes = array("pre_html_block", "code_html_block", "code_bbcode_block");
-var $revert = array("<pre>" => "&lt;pre&gt;", "</pre>" => "&lt;/pre&gt;\n\n");
+public Formatter $formatter;
+public array $modes = ["pre_html_block", "code_html_block", "code_bbcode_block"];
+public array $revert = ["<pre>" => "&lt;pre&gt;", "</pre>" => "&lt;/pre&gt;\n\n"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of fixed blocks to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("fixedBlock", array($this, "fixedBlock"));
+	$this->formatter->lexer->mapFunction("fixedBlock", [$this, "fixedBlock"]);
 	$this->formatter->lexer->mapHandler("pre_html_block", "fixedBlock");
 	$this->formatter->lexer->mapHandler("code_html_block", "fixedBlock");
 	$this->formatter->lexer->mapHandler("code_bbcode_block", "fixedBlock");
@@ -537,7 +540,7 @@ function format()
 }
 
 // Add HTML pre tags to the output.
-function fixedBlock($match, $state)
+public function fixedBlock(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "</p><pre>"; break;
@@ -552,19 +555,19 @@ function fixedBlock($match, $state)
 
 class Formatter_Fixed_Inline {
 
-var $formatter;
-var $modes = array("pre_html_inline", "code_html_inline", "code_bbcode_inline");
-var $revert = array("<code>" => "&lt;pre&gt;", "</code>" => "&lt;/pre&gt;");
+public Formatter $formatter;
+public array $modes = ["pre_html_inline", "code_html_inline", "code_bbcode_inline"];
+public array $revert = ["<code>" => "&lt;pre&gt;", "</code>" => "&lt;/pre&gt;"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of fixed to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("fixedInline", array($this, "fixedInline"));
+	$this->formatter->lexer->mapFunction("fixedInline", [$this, "fixedInline"]);
 	$this->formatter->lexer->mapHandler("pre_html_inline", "fixedInline");
 	$this->formatter->lexer->mapHandler("code_html_inline", "fixedInline");
 	$this->formatter->lexer->mapHandler("code_bbcode_inline", "fixedInline");
@@ -582,7 +585,7 @@ function format()
 }
 
 // Add HTML code tags to the output.
-function fixedInline($match, $state)
+public function fixedInline(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->formatter->output .= "<code>"; break;
@@ -597,22 +600,22 @@ function fixedInline($match, $state)
 
 class Formatter_Link {
 
-var $formatter;
-var $modes = array("link_html", "link_bbcode", "link_wiki", "postLink", "conversationLink");
+public Formatter $formatter;
+public array $modes = ["link_html", "link_bbcode", "link_wiki", "postLink", "conversationLink"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {
 	// Map the different forms of links to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("link", array($this, "link"));
-	$this->formatter->lexer->mapFunction("url", array($this, "url"));
-	$this->formatter->lexer->mapFunction("email", array($this, "email"));
-	$this->formatter->lexer->mapFunction("postLink", array($this, "postLink"));
-	$this->formatter->lexer->mapFunction("conversationLink", array($this, "conversationLink"));
+	$this->formatter->lexer->mapFunction("link", [$this, "link"]);
+	$this->formatter->lexer->mapFunction("url", [$this, "url"]);
+	$this->formatter->lexer->mapFunction("email", [$this, "email"]);
+	$this->formatter->lexer->mapFunction("postLink", [$this, "postLink"]);
+	$this->formatter->lexer->mapFunction("conversationLink", [$this, "conversationLink"]);
 	$this->formatter->lexer->mapHandler("link_html", "link");
 	$this->formatter->lexer->mapHandler("link_bbcode", "link");
 	$this->formatter->lexer->mapHandler("link_wiki", "link");
@@ -636,14 +639,14 @@ function format()
 }
 
 // Add an email link to the output.
-function email($match, $state)
+public function email(string $match, int $state): bool
 {
 	$this->formatter->output .= "<a href='mailto:$match'>$match</a>";
 	return true;
 }
 
 // Add a link to a certain post to the output.
-function postLink($match, $state)
+public function postLink(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER:
@@ -660,7 +663,7 @@ function postLink($match, $state)
 }
 
 // Add a link to a certain conversation to the output.
-function conversationLink($match, $state)
+public function conversationLink(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER:
@@ -677,7 +680,7 @@ function conversationLink($match, $state)
 }
 
 // Add a link to a URL (that has been auto-linked) to the output.
-function url($match, $state)
+public function url(string $match, int $state): bool
 {
 	global $config;
 	$protocol = "";
@@ -695,13 +698,13 @@ function url($match, $state)
 	// If the URL doesn't match the forum's baseURL, it should be considered an external link.
 	$linkHost = parse_url($link, PHP_URL_HOST);
 	$baseHost = parse_url($config["baseURL"], PHP_URL_HOST);
-	if ($linkHost !== false and $baseHost !== false and strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
+	if ($linkHost !== false && $baseHost !== false && strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
 	$this->formatter->output .= "<a href='$link'$external>$match</a>$after";
 	return true;
 }
 
 // Add a normal link to the output.
-function link($match, $state)
+public function link(string $match, int $state): bool
 {
 	global $config;
 	switch ($state) {
@@ -710,7 +713,7 @@ function link($match, $state)
 				preg_match("`href=(&#39;|&quot;)((?:(?:https?|ftp|feed):\/\/|mailto:|).+?)\\1`", $match, $href);
 				$link = $href[2];
 				if (preg_match("`title=(&#39;|&quot;)(.+?)\\1`", $match, $titleMatch)) $title = $titleMatch[2];
-				if (!empty($title)) $quote = strpos($title, "&#39;") === false ? "'" : '"';
+				if (!empty($title)) $quote = !str_contains($title, "&#39;") ? "'" : '"';
 			} elseif (substr(strtolower($match), 0, 5) == "[url=") $link = substr($match, 5, -1);
 			else $link = rtrim(substr($match, 1));
 			$protocol = "";
@@ -720,7 +723,7 @@ function link($match, $state)
 			if (preg_match("`^((?:https?|file|ftp|feed)://)`i", $protocol.$link)) {
 				$linkHost = parse_url($link, PHP_URL_HOST);
 				$baseHost = parse_url($config["baseURL"], PHP_URL_HOST);
-				if ($linkHost !== false and $baseHost !== false and strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
+				if ($linkHost !== false && $baseHost !== false && strtolower($linkHost) !== strtolower($baseHost)) $external = " target='_blank' class='external' onclick='return Conversation.externalLink()'";
 			}
 			$this->formatter->output .= "<a href='$protocol$link'" . $external . (isset($title) ? " title=$quote$title$quote" : "") . ">";
 			break;
@@ -734,14 +737,12 @@ function link($match, $state)
 }
 
 // Revert all links to their formatting code.
-function revert($string)
+public function revert(string $string): string
 {
 	$string = preg_replace("/<a href='mailto:(.*?)'>\\1<\/a>/", "$1", $string);
 	$string = preg_replace_callback(
 		"`<a href='" . str_replace("?", "\?", makeLink("post", "(\d+)")) . "'[^>]*>(.*?)<\/a>`",
-		function($matches) {
-			return "[post:" . $matches[1] . ($matches[2] ? " " . $matches[2] : "") . "]";
-		},
+		fn($matches) => "[post:" . $matches[1] . ($matches[2] ? " " . $matches[2] : "") . "]",
 		$string
 	);
 	$string = preg_replace("`<a href='" . str_replace("?", "\?", makeLink("(\d+)")) . "'[^>]*>(.*?)<\/a>`", "[conversation:$1 $2]", $string);
@@ -756,20 +757,20 @@ function revert($string)
 
 class Formatter_Image {
 
-var $formatter;
-var $modes = array("image_html", "image_bbcode1", "image_bbcode2");
+public Formatter $formatter;
+public array $modes = ["image_html", "image_bbcode1", "image_bbcode2"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {	
 	// Map the different forms of images to the same lexer mode, and map a function for this mode.
-	$this->formatter->lexer->mapFunction("image_html", array($this, "image_html"));
-	$this->formatter->lexer->mapFunction("image_bbcode1", array($this, "image_bbcode1"));
-	$this->formatter->lexer->mapFunction("image_bbcode2", array($this, "image_bbcode2"));
+	$this->formatter->lexer->mapFunction("image_html", [$this, "image_html"]);
+	$this->formatter->lexer->mapFunction("image_bbcode1", [$this, "image_bbcode1"]);
+	$this->formatter->lexer->mapFunction("image_bbcode2", [$this, "image_bbcode2"]);
 
 	// Add these image modes to the lexer - they are allowed in paragraph-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["whitespace"]);
@@ -781,7 +782,7 @@ function format()
 }
 
 // Add an image tag to the output by interpreting a HTML image tag.
-function image_html($match, $state)
+public function image_html(string $match, int $state): bool
 {
 	if (preg_match("`src=(&#39;|&quot;)(https?:\/\/[^\s]+?)\\1`", $match, $src)) $src = $src[2];
 	else {
@@ -796,7 +797,7 @@ function image_html($match, $state)
 }
 
 // Add an image tag to the output by interpreting a BBCode image tag.
-function image_bbcode1($match, $state)
+public function image_bbcode1(string $match, int $state): bool
 {
 	$match = substr($match, 5, -6);
 	$this->image($match);
@@ -804,7 +805,7 @@ function image_bbcode1($match, $state)
 }
 
 // Add an image tag to the output by interpreting a BBCode image tag.
-function image_bbcode2($match, $state)
+public function image_bbcode2(string $match, int $state): bool
 {
 	$match = substr(strpbrk($match, ":="), 1, -5);
 	$this->image($match);
@@ -812,15 +813,15 @@ function image_bbcode2($match, $state)
 }
 
 // Add an image tag to the output.
-function image($src, $alt = "", $title = "")
+public function image(string $src, string $alt = "", string $title = ""): void
 {
-	if (!empty($alt)) $altQuote = strpos($alt, "&#39;") === false ? "'" : '"';
-	if (!empty($title)) $titleQuote = strpos($title, "&#39;") === false ? "'" : '"';
+	if (!empty($alt)) $altQuote = !str_contains($alt, "&#39;") ? "'" : '"';
+	if (!empty($title)) $titleQuote = !str_contains($title, "&#39;") ? "'" : '"';
 	$this->formatter->output .= "<img src='$src'" . (!empty($alt) ? " alt=$altQuote$alt$altQuote" : "") . (!empty($title) ? " title=$titleQuote$title$titleQuote" : "") . " class='frame'/>";
 }
 
 // Revert image tags to their formatting code.
-function revert($string)
+public function revert(string $string): string
 {
 	$string = preg_replace("/<img(.*?)(?: class='frame')\/>/", "&lt;img$1&gt;", $string);
 	return $string;
@@ -831,17 +832,17 @@ function revert($string)
 
 class Formatter_Video {
 
-var $formatter;
-var $modes = array("video_html");
+public Formatter $formatter;
+public array $modes = ["video_html"];
 	
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 	
-function format()
+public function format(): void
 {	
-	$this->formatter->lexer->mapFunction("video_html", array($this, "video_html"));
+	$this->formatter->lexer->mapFunction("video_html", [$this, "video_html"]);
 
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["whitespace"]);
 	foreach ($allowedModes as $mode) {
@@ -849,7 +850,7 @@ function format()
 	}
 }
 
-function video_html($match, $state)
+public function video_html(string $match, int $state): bool
 {
 	if (preg_match("`src=(&#39;|&quot;)(https?:\/\/[^\s]+?)\\1`", $match, $src)) $src = $src[2];
 	else {
@@ -863,14 +864,14 @@ function video_html($match, $state)
 }
 
 // Add a video tag to the output.
-function video($src, $title = "")
+public function video(string $src, string $title = ""): void
 {
-	if (!empty($title)) $titleQuote = strpos($title, "&#39;") === false ? "'" : '"';
+	if (!empty($title)) $titleQuote = !str_contains($title, "&#39;") ? "'" : '"';
 	$this->formatter->output .= "<video controls " . (!empty($title) ? " title=$titleQuote$title$titleQuote" : "") . " class='frame'/><source src='$src'/></video/>";
 }
 
 // Revert video tags to their formatting code.
-function revert($string)
+public function revert(string $string): string
 {
 	// Clean up the beginning of the video tag.
 	if (preg_match("/<video controls (.*?)\/>/", $string)) $string = str_replace("<source src='", "<video src='", $string);
@@ -886,17 +887,17 @@ function revert($string)
 
 class Formatter_Audio {
 
-var $formatter;
-var $modes = array("audio_html");
+public Formatter $formatter;
+public array $modes = ["audio_html"];
 	
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 	
-function format()
+public function format(): void
 {	
-	$this->formatter->lexer->mapFunction("audio_html", array($this, "audio_html"));
+	$this->formatter->lexer->mapFunction("audio_html", [$this, "audio_html"]);
 
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["whitespace"]);
 	foreach ($allowedModes as $mode) {
@@ -904,7 +905,7 @@ function format()
 	}
 }
 
-function audio_html($match, $state)
+public function audio_html(string $match, int $state): bool
 {
 	if (preg_match("`src=(&#39;|&quot;)(https?:\/\/[^\s]+?)\\1`", $match, $src)) $src = $src[2];
 	else {
@@ -917,15 +918,15 @@ function audio_html($match, $state)
 	return true;
 }
 
-// Add a audio tag to the output.
-function audio($src, $title = "")
+// Add an audio tag to the output.
+public function audio(string $src, string $title = ""): void
 {
-	if (!empty($title)) $titleQuote = strpos($title, "&#39;") === false ? "'" : '"';
+	if (!empty($title)) $titleQuote = !str_contains($title, "&#39;") ? "'" : '"';
 	$this->formatter->output .= "<audio controls " . (!empty($title) ? " title=$titleQuote$title$titleQuote" : "") . "/><source src='$src'/></audio/>";
 }
 
 // Revert audio tags to their formatting code.
-function revert($string)
+public function revert(string $string): string
 {
 	// Clean up the beginning of the audio tag.
 	if (preg_match("/<audio controls (.*?)\/>/", $string)) $string = str_replace("<source src='", "<audio src='", $string);
@@ -941,21 +942,28 @@ function revert($string)
 
 class Formatter_List {
 
-var $formatter;
-var $modes = array("blockList");
+public Formatter $formatter;
+public array $modes = ["blockList"];
 
-var $listStack = array();
-var $initialDepth = 0;
+public array $listStack = [];
+public int $initialDepth = 0;
 
-function __construct(&$formatter)
+// For revert
+public ?SimpleLexer $lexer = null;
+public string $output = "";
+public int $listLevel = -1;
+public array $listNumbers = [];
+public bool $firstItem = true;
+
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {
 	// Map a function for the blockList mode.
-	$this->formatter->lexer->mapFunction("blockList", array($this, "blockList"));
+	$this->formatter->lexer->mapFunction("blockList", [$this, "blockList"]);
 
 	// Add this mode to the lexer - lists are allowed in block-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["block"]);
@@ -967,14 +975,15 @@ function format()
 }
 
 // Add a list element to the output. (This is an adaptation of DokuWiki code! Thanks DokuWiki! :)
-function blockList($match, $state) {
+public function blockList(string $match, int $state): bool
+{
 	switch ($state) {
 		
 		// When entering a block of list items, determine the list type and depth and begin the list.
 		case LEXER_ENTER:
 			$depth = $this->interpretSyntax($match, $listType);
 			$this->initialDepth = $depth;
-			$this->listStack[] = array($listType, $depth);
+			$this->listStack[] = [$listType, $depth];
 			$this->formatter->output .= "</p><{$listType}l><li>";
 		break;
 		
@@ -1004,7 +1013,7 @@ function blockList($match, $state) {
 				else {
 					$this->formatter->output .= "</li></{$end[0]}l><{$listType}l><li>";
 					array_pop($this->listStack);
-					$this->listStack[] = array($listType, $depth);
+					$this->listStack[] = [$listType, $depth];
 				}
 				
 			}
@@ -1014,7 +1023,7 @@ function blockList($match, $state) {
 				
 				// Begin a new list and list item.
 				$this->formatter->output .= "<{$listType}l><li>";
-				$this->listStack[] = array($listType, $depth);
+				$this->listStack[] = [$listType, $depth];
 				
 			}
 
@@ -1041,7 +1050,7 @@ function blockList($match, $state) {
 						else {
 							$this->formatter->output .= "</{$end[0]}l><{$listType}l><li>";
 							array_pop($this->listStack);
-							$this->listStack[] = array($listType, $depth);
+							$this->listStack[] = [$listType, $depth];
 						}
 
 						break;
@@ -1064,24 +1073,20 @@ function blockList($match, $state) {
 }
 
 // Determine a list item's depth and type from the text at the start of the line (e.g. "   -").
-function interpretSyntax($match, &$type)
+public function interpretSyntax(string $match, ?string &$type): int
 {
 	$match = rtrim($match);
-	if (substr($match, -1) == "*" or substr($match, -1) == "-") $type = "u";
+	if (str_ends_with($match, "*") || str_ends_with($match, "-")) $type = "u";
 	else $type = "o";
 	return count(explode(" ", str_replace("\t", " ", $match)));
 }
 
 // Revert lists to formatting code: get a simple lexer to do the dirty work.
-var $output;
-var $listLevel = -1;
-var $listNumbers = array();
-var $firstItem = true;
-function revert($string)
+public function revert(string $string): string
 {
 	// Set up the lexer to go through HTML list tags linearly and convert them back to text bullets.
 	$this->lexer = new SimpleLexer($this, "text", true);
-	$allowedModes = array("text", "unorderedList", "orderedList");
+	$allowedModes = ["text", "unorderedList", "orderedList"];
 	foreach ($allowedModes as $mode) {
 		$this->lexer->addEntryPattern('<ul>', $mode, "unorderedList");
 		$this->lexer->addEntryPattern('<ol>', $mode, "orderedList");
@@ -1099,7 +1104,7 @@ function revert($string)
 }
 
 // When a list item in an unordered list is matched.
-function uli($match, $state)
+public function uli(string $match, int $state): bool
 {
 	$this->output .= ($this->firstItem ? "" : "\n") . str_repeat(" ", $this->listLevel) . "- ";
 	$this->firstItem = false;
@@ -1107,7 +1112,7 @@ function uli($match, $state)
 }
 
 // When a list item in an ordered list is matched.
-function oli($match, $state)
+public function oli(string $match, int $state): bool
 {
 	$this->listNumbers[$this->listLevel]++;
 	$this->output .= ($this->firstItem ? "" : "\n") . str_repeat(" ", $this->listLevel) . $this->listNumbers[$this->listLevel] . ". ";
@@ -1116,7 +1121,7 @@ function oli($match, $state)
 }
 
 // When an unordered list is matched.
-function unorderedList($match, $state)
+public function unorderedList(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->listLevel++; break;
@@ -1133,7 +1138,7 @@ function unorderedList($match, $state)
 }
 
 // When an ordered list is matched.
-function orderedList($match, $state)
+public function orderedList(string $match, int $state): bool
 {
 	switch ($state) {
 		case LEXER_ENTER: $this->listLevel++; $this->listNumbers[$this->listLevel] = 0; break;
@@ -1149,7 +1154,7 @@ function orderedList($match, $state)
 	return true;
 }
 
-function text($match, $state)
+public function text(string $match, int $state): bool
 {
  	$this->output .= $match;
  	return true;
@@ -1160,18 +1165,18 @@ function text($match, $state)
 
 class Formatter_Horizontal_Rule {
 
-var $formatter;
-var $revert = array("<hr/>" => "-----");
+public Formatter $formatter;
+public array $revert = ["<hr/>" => "-----"];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 }
 
-function format()
+public function format(): void
 {
 	// Map a function to handle horizontal rules.
-	$this->formatter->lexer->mapFunction("horizontalRule", array($this, "horizontalRule"));
+	$this->formatter->lexer->mapFunction("horizontalRule", [$this, "horizontalRule"]);
 
 	// Add the horizontalRule mode to the lexer - they are allowed in block-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["block"]);
@@ -1181,7 +1186,7 @@ function format()
 }
 
 // Add a horizontal rule to the output.
-function horizontalRule($match, $state)
+public function horizontalRule(string $match, int $state): bool
 {
 	$this->formatter->output .= "<hr/>";
 	return true;
@@ -1192,8 +1197,8 @@ function horizontalRule($match, $state)
 
 class Formatter_Special_Characters {
 
-var $formatter;
-var $characters = array(
+public Formatter $formatter;
+public array $characters = [
 	"&lt;-&gt;" => "↔",
 	"-&gt;" => "→",
 	"&lt;-" => "←",
@@ -1207,21 +1212,22 @@ var $characters = array(
 	"(r)" => "®",
 	"--" => "–",
 	"..." => "…"
-);
+];
+public array $revert = [];
 
-function __construct(&$formatter)
+public function __construct(Formatter &$formatter)
 {
 	$this->formatter =& $formatter;
 	$this->revert = array_flip($this->characters);
 }
 
-function format()
+public function format(): void
 {
 	// Map a function to handle special characters.
-	$this->formatter->lexer->mapFunction("entity", array($this, "entity"));
+	$this->formatter->lexer->mapFunction("entity", [$this, "entity"]);
     
 	// Construct a regular expression pattern that will match the special characters in $this->characters.
-	$pattern = array();
+	$pattern = [];
 	foreach ($this->characters as $k => $v) {
 		if ($k == "--") $pattern[] = "--(?!-)";
 		else $pattern[] = preg_quote($k);
@@ -1234,12 +1240,10 @@ function format()
 }
 
 // Add an entity to the output.
-function entity($match, $state)
+public function entity(string $match, int $state): bool
 {
 	if (array_key_exists($match, $this->characters)) $this->formatter->output .= $this->characters[$match];
 	return true;
 }
 
 }
-
-?>

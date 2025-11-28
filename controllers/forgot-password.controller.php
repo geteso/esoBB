@@ -26,10 +26,10 @@ if (!defined("IN_ESO")) exit;
  */
 class forgotpassword extends Controller {
 
-var $view = "forgotPassword.view.php";
-var $title = "";
-var $errors = array();
-var $setPassword = false;
+public ?string $view = "forgotPassword.view.php";
+public ?string $title = "";
+public array $errors = [];
+public bool $setPassword = false;
 
 function init()
 {

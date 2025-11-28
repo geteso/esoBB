@@ -65,28 +65,15 @@ function initSession($config, $user) {
 	// Set session name to match forum's cookie name
 	session_name("{$config["cookieName"]}_Session");
 	
-	// Configure session cookie parameters (matching lib/init.php)
-	$lifetime = 0; // Session cookie (expires when browser closes)
-	$path = "/";
-	$domain = $config["cookieDomain"] ?? "";
-	$secure = !empty($config["https"]);
-	$httponly = true;
-	
-	// session_set_cookie_params() array syntax requires PHP 7.3.0+
-	if (PHP_VERSION_ID >= 70300) {
-		session_set_cookie_params(array(
-			"lifetime" => $lifetime,
-			"path" => $path,
-			"domain" => $domain,
-			"secure" => $secure,
-			"httponly" => $httponly,
-			"samesite" => "Lax"
-		));
-	} else {
-		// PHP 7.2.x compatibility: use individual parameters
-		// Note: SameSite cannot be set for session cookies in PHP 7.2.x via session_set_cookie_params()
-		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
-	}
+	// Configure session cookie parameters (matching lib/init.php, PHP 8.0+ array syntax)
+	session_set_cookie_params([
+		"lifetime" => 0, // Session cookie (expires when browser closes)
+		"path" => "/",
+		"domain" => $config["cookieDomain"] ?? "",
+		"secure" => !empty($config["https"]),
+		"httponly" => true,
+		"samesite" => "Lax"
+	]);
 	
 	// Start new forum session
 	session_start();
@@ -109,10 +96,10 @@ function initSession($config, $user) {
  */
 class Install {
 
-var $step;
-var $config;
-var $errors = array();
-var $queries = array();
+public ?string $step = null;
+public array $config = [];
+public array $errors = [];
+public array $queries = [];
 
 // Initialize: perform an action depending on what step the user is at in the installation.
 function init()
@@ -436,10 +423,10 @@ function doInstall()
 		"forumDescription" => $_SESSION["install"]["forumDescription"],
 		"language" => $_SESSION["install"]["language"],
 		// DB settings
-		"mysqlHost" => desanitize($_SESSION["install"]["mysqlHost"]),
-		"mysqlUser" => desanitize($_SESSION["install"]["mysqlUser"]),
-		"mysqlPass" => desanitize($_SESSION["install"]["mysqlPass"]),
-		"mysqlDB" => desanitize($_SESSION["install"]["mysqlDB"]),
+		"mysqlHost" => desanitize($_SESSION["install"]["mysqlHost"] ?? ""),
+		"mysqlUser" => desanitize($_SESSION["install"]["mysqlUser"] ?? ""),
+		"mysqlPass" => desanitize($_SESSION["install"]["mysqlPass"] ?? ""),
+		"mysqlDB" => desanitize($_SESSION["install"]["mysqlDB"] ?? ""),
 		// SMTP settings
 		"emailFrom" => "do_not_reply@{$_SERVER["HTTP_HOST"]}",
 		"sendEmail" => !empty($_SESSION["install"]["sendEmail"]),
@@ -454,11 +441,11 @@ function doInstall()
 		"useModRewrite" => !empty($_SESSION["install"]["friendlyURLs"]) and function_exists("apache_get_modules") and in_array("mod_rewrite", apache_get_modules())
 	);
 	$smtpConfig = array(
-		"smtpAuth" => desanitize($_SESSION["install"]["smtpAuth"]),
-		"smtpHost" => desanitize($_SESSION["install"]["smtpHost"]),
-		"smtpPort" => desanitize($_SESSION["install"]["smtpPort"]),
-		"smtpUser" => desanitize($_SESSION["install"]["smtpUser"]),
-		"smtpPass" => desanitize($_SESSION["install"]["smtpPass"]),
+		"smtpAuth" => desanitize($_SESSION["install"]["smtpAuth"] ?? ""),
+		"smtpHost" => desanitize($_SESSION["install"]["smtpHost"] ?? ""),
+		"smtpPort" => desanitize($_SESSION["install"]["smtpPort"] ?? ""),
+		"smtpUser" => desanitize($_SESSION["install"]["smtpUser"] ?? ""),
+		"smtpPass" => desanitize($_SESSION["install"]["smtpPass"] ?? ""),
 	);
 	if (!empty($_SESSION["install"]["smtpAuth"])) $config = array_merge($config, $smtpConfig);
 	
@@ -636,7 +623,7 @@ function validateInfo()
 		}
 	}
 	
-	if (count($errors)) return $errors;
+	return $errors;
 }
 
 // Redirect to a specific step.
@@ -662,7 +649,7 @@ function fatalChecks()
 	}
 	
 	// Check the PHP version.
-	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = $language["install"]["phpVersionError"];
+	if (!version_compare(PHP_VERSION, "8.0.0", ">=")) $errors[] = $language["install"]["phpVersionError"];
 	
 	// Check for the MySQLi extension.
 	if (!extension_loaded("mysqli")) $errors[] = $language["install"]["mysqliError"];
@@ -684,7 +671,7 @@ function fatalChecks()
 	// Check for the gd extension.
 	if (!extension_loaded("gd") and !extension_loaded("gd2")) $errors[] = $language["install"]["gdExtensionError"];
 	
-	if (count($errors)) return $errors;
+	return $errors;
 }
 
 // Perform checks which will throw a warning.
@@ -696,7 +683,7 @@ function warningChecks()
 	// Can we open remote URLs as files?
 	if (!ini_get("allow_url_fopen")) $errors[] = $language["install"]["allowUrlFopenWarning"];
 	
-	if (count($errors)) return $errors;
+	return $errors;
 }
 
 // Helper function to format validation error messages as HTML.

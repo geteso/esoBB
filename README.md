@@ -21,7 +21,7 @@ Changes are always being made to the software as our users continue to make sugg
 To run the esoBB forum software, you will need:
 
 1. A web server, preferably [Apache](https://httpd.apache.org/) or [nginx](https://nginx.org/);
-2. [PHP](https://www.php.net/) **7.2** or newer, preferably at least 7.3 (PHP 8 recommended);
+2. [PHP](https://www.php.net/) **8.0** or newer (PHP 8.2+ recommended);
 3. The following PHP extensions:
 	- `php-mysqli` (for handling MySQL database queries);
 	- `php-mbstring` (for handling [multibyte strings](https://www.php.net/manual/en/intro.mbstring.php));
