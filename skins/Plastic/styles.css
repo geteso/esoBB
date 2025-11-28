@@ -277,8 +277,8 @@ fieldset.hidden legend a {color:#666}
 .c25 {--profile-color:#e5e2ba; --post-color:#fafaf2}
 .c26 {--profile-color:#e7d0bb; --post-color:#fbf7f3}
 .c27 {--profile-color:#cdc5bd; --post-color:#f6f5f3}
-.c tr td.avatar img, .hdr, .p .hdr, #palette a {background:var(--profile-color)}
-.p {background:var(--post-color); border-color:var(--profile-color)}
+.c tr td.avatar img, .hdr, .p .hdr, #palette a {background:#dfdfdf; background:var(--profile-color)}
+.p {background:#eeeeee; background:var(--post-color); border-color:#dfdfdf; border-color:var(--profile-color)}
 
 /* Mobile properties */
 @media only screen and (max-width:1000px) {

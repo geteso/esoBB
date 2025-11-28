@@ -931,9 +931,9 @@ setReloadTimeout: function(seconds) {
 
 // Update the timestamps in posts.
 updatePostTimes: function() {
-	Conversation.posts.forEach(post => {
+	Conversation.posts.forEach(function(post) {
 		// Find the post's timestamp
-		const timestamp = document.querySelector(`#p${post.id} .pTime a`);
+		var timestamp = document.querySelector("#p" + post.id + " .pTime a");
 		if (timestamp) timestamp.textContent = relativeTime(post.time); // Update the relative time
 	});
 },
