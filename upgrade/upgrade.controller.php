@@ -267,6 +267,13 @@ function upgrade_100d3()
 			$this->query("ALTER TABLE {$config["tablePrefix"]}members MODIFY COLUMN salt char(32) NOT NULL");
 		}
 	}
+	
+	// Add emailVerified column if it doesn't exist (for email verification feature).
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'emailVerified'")) {
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN emailVerified tinyint(1) NOT NULL default '0' AFTER avatarFormat");
+		// Set emailVerified=1 for all existing validated members (accounts other than Unvalidated).
+		$this->query("UPDATE {$config["tablePrefix"]}members SET emailVerified=1 WHERE account!='Unvalidated'");
+	}
 }
 
 // 1.0.0 delta 1 -> 1.0.0 delta 2
