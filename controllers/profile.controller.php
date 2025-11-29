@@ -105,8 +105,7 @@ function updateLastAction($memberId)
 {
 	// Store action key with parameters: viewing_profile|{memberId}|{title}
 	$memberId = (int)$memberId;
-	$title = $this->eso->db->escape($this->title);
-	$this->eso->updateLastAction("viewing_profile|$memberId|$title");
+	$this->eso->updateLastAction("viewing_profile|$memberId|{$this->title}");
 }
 
 }
