@@ -31,17 +31,64 @@ function init()
 {
 	global $language, $config;
 
-	if ($config["onlineMembers"] == false) redirect("");
+	if (!$config["onlineMembers"]) redirect("");
 
 	// Set the title and make sure this page isn't indexed.
 	$this->title = $language["Online members"];
 	$this->eso->addToHead("<meta name='robots' content='noindex, noarchive'/>");
 	
-	// Fetch a list of members who have been logged in the members table as 'online' in the last $config["userOnlineExpire"] seconds.
-	$this->online = $this->eso->db->query("SELECT memberId, name, avatarFormat, IF(color>{$this->eso->skin->numberOfColors},{$this->eso->skin->numberOfColors},color), account, lastSeen, lastAction FROM {$config["tablePrefix"]}members WHERE UNIX_TIMESTAMP()-{$config["userOnlineExpire"]}<lastSeen ORDER BY lastSeen DESC");
+	// Fetch online members.
+	$this->online = $this->getOnlineMembers();
 	$this->numberOnline = $this->eso->db->numRows($this->online);
-}
 	
+	// Add JavaScript variable for auto-refresh interval (if enabled).
+	if (!empty($config["onlineRefreshInterval"])) {
+		$this->eso->addVarToJS("onlineRefreshInterval", (int)$config["onlineRefreshInterval"]);
+	}
 }
 
-?>
+function ajax()
+{
+	global $config;
+	
+	switch (@$_POST["action"]) {
+		case "getOnlineMembers":
+			$result = $this->getOnlineMembers();
+			$memberIds = [];
+			$members = [];
+			
+			// Collect member data for JSON response.
+			while ($row = $this->eso->db->fetchAssoc($result)) {
+				$memberId = (int)$row["memberId"];
+				$memberIds[] = $memberId;
+				$members[$memberId] = [
+					"id" => $memberId,
+					"name" => $row["name"],
+					"avatarFormat" => $row["avatarFormat"],
+					"color" => min((int)$row["color"], $this->eso->skin->numberOfColors),
+					"account" => $row["account"],
+					"lastSeen" => (int)$row["lastSeen"],
+					"lastAction" => $row["lastAction"],
+					"avatar" => $this->eso->getAvatar($memberId, $row["avatarFormat"], "thumb"),
+					"profileLink" => makeLink("profile", $memberId),
+					"lastActionText" => translateLastAction($row["lastAction"]),
+					"lastSeenText" => relativeTime($row["lastSeen"])
+				];
+			}
+			
+			return [
+				"memberIds" => $memberIds,
+				"members" => $members,
+				"count" => count($memberIds)
+			];
+	}
+}
+
+// Fetch a list of members who have been online in the last $config["userOnlineExpire"] seconds.
+function getOnlineMembers()
+{
+	global $config;
+	return $this->eso->db->query("SELECT memberId, name, avatarFormat, IF(color>{$this->eso->skin->numberOfColors},{$this->eso->skin->numberOfColors},color) AS color, account, lastSeen, lastAction FROM {$config["tablePrefix"]}members WHERE UNIX_TIMESTAMP()-{$config["userOnlineExpire"]}<lastSeen ORDER BY lastSeen DESC");
+}
+
+}

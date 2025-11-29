@@ -131,6 +131,7 @@ $defaultConfig = array(
 "onlineMembers" => true, // Whether or not to show a list of online members.  true | false | "login" = users only
 "onlineShowSuspended" => false, // Whether or not to include suspended accounts in the list.
 "userOnlineExpire" => 4500, // Amount of time by which a user's last seen time is before the user goes offline. (300 seconds = 5 minutes.)
+"onlineRefreshInterval" => 30, // Amount of time in seconds between auto-refreshing the online members list. Set to 0 to disable.
 
 // Default user preferences.
 "avatarAlignment" => "alternate", // Default alignment preference for avatars. Alternate, left, right, or none. Individual users can override this.

@@ -3182,3 +3182,202 @@ initUsernameForm: function() {
 }
 
 };
+
+// "Online members" JavaScript.
+var Online = {
+
+refreshInterval: null,
+currentMemberIds: [],
+
+init: function() {
+	// Only initialize if we're on the online page and refresh is enabled.
+	if (typeof eso.onlineRefreshInterval === "undefined" || !eso.onlineRefreshInterval) return;
+	if (!getById("membersOnline")) return;
+	
+	// Collect current member IDs from the page.
+	this.currentMemberIds = this.getMemberIdsFromDOM();
+	
+	// Start polling for updates.
+	this.refreshInterval = setInterval(function() {
+		Online.refresh();
+	}, eso.onlineRefreshInterval * 1000);
+},
+
+// Get member IDs currently displayed in the DOM.
+getMemberIdsFromDOM: function() {
+	var ids = [];
+	var container = getById("membersOnline");
+	if (!container) return ids;
+	var elements = container.querySelectorAll("[data-member-id]");
+	for (var i = 0; i < elements.length; i++) {
+		ids.push(parseInt(elements[i].getAttribute("data-member-id")));
+	}
+	return ids;
+},
+
+refresh: function() {
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=online",
+		"post": "action=getOnlineMembers",
+		"background": true,
+		"success": function() {
+			if (!this.result || !this.result.memberIds) return;
+			
+			var container = getById("membersOnline");
+			if (!container) return;
+			
+			var newIds = this.result.memberIds;
+			var oldIds = Online.currentMemberIds;
+			var members = this.result.members;
+			
+			// Find members to remove (in old but not in new).
+			var toRemove = [];
+			for (var i = 0; i < oldIds.length; i++) {
+				if (newIds.indexOf(oldIds[i]) === -1) {
+					toRemove.push(oldIds[i]);
+				}
+			}
+			
+			// Find members to add (in new but not in old).
+			var toAdd = [];
+			for (var i = 0; i < newIds.length; i++) {
+				if (oldIds.indexOf(newIds[i]) === -1) {
+					toAdd.push(newIds[i]);
+				}
+			}
+			
+			// Find members to update (in both).
+			var toUpdate = [];
+			for (var i = 0; i < newIds.length; i++) {
+				if (oldIds.indexOf(newIds[i]) !== -1) {
+					toUpdate.push(newIds[i]);
+				}
+			}
+			
+			// Animate out removed members.
+			for (var i = 0; i < toRemove.length; i++) {
+				Online.animateRemoveMember(toRemove[i]);
+			}
+			
+			// Update existing members (no animation, just refresh text).
+			for (var i = 0; i < toUpdate.length; i++) {
+				Online.updateMember(toUpdate[i], members[toUpdate[i]]);
+			}
+			
+			// Add new members with animation.
+			for (var i = 0; i < toAdd.length; i++) {
+				Online.animateAddMember(members[toAdd[i]]);
+			}
+			
+			// Update our tracking array.
+			Online.currentMemberIds = newIds;
+			
+			// Handle empty state.
+			if (newIds.length === 0 && container.querySelector(".p")) {
+				container.innerHTML = "<div class='msg'>" + (eso.language["noMembersOnline"] || "No members online.") + "</div>";
+			}
+		}
+	});
+},
+
+// Build HTML for a single member.
+buildMemberHTML: function(member) {
+	return "<div class='p c" + member.color + "' data-member-id='" + member.id + "'><div class='hdr'>" +
+		"<div class='thumb'><a href='" + member.profileLink + "'><img src='" + member.avatar + "' alt=''/></a></div>" +
+		"<h3><a href='" + member.profileLink + "'>" + member.name + "</a></h3>" +
+		"<span>" + member.lastActionText + " (" + member.lastSeenText + ")</span>" +
+		"</div></div>";
+},
+
+// Animate a new member appearing (similar to Conversation.animateNewPost).
+animateAddMember: function(member) {
+	var container = getById("membersOnline");
+	if (!container) return;
+	
+	// Remove "no members" message if present.
+	var msg = container.querySelector(".msg");
+	if (msg) container.removeChild(msg);
+	
+	// Create the element.
+	var temp = document.createElement("div");
+	temp.innerHTML = this.buildMemberHTML(member);
+	var element = temp.firstChild;
+	
+	// Insert at the top (most recently active).
+	if (container.firstChild) {
+		container.insertBefore(element, container.firstChild);
+	} else {
+		container.appendChild(element);
+	}
+	
+	// Animate if JS effects are enabled.
+	if (!eso.disableJSEffects) {
+		var overflowDiv = createOverflowDiv(element);
+		var height = overflowDiv.offsetHeight;
+		overflowDiv.style.height = "0px";
+		overflowDiv.style.opacity = "0";
+		setTimeout(function() {
+			(overflowDiv.animation = new Animation(function(values, final) {
+				overflowDiv.style.height = final ? "" : values[0] + "px";
+				overflowDiv.style.opacity = final ? "" : values[1];
+				// When animation is done, unwrap the element (remove overflowDiv wrapper).
+				if (final && overflowDiv.parentNode) {
+					overflowDiv.parentNode.insertBefore(element, overflowDiv);
+					overflowDiv.parentNode.removeChild(overflowDiv);
+				}
+			}, {begin: [0, 0], end: [height, 1]})).start();
+		}, 1);
+	}
+},
+
+// Animate a member disappearing.
+animateRemoveMember: function(memberId) {
+	var container = getById("membersOnline");
+	if (!container) return;
+	
+	var element = container.querySelector("[data-member-id='" + memberId + "']");
+	if (!element) return;
+	
+	// Animate if JS effects are enabled.
+	if (!eso.disableJSEffects) {
+		var overflowDiv = createOverflowDiv(element);
+		var height = overflowDiv.offsetHeight;
+		(overflowDiv.animation = new Animation(function(values, final) {
+			overflowDiv.style.height = final ? "0px" : values[0] + "px";
+			overflowDiv.style.opacity = final ? "0" : values[1];
+			// When animation is done, remove the overflowDiv (which contains the element).
+			if (final && overflowDiv.parentNode) {
+				overflowDiv.parentNode.removeChild(overflowDiv);
+			}
+		}, {begin: [height, 1], end: [0, 0]})).start();
+	} else {
+		// No animation - just remove.
+		if (element.parentNode) {
+			element.parentNode.removeChild(element);
+		}
+	}
+},
+
+// Update an existing member's display (color and status text).
+updateMember: function(memberId, member) {
+	var container = getById("membersOnline");
+	if (!container) return;
+	
+	var element = container.querySelector("[data-member-id='" + memberId + "']");
+	if (!element) return;
+	
+	// Update the color class if changed.
+	var currentClass = element.className;
+	var newClass = currentClass.replace(/\bc\d+\b/, "c" + member.color);
+	if (currentClass !== newClass) {
+		element.className = newClass;
+	}
+	
+	// Update the status text.
+	var span = element.querySelector(".hdr > span");
+	if (span) {
+		span.innerHTML = member.lastActionText + " (" + member.lastSeenText + ")";
+	}
+}
+
+};

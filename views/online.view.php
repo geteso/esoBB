@@ -32,20 +32,28 @@ if(!$this->eso->user and $config["onlineMembers"] === "login"):
 echo $this->eso->htmlMessage("loginRequired");
 
 // If there are members online, list them.
-elseif($this->numberOnline):?>
+else:?>
 
 <div id='membersOnline'>
-<?php while(list($memberId,$name,$avatarFormat,$color,$account,$lastSeen,$lastAction)=$this->eso->db->fetchRow($this->online)):?>
-<div class='p c<?php echo $color;?>'><div class='hdr'>
+<?php if($this->numberOnline):
+while(list($memberId,$name,$avatarFormat,$color,$account,$lastSeen,$lastAction)=$this->eso->db->fetchRow($this->online)):?>
+<div class='p c<?php echo $color;?>' data-member-id='<?php echo $memberId;?>'><div class='hdr'>
 <div class='thumb'><a href='<?php echo makeLink("profile",$memberId);?>'><img src='<?php echo $this->eso->getAvatar($memberId,$avatarFormat,"thumb");?>' alt=''/></a></div>
 <h3><a href='<?php echo makeLink("profile",$memberId);?>'><?php echo $name;?></a></h3>
 <span><?php echo translateLastAction($lastAction);?> (<?php echo relativeTime($lastSeen);?>)</span>
 </div></div>
-<?php endwhile;?>
+<?php endwhile;
+else:
+echo $this->eso->htmlMessage("noMembersOnline");
+endif;?>
 </div>
 
-<?php
-// Otherwise, display a message.
-else:echo $this->eso->htmlMessage("noMembersOnline");endif;?>
+<?php endif;?>
+
+<script type='text/javascript'>
+// <![CDATA[
+Online.init();
+// ]]>
+</script>
 
 </fieldset>
