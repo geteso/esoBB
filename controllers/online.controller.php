@@ -44,6 +44,7 @@ function init()
 	// Add JavaScript variable for auto-refresh interval (if enabled).
 	if (!empty($config["onlineRefreshInterval"])) {
 		$this->eso->addVarToJS("onlineRefreshInterval", (int)$config["onlineRefreshInterval"]);
+		$this->eso->addLanguageToJS("noMembersOnline");
 	}
 }
 

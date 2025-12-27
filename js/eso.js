@@ -3274,7 +3274,7 @@ refresh: function() {
 			
 			// Handle empty state.
 			if (newIds.length === 0 && container.querySelector(".p")) {
-				container.innerHTML = "<div class='msg'>" + (eso.language["noMembersOnline"] || "No members online.") + "</div>";
+				container.innerHTML = "<div class='msg warning'>" + eso.language["noMembersOnline"] + "</div>";
 			}
 		}
 	});
