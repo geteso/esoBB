@@ -202,7 +202,9 @@ function init()
 		
 		// If this is not technically the homepage (if it's a search page) the we don't want it to be indexed.
 		if (@$_GET["q1"] == "search") $this->eso->addToHead("<meta name='robots' content='noindex, noarchive'/>");
-		elseif (@$_GET["q1"]) redirect("search", "?q2=" . urlencode(desanitize(@$_GET["q1"])));
+		elseif (@$_GET["q1"]) {
+		    if (str_contains($_SERVER["HTTP_ACCEPT"],"text/html")) redirect("search", "?q2=" . urlencode(desanitize(@$_GET["q1"])));
+		}
 				
 	}
 	

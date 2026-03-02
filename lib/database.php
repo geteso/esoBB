@@ -201,6 +201,8 @@ public function prepare($query, $fatal = true)
 	
 	if (!$query) return false;
 	
+	$this->eso->callHook("beforeDatabaseQuery", array(&$query));
+	
 	$stmt = mysqli_prepare($this->link, $query);
 	if (!$stmt) {
 		if ($fatal) {
