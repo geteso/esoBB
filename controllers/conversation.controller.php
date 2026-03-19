@@ -1521,7 +1521,7 @@ function emailPrivateAdd($memberIds, $emailAll = false)
 	$userMemberId = (int)$this->eso->user["memberId"];
 	$memberIdPlaceholders = str_repeat("?,", count($memberIds) - 1) . "?";
 	$accountPlaceholders = !empty($accounts) ? str_repeat("?,", count($accounts) - 1) . "?" : "";
-	$types = "i";
+	$types = "ii";
 	$params = array($conversationId, $userMemberId);
 	foreach ($memberIds as $id) {
 		$types .= "i";
