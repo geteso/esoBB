@@ -114,6 +114,7 @@ $defaultConfig = array(
 "messageDisplayTime" => 20, // Amount of time by which most messages floating above the navigation bar disappear. (20 seconds = 20 seconds. lol.)
 "moreResults" => 100, // Total number of conversations to list per every request for more results.
 "numberOfTagsInTagCloud" => 40, // Number of tags to show in the tag cloud.
+"tagCloudCacheExpire" => 300, // Amount of time by which the tag cloud query result is cached. (300 seconds = 5 minutes.)
 "updateCurrentResultsInterval" => 30, // Amount of time by which conversations are updated (post information) in an existing search. (30 seconds.)
 "checkForNewResultsInterval" => 60, // Amount of time by which new conversations are checked for in an existing search. (60 seconds.)
 "searchesPerMinute" => 10, // Amount of searches a user is limited to per minute.

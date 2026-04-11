@@ -172,13 +172,22 @@ function init()
 		$this->eso->updateLastAction("");
 		
 		// Get the most common tags from the tags table and assign them a text-size class based upon their frequency.
-		$result = $this->eso->db->query("SELECT t.tag, COUNT(t.tag) AS count FROM {$config["tablePrefix"]}tags t LEFT JOIN {$config["tablePrefix"]}conversations c ON (t.conversationId=c.conversationId) WHERE c.private=0 AND c.posts>=1 GROUP BY t.tag ORDER BY count DESC LIMIT {$config["numberOfTagsInTagCloud"]}");
+		// Cache result in session to avoid a full table scan on every page load.
+		$tagCacheKey = "tagCloud_" . $config["tablePrefix"];
+		if (empty($_SESSION["tagCloudCache"][$tagCacheKey]) ||
+			time() - $_SESSION["tagCloudCache"][$tagCacheKey]["time"] > $config["tagCloudCacheExpire"]) {
+			$result = $this->eso->db->query("SELECT t.tag, COUNT(t.tag) AS count FROM {$config["tablePrefix"]}tags t LEFT JOIN {$config["tablePrefix"]}conversations c ON (t.conversationId=c.conversationId) WHERE c.private=0 AND c.posts>=1 GROUP BY t.tag ORDER BY count DESC LIMIT {$config["numberOfTagsInTagCloud"]}");
+			$cachedRows = array();
+			while ($row = $this->eso->db->fetchRow($result)) $cachedRows[] = $row;
+			$_SESSION["tagCloudCache"][$tagCacheKey] = array("time" => time(), "rows" => $cachedRows);
+		}
+		$cachedRows = $_SESSION["tagCloudCache"][$tagCacheKey]["rows"];
 		$tags = array();
-		if ($rows = $this->eso->db->numRows($result)) {
-			for ($i = 1; list($tag) = $this->eso->db->fetchRow($result); $i++) {
-				$this->tagCloud[$tag] = "s" . ceil($i * (5 / $rows));
-				if ($i < 10) $tags[] = $tag;
-			}
+		$rows = count($cachedRows);
+		for ($i = 1; $i <= $rows; $i++) {
+			$tag = $cachedRows[$i - 1][0];
+			$this->tagCloud[$tag] = "s" . ceil($i * (5 / $rows));
+			if ($i < 10) $tags[] = $tag;
 		}
 		
 		// Add meta tags to the header, the "Mark all conversations as read" link to the footer, and a "Start a conversation" link.
@@ -219,8 +228,10 @@ function init()
 function markAllConversationsAsRead()
 {
 	global $config;
-	$this->eso->db->query("UPDATE {$config["tablePrefix"]}members SET markedAsRead=" . time() . " WHERE memberId={$this->eso->user["memberId"]}");
-	$this->eso->user["markedAsRead"] = $_SESSION["user"]["markedAsRead"] = time();
+	$time = time();
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET markedAsRead=? WHERE memberId=?", "ii", $time, $memberId);
+	$this->eso->user["markedAsRead"] = $_SESSION["user"]["markedAsRead"] = $time;
 }
 
 // Register a custom gambit:
@@ -291,7 +302,11 @@ function getConversationIDs($search = "")
 	// Add some preliminary conditions to the search results.
 	// These make sure conversations that the user isn't allowed to see are filtered out.
 	if (!$this->eso->user) $this->condition("conversations", "c.posts!=0 AND c.private=0");
-	else $this->condition("conversations", "c.startMember={$this->eso->user["memberId"]} OR (c.posts>0 AND (c.private=0 OR EXISTS (SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=c.conversationId AND memberId IN ('{$this->eso->user["account"]}',{$this->eso->user["memberId"]}) AND allowed=1)))");
+	else {
+		$memberId = (int)$this->eso->user["memberId"];
+		$account = $this->eso->user["account"];
+		$this->condition("conversations", "c.startMember=? OR (c.posts>0 AND (c.private=0 OR EXISTS (SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=c.conversationId AND memberId IN (?,?) AND allowed=1)))", false, "isi", $memberId, $account, $memberId);
+	}
 	
 	// Process the search string into individial terms.
 	// Replace all "-" signs with "+!", and then split the string by "+".  Negated terms will then be prefixed with "!".
@@ -313,17 +328,7 @@ function getConversationIDs($search = "")
 		// Find a matching gambit by evaluating each gambit's condition.
 		foreach ($this->gambits as $gambit) {
 			list($function, $condition) = $gambit;
-			// If condition is a callable, use it directly; otherwise evaluate as legacy string (deprecated)
-			if (is_callable($condition)) {
-				$matches = call_user_func($condition, $term);
-			} elseif (is_string($condition) && !empty(trim($condition))) {
-				// Legacy eval() support - deprecated but maintained for backward compatibility
-				// $term is sanitized user input, but eval() is still dangerous
-				// This should be migrated to callbacks
-				$matches = @eval($condition);
-			} else {
-				$matches = false;
-			}
+			$matches = is_callable($condition) ? call_user_func($condition, $term) : false;
 			if ($matches) {
 				call_user_func_array($function, array(&$this, $term, $negate));
 				break;
@@ -339,7 +344,8 @@ function getConversationIDs($search = "")
 			$this->orderBy("c.sticky DESC");
 			$this->orderBy("c.lastPostTime DESC");
 		} else {
-			$this->orderBy("IF(c.sticky AND ((SELECT lastRead FROM {$config["tablePrefix"]}status s WHERE conversationId=c.conversationId AND s.memberId={$this->eso->user["memberId"]}) IS NULL OR (SELECT lastRead FROM {$config["tablePrefix"]}status s WHERE conversationId=c.conversationId AND s.memberId={$this->eso->user["memberId"]})<c.posts),1,0) DESC");
+			$memberId = (int)$this->eso->user["memberId"];
+			$this->orderBy("IF(c.sticky AND ((SELECT lastRead FROM {$config["tablePrefix"]}status s WHERE conversationId=c.conversationId AND s.memberId=$memberId) IS NULL OR (SELECT lastRead FROM {$config["tablePrefix"]}status s WHERE conversationId=c.conversationId AND s.memberId=$memberId)<c.posts),1,0) DESC");
 			$this->orderBy("c.lastPostTime DESC");
 		}
 	}
@@ -347,7 +353,9 @@ function getConversationIDs($search = "")
 	// Now we need to loop through the conditions and run them as queries one-by-one. When a query returns a selection
 	// of conversation IDs, subsequent queries are restricted to filtering those conversation IDs.
 	$goodConversationIds = $badConversationIds = array();
-	$conversationConditions = array();
+	$convoConditions = array();
+	$convoTypes = "";
+	$convoParams = array();
 	$idCondition = "";
 	foreach ($this->conditions as $v) {
 		$table = $v[0];
@@ -357,26 +365,11 @@ function getConversationIDs($search = "")
 		$params = isset($v[4]) ? $v[4] : array();
 		
 		if ($table == "conversations") {
-			// If this condition has prepared statement parameters, substitute them
+			$convoConditions[] = $condition;
 			if (!empty($types) && !empty($params)) {
-				// Escape and substitute parameters into the condition
-				$escapedParams = array();
-				foreach ($params as $i => $param) {
-					$type = isset($types[$i]) ? $types[$i] : 's';
-					if ($type == 'i') {
-						$escapedParams[] = (int)$param;
-					} elseif ($type == 'd') {
-						$escapedParams[] = (float)$param;
-					} else {
-						$escapedParams[] = "'" . $this->eso->db->escape($param) . "'";
-					}
-				}
-				// Replace ? placeholders with escaped values
-				$condition = preg_replace_callback('/\?/', function() use (&$escapedParams) {
-					return array_shift($escapedParams);
-				}, $condition);
+				$convoTypes .= $types;
+				$convoParams = array_merge($convoParams, $params);
 			}
-			$conversationConditions[] = $condition;
 			continue;
 		}
 		
@@ -422,7 +415,7 @@ function getConversationIDs($search = "")
 	if (!$this->limit) $this->limit = $config["results"] + 1;
 	
 	// Collect the query components...
-	$conditions = $idCondition ? array_merge($conversationConditions, array(substr($idCondition, 5))) : $conversationConditions;
+	$conditions = $idCondition ? array_merge($convoConditions, array(substr($idCondition, 5))) : $convoConditions;
 	$components = array(
 		"select" => array("c.conversationId"),
 		"from" => array("{$config["tablePrefix"]}conversations c"),
@@ -435,7 +428,11 @@ function getConversationIDs($search = "")
 	
 	// ...and construct and execute the query!
 	$query = $this->eso->db->constructSelectQuery($components);
-	$result = $this->eso->db->query($query);
+	if (!empty($convoTypes) && !empty($convoParams)) {
+		$result = $this->eso->db->fetchPrepared($query, $convoTypes, ...$convoParams);
+	} else {
+		$result = $this->eso->db->query($query);
+	}
 	
 	// Collect the final set of conversation IDs and return it.
 	$conversationIds = array();
