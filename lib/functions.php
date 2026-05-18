@@ -211,7 +211,7 @@ function translateLastAction($action)
 				
 				// Query to check if conversation is private and if current user can view it
 				if ($id > 0) {
-					$conversation = $eso->db->fetchAssoc("SELECT private, startMember, posts FROM {$config["tablePrefix"]}conversations WHERE conversationId=$id");
+					$conversation = $eso->db->fetchAssocPrepared("SELECT private, startMember, posts FROM {$config["tablePrefix"]}conversations WHERE conversationId=?", "i", $id);
 					if ($conversation) {
 						$isCurrentlyPrivate = (int)$conversation["private"];
 						$startMember = (int)$conversation["startMember"];
@@ -229,7 +229,7 @@ function translateLastAction($action)
 									$canViewTitle = true;
 								} elseif ($posts > 0) {
 									// Check if user is explicitly allowed
-									$allowed = $eso->db->result("SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=$id AND (memberId=$memberId OR memberId='{$eso->user["account"]}')", 0);
+									$allowed = $eso->db->fetchOne("SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=? AND (memberId=? OR memberId=?) LIMIT 1", "iis", $id, $memberId, $eso->user["account"]);
 									if ($allowed) {
 										$canViewTitle = true;
 									} elseif ($eso->user["moderator"]) {

@@ -106,6 +106,7 @@ function init()
 
 	// Discard a draft.
 	if (isset($_POST["discardDraft"])) {
+		if (!$this->eso->validateToken(@$_POST["token"])) return;
 		// If the conversation doesn't exist, just redirect to the new conversation page.
  		if (!$this->conversation["id"]) redirect("conversation", "new");
 		
@@ -186,7 +187,7 @@ function init()
 		if (isset($_GET["editPost"])) {
 			$this->editingPost = (int)$_GET["editPost"];
 			// If the form was submitted, update the db and go back to the normal view.
-			if ((isset($_POST["save"]) and $this->editPost($this->editingPost, $_POST["content"])) or isset($_POST["cancel"]))
+			if ((isset($_POST["save"]) and $this->eso->validateToken(@$_POST["token"]) and $this->editPost($this->editingPost, $_POST["content"])) or isset($_POST["cancel"]))
 				redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom");
 		}
 
@@ -736,7 +737,7 @@ function getPosts($criteria = array(), $display = false)
 	$limit = (int)@$criteria["limit"];
 
 	// Construct the select component of the query.
-	$select = array("p.postId AS id", "m.memberId AS memberId", "m.name AS name", "m.account AS account", "m.color AS color", "m.avatarFormat AS avatarFormat", "p.content AS content", "p.time AS time", "em.name AS editMember", "p.editTime AS editTime", "dm.name AS deleteMember", "m.lastSeen AS lastSeen", "IF(" . (time() - $config["userOnlineExpire"]) . " < m.lastSeen,m.lastAction,'') AS lastAction");
+	$select = array("p.postId AS id", "m.memberId AS memberId", "m.name AS name", "m.account AS account", "m.color AS color", "m.avatarFormat AS avatarFormat", "p.content AS content", "p.time AS time", "em.name AS editMember", "p.editTime AS editTime", "p.deleteMember AS deleteMemberId", "dm.name AS deleteMember", "m.lastSeen AS lastSeen", "IF(" . (time() - $config["userOnlineExpire"]) . " < m.lastSeen,m.lastAction,'') AS lastAction");
 	
 	// If we're getting posts based on the lastActionTime or specific post IDs, we'll need to find the position within
 	// the conversation of each post.
@@ -782,8 +783,8 @@ function getPosts($criteria = array(), $display = false)
 			"date" => date($language["dateFormat"], $post["time"]),
 			"time" => $post["time"],
 			"editTime" => $post["editTime"],
-			"canEdit" => $this->canEditPost($post["id"], $post["memberId"], $post["account"]) === true,
-			"canDelete" => $this->canDeletePost($post["id"], $post["memberId"], $post["account"]) === true,
+			"canEdit" => $this->canEditPost($post["id"], $post["memberId"], $post["account"], $post["deleteMemberId"]) === true,
+			"canDelete" => $this->canDeletePost($post["id"], $post["memberId"], $post["account"], $post["deleteMemberId"]) === true,
 			"info" => array(),
 			"controls" => array()
 		) + (!$post["deleteMember"]
@@ -1567,25 +1568,30 @@ function htmlMembersAllowedList($membersAllowed)
 		natcasesort($membersAllowed);
 		
 		// If the conversation starter's name is not in there, add it automatically.
-		$html = !array_key_exists($this->conversation["startMember"], $membersAllowed) ? "{$this->conversation["startMemberName"]}, " : "";
+		$html = !array_key_exists($this->conversation["startMember"], $membersAllowed) ? sanitizeHTML(desanitize($this->conversation["startMemberName"])) . ", " : "";
 		
 		// Loop through each member.
 		foreach ($membersAllowed as $memberId => $name) {
 			if ($memberId === "Administrator" or $memberId === "Moderator" or $memberId === "Member") $name = $language[$memberId . "-plural"];
+			$safeName = sanitizeHTML(desanitize($name));
 			
 			// If the user can edit the list, output a link for this member.
 			// However, if there is more than one member, the conversation starter can't be removed.
-			if ($this->canEditMembersAllowed() and ($count == 1 or $memberId != $this->conversation["startMember"]))
-				$html .= "<a href='" . makeLink($this->conversation["id"], $this->conversation["slug"], "?removeMember=$memberId&token={$_SESSION["token"]}") . "' class='d' onclick='Conversation.removeMember(\"$memberId\");return false'>$name</a>, ";
+			if ($this->canEditMembersAllowed() and ($count == 1 or $memberId != $this->conversation["startMember"])) {
+				$memberIdString = (string)$memberId;
+				$removeLink = makeLink($this->conversation["id"], $this->conversation["slug"], "?removeMember=" . rawurlencode($memberIdString) . "&token=" . rawurlencode($_SESSION["token"]));
+				$memberIdForJs = json_encode($memberIdString, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+				$html .= "<a href='" . sanitizeHTML($removeLink) . "' class='d' onclick='Conversation.removeMember($memberIdForJs);return false'>$safeName</a>, ";
+			}
 				
 			// Otherwise, plain text will do.
-			else $html .= "$name, ";
+			else $html .= "$safeName, ";
 		}
 		
 		$html = rtrim($html, ", ");
 	
 	// Otherwise, return "Everyone".
-	} else $html = $language["Everyone"];
+	} else $html = sanitizeHTML($language["Everyone"]);
 	
 	$this->callHook("getMembersAllowedHTML", array(&$html, $membersAllowed));
 	
@@ -1676,8 +1682,17 @@ function saveTags($tags)
 // Convert a plain text tag string to have html links to respective tag searches.
 function linkTags($tags)
 {
+	if (!$tags) return "";
 	$tags = explode(", ", $tags);
-	foreach ($tags as $k => $tag) $tags[$k] = "<a href='" . makeLink("search", "?q2=tag:$tag") . "'>$tag</a>";
+	foreach ($tags as $k => $tag) {
+		$tag = desanitize(trim($tag));
+		if ($tag === "") {
+			unset($tags[$k]);
+			continue;
+		}
+		$tagLink = makeLink("search", "?q2=" . rawurlencode("tag:$tag"));
+		$tags[$k] = "<a href='" . sanitizeHTML($tagLink) . "'>" . sanitizeHTML($tag) . "</a>";
+	}
 	return implode(" ", $tags);
 }
 

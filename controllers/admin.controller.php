@@ -426,6 +426,35 @@ function changeLanguage($language)
 	return true;
 }
 
+// Return a sanitized uploaded filename or false if invalid.
+function getSafeUploadedFilename($fieldName)
+{
+	if (empty($_FILES[$fieldName]["name"])) return false;
+	$filename = sanitizeFileName((string)basename($_FILES[$fieldName]["name"]));
+	return strlen($filename) ? $filename : false;
+}
+
+// Normalize a package entry path and reject path traversal attempts.
+function normalizePackageEntryPath($path)
+{
+	$path = trim(str_replace("\\", "/", (string)$path));
+	if ($path === "" or strpos($path, "\0") !== false) return false;
+	$isDirectory = substr($path, -1) === "/";
+	$path = ltrim($path, "/");
+	if ($path === "" or preg_match("/^[A-Za-z]:/", $path)) return false;
+	$parts = explode("/", $path);
+	$normalized = array();
+	foreach ($parts as $part) {
+		if ($part === "") continue;
+		if ($part === "." or $part === "..") return false;
+		if (sanitizeFileName($part) !== $part) return false;
+		$normalized[] = $part;
+	}
+	if (!count($normalized)) return false;
+	$safePath = implode("/", $normalized);
+	return $isDirectory ? "$safePath/" : $safePath;
+}
+
 // Install an uploaded language pack.
 function installLanguage()
 {
@@ -435,8 +464,15 @@ function installLanguage()
 		return false;
 	}
 	
+	$filename = $this->getSafeUploadedFilename("installLanguage");
+	if (!$filename or strtolower(pathinfo($filename, PATHINFO_EXTENSION)) != "php") {
+		$this->eso->message("invalidLanguagePack");
+		return false;
+	}
+	$targetPath = "languages/$filename";
+	
 	// Move the uploaded language pack into the languages directory.
-	if (!move_uploaded_file($_FILES["installLanguage"]["tmp_name"], "languages/{$_FILES["installLanguage"]["name"]}")) {
+	if (!move_uploaded_file($_FILES["installLanguage"]["tmp_name"], $targetPath)) {
 		$this->eso->message("notWritable", false, "languages/");
 		return false;
 	}
@@ -583,19 +619,26 @@ function installPlugin()
 		$this->eso->message("invalidPlugin");
 		return false;
 	}
+
+	$filename = $this->getSafeUploadedFilename("installPlugin");
+	if (!$filename) {
+		$this->eso->message("invalidPlugin");
+		return false;
+	}
+	$archivePath = "plugins/$filename";
 	
 	// Temorarily move the uploaded plugin into the plugins directory so that we can read it.
-	if (!move_uploaded_file($_FILES["installPlugin"]["tmp_name"], "plugins/{$_FILES["installPlugin"]["name"]}")) {
+	if (!move_uploaded_file($_FILES["installPlugin"]["tmp_name"], $archivePath)) {
 		$this->eso->message("notWritable", false, "plugins/");
 		return false;
 	}
 	
 	// Unzip the plugin. If we can't, show an error.
-	if (!($files = unzip("plugins/{$_FILES["installPlugin"]["name"]}", "plugins/"))) $this->eso->message("invalidPlugin");
+	if (!($files = unzip($archivePath))) $this->eso->message("invalidPlugin");
 	else {
 		
 		// Loop through the files in the zip and make sure it's a valid plugin.
-		$directories = 0; $pluginFound = false;
+		$directories = 0; $pluginFound = false; $unsafePackage = false;
 		foreach ($files as $k => $file) {
 			
 			// Strip out annoying Mac OS X files!
@@ -603,12 +646,25 @@ function installPlugin()
 				unset($files[$k]);
 				continue;
 			}
+
+			$safeName = $this->normalizePackageEntryPath($file["name"]);
+			if ($safeName === false) {
+				$unsafePackage = true;
+				break;
+			}
+			$files[$k]["safeName"] = $safeName;
 			
 			// If the zip has more than one base directory, it's not a valid plugin.
-			if ($file["directory"] and substr_count($file["name"], "/") < 2) $directories++;
+			if ($file["directory"] and substr_count($safeName, "/") < 2) $directories++;
 			
 			// Make sure there's an actual plugin file in there.
-			if (substr($file["name"], -10) == "plugin.php") $pluginFound = true;
+			if (substr($safeName, -10) == "plugin.php") $pluginFound = true;
+		}
+
+		if ($unsafePackage) {
+			$this->eso->message("invalidPlugin");
+			@unlink($archivePath);
+			return false;
 		}
 		
 		// OK, this plugin in valid!
@@ -617,14 +673,28 @@ function installPlugin()
 			// Loop through plugin files and write them to the plugins directory.
 			$error = false;
 			foreach ($files as $k => $file) {
+				$targetPath = "plugins/{$file["safeName"]}";
 				
 				// Make a directory if it doesn't exist!
-				if ($file["directory"] and !is_dir("plugins/{$file["name"]}")) mkdir("plugins/{$file["name"]}");
+				if ($file["directory"]) {
+					$directoryPath = rtrim($targetPath, "/");
+					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+						$this->eso->message("notWritable", false, $directoryPath);
+						$error = true;
+						break;
+					}
+				}
 				
 				// Write a file.
 				elseif (!$file["directory"]) {
-					if (!writeFile("plugins/{$file["name"]}", $file["content"])) {
-						$this->eso->message("notWritable", false, "plugins/{$file["name"]}");
+					$directoryPath = dirname($targetPath);
+					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+						$this->eso->message("notWritable", false, $directoryPath);
+						$error = true;
+						break;
+					}
+					if (!writeFile($targetPath, $file["content"])) {
+						$this->eso->message("notWritable", false, $targetPath);
 						$error = true;
 						break;
 					}
@@ -640,7 +710,7 @@ function installPlugin()
 	}
 	
 	// Delete the temporarily uploaded plugin file.
-	unlink("plugins/{$_FILES["installPlugin"]["name"]}");
+	@unlink($archivePath);
 }
 
 var $skins = array();
@@ -707,18 +777,25 @@ function installSkin()
 		return false;
 	}
 
+	$filename = $this->getSafeUploadedFilename("installSkin");
+	if (!$filename) {
+		$this->eso->message("invalidSkin");
+		return false;
+	}
+	$archivePath = "skins/$filename";
+
 	// Temorarily move the uploaded skin into the skins directory so that we can read it.
-	if (!move_uploaded_file($_FILES["installSkin"]["tmp_name"], "skins/{$_FILES["installSkin"]["name"]}")) {
+	if (!move_uploaded_file($_FILES["installSkin"]["tmp_name"], $archivePath)) {
 		$this->eso->message("notWritable", false, "skins/");
 		return false;
 	}
 
 	// Unzip the skin. If we can't, show an error.
-	if (!($files = unzip("skins/{$_FILES["installSkin"]["name"]}", "skins/"))) $this->eso->message("invalidSkin");
+	if (!($files = unzip($archivePath))) $this->eso->message("invalidSkin");
 	else {
 		
 		// Loop through the files in the zip and make sure it's a valid skin.
-		$directories = 0; $skinFound = false;
+		$directories = 0; $skinFound = false; $unsafePackage = false;
 		foreach ($files as $k => $file) {
 
 			// Strip out annoying Mac OS X files!
@@ -727,11 +804,24 @@ function installSkin()
 				continue;
 			}
 
+			$safeName = $this->normalizePackageEntryPath($file["name"]);
+			if ($safeName === false) {
+				$unsafePackage = true;
+				break;
+			}
+			$files[$k]["safeName"] = $safeName;
+
 			// If the zip has more than one base directory, it's not a valid skin.
-			if ($file["directory"] and substr_count($file["name"], "/") < 2) $directories++;
+			if ($file["directory"] and substr_count($safeName, "/") < 2) $directories++;
 
 			// Make sure there's an actual skin file in there.
-			if (substr($file["name"], -8) == "skin.php") $skinFound = true;
+			if (substr($safeName, -8) == "skin.php") $skinFound = true;
+		}
+
+		if ($unsafePackage) {
+			$this->eso->message("invalidSkin");
+			@unlink($archivePath);
+			return false;
 		}
 
 		// OK, this skin in valid!
@@ -740,14 +830,28 @@ function installSkin()
 			// Loop through skin files and write them to the skins directory.
 			$error = false;
 			foreach ($files as $k => $file) {
+				$targetPath = "skins/{$file["safeName"]}";
 
 				// Make a directory if it doesn't exist!
-				if ($file["directory"] and !is_dir("skins/{$file["name"]}")) mkdir("skins/{$file["name"]}");
+				if ($file["directory"]) {
+					$directoryPath = rtrim($targetPath, "/");
+					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+						$this->eso->message("notWritable", false, $directoryPath);
+						$error = true;
+						break;
+					}
+				}
 
 				// Write a file.
 				elseif (!$file["directory"]) {
-					if (!writeFile("skins/{$file["name"]}", $file["content"])) {
-						$this->eso->message("notWritable", false, "skins/{$file["name"]}");
+					$directoryPath = dirname($targetPath);
+					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+						$this->eso->message("notWritable", false, $directoryPath);
+						$error = true;
+						break;
+					}
+					if (!writeFile($targetPath, $file["content"])) {
+						$this->eso->message("notWritable", false, $targetPath);
 						$error = true;
 						break;
 					}
@@ -763,7 +867,7 @@ function installSkin()
 	}
 	
 	// Delete the temporarily uploaded skin file.
-	unlink("skins/{$_FILES["installSkin"]["name"]}");
+	@unlink($archivePath);
 }
 	
 }
