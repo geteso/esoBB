@@ -226,6 +226,7 @@ function addMember()
 	$insertData["color"] = "FLOOR(1 + (RAND() * {$this->eso->skin->numberOfColors}))";
 	$insertData["language"] = "'" . $this->eso->db->escape($config["language"]) . "'";
 	$insertData["avatarAlignment"] = "'{$_SESSION["avatarAlignment"]}'";
+	$insertData["showOnline"] = $config["showOnline"] ? 1 : 0;
 	
 	$this->callHook("beforeAddMember", array(&$insertData));
 	

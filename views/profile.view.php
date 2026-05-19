@@ -45,8 +45,10 @@ if(!defined("IN_ESO"))exit;
 <?php // Output member statistics. ?>
 <ul class='form stats'>
 
+<?php if(!empty($this->member["showOnline"])):?>
 <li><label><?php echo $language["Last active"];?></label>
 <div><abbr title='<?php echo date($language["dateFormat"],$this->member["lastSeen"]);?>'><?php echo relativeTime($this->member["lastSeen"]);?></abbr> <?php echo !empty($this->member["lastAction"])?" <small>(" . translateLastAction($this->member["lastAction"]) . ")</small>":"";?></div></li>
+<?php endif;?>
 
 <li><label><?php echo $language["First posted"];?></label>
 <div><abbr title='<?php echo date($language["dateFormat"],$this->member["firstPosted"]);?>'><?php echo relativeTime($this->member["firstPosted"]);?></abbr></div></li>

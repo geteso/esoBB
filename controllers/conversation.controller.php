@@ -737,7 +737,7 @@ function getPosts($criteria = array(), $display = false)
 	$limit = (int)@$criteria["limit"];
 
 	// Construct the select component of the query.
-	$select = array("p.postId AS id", "m.memberId AS memberId", "m.name AS name", "m.account AS account", "m.color AS color", "m.avatarFormat AS avatarFormat", "p.content AS content", "p.time AS time", "em.name AS editMember", "p.editTime AS editTime", "p.deleteMember AS deleteMemberId", "dm.name AS deleteMember", "m.lastSeen AS lastSeen", "IF(" . (time() - $config["userOnlineExpire"]) . " < m.lastSeen,m.lastAction,'') AS lastAction");
+	$select = array("p.postId AS id", "m.memberId AS memberId", "m.name AS name", "m.account AS account", "m.color AS color", "m.avatarFormat AS avatarFormat", "p.content AS content", "p.time AS time", "em.name AS editMember", "p.editTime AS editTime", "p.deleteMember AS deleteMemberId", "dm.name AS deleteMember", "m.lastSeen AS lastSeen", "IF(" . (time() - $config["userOnlineExpire"]) . " < m.lastSeen AND m.showOnline=1,m.lastAction,'') AS lastAction");
 	
 	// If we're getting posts based on the lastActionTime or specific post IDs, we'll need to find the position within
 	// the conversation of each post.

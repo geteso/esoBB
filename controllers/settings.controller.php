@@ -138,7 +138,13 @@ function init()
 				"html" => "<label for='disableLinkAlerts' class='checkbox'>{$language["disableLinkAlerts"]}</label> <input id='disableLinkAlerts' type='checkbox' class='checkbox' name='disableLinkAlerts' value='1' " .  (!empty($this->eso->user["disableLinkAlerts"]) ? "checked='checked' " : "") . "/>",
 				"databaseField" => "disableLinkAlerts",
 				"checkbox" => true
-			)//use 550 to avoid breaking plugins
+			),//use 550 to avoid breaking plugins
+			560 => array(
+				"id" => "showOnline",
+				"html" => "<label for='showOnline' class='checkbox'>{$language["showOnline"]}</label> <input id='showOnline' type='checkbox' class='checkbox' name='showOnline' value='1' " . ($this->eso->user["showOnline"] ? "checked='checked' " : "") . "/>",
+				"databaseField" => "showOnline",
+				"checkbox" => true
+			)
 		)
 		
 	);

@@ -110,6 +110,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}members (
 	emailOnStar tinyint(1) NOT NULL default '1',
 	disableJSEffects tinyint(1) NOT NULL default '0',
 	disableLinkAlerts tinyint(1) NOT NULL default '1',
+	showOnline tinyint(1) NOT NULL default '1',
 	markedAsRead int unsigned default NULL,
 	lastSeen int unsigned default NULL,
 	lastAction varchar(191) default NULL,

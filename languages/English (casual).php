@@ -111,6 +111,7 @@ $language = array(
 "Email" => "Email",
 "emailOnPrivateAdd" => "Email me when I'm added to a private conversation",
 "emailOnStar" => "Email me when someone posts in a conversation I have starred",
+"showOnline" => "Show others when I'm online",
 "Enable" => "Enable",
 "Enter a conversation title" => "Enter a conversation title",
 "Enter the web address of a logo" => "Enter the web address of a logo",
