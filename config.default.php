@@ -25,7 +25,7 @@ if (!defined("IN_ESO")) exit;
  */
 
 // The version of the code.
-define("ESO_VERSION", "1.0.0d3");
+define("ESO_VERSION", "1.0.0e1");
 
 $defaultConfig = array(
 // This following block is filled out by the installer in config/config.php.

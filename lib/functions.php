@@ -669,14 +669,22 @@ function writeConfigFile($file, $variable, $settings)
 	return writeFile($file, "<?php\n$variable = " . variableToText($settings, "\t") . ";\n?>");
 }
 
-// A shorthand version of fopen/fwrite/fclose. Returns false if the file can't be opened for writing.
+// A shorthand version of fopen/fwrite/fclose. Returns false if the file can't be opened for writing;
+// failed/partial write leaves the original file untouched (write to temp, then rename).
 function writeFile($file, $contents)
 {
-	// Attempt to open the file for writing.
-	if (($handle = @fopen($file, "w")) === false) return false;
-	// Write the file.
-	fwrite($handle, $contents);
+	$temp = $file . ".tmp." . getmypid();
+	if (($handle = @fopen($temp, "w")) === false) return false;
+	if (fwrite($handle, $contents) === false || !fflush($handle)) {
+		fclose($handle);
+		@unlink($temp);
+		return false;
+	}
 	fclose($handle);
+	if (!@rename($temp, $file)) {
+		@unlink($temp);
+		return false;
+	}
 	return true;
 }
 

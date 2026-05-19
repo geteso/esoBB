@@ -80,15 +80,16 @@ function init()
 			
 			// Past this point, the user is allowed to view the conversation.
 			// Set the title, link, description, etc.
-			$this->title = "{$conversation["title"]} - {$config["forumTitle"]}";
+			$this->title = desanitize($conversation["title"]) . " - " . $config["forumTitle"];
 			$this->link = $config["baseURL"] . makeLink($conversation["id"], $conversation["slug"]);
-			$this->subtitle = $conversation["tags"];
+			$this->subtitle = desanitize($conversation["tags"]);
 			$this->id = $config["baseURL"] . makeLink("feed", "conversation", $conversation["id"]);
 			$this->updated = date("Y-m-d\TH:i:s\Z", $conversation["lastActionTime"]);
 			
 			// Fetch the 20 most recent posts in the conversation.
 			$result = $this->eso->db->query("SELECT postId, name, content, time FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE conversationId={$conversation["id"]} AND deleteMember IS NULL ORDER BY time DESC LIMIT 20");
 			while (list($id, $member, $content, $time) = $this->eso->db->fetchRow($result)) {
+				$member = desanitize($member);
 				$this->items[] = array(
 					"title" => $member,
 					"content" => $this->format($content),
@@ -108,6 +109,8 @@ function init()
 			// that aren't private!
 			$result = $this->eso->db->query("SELECT p.postId, c.title, m.name, p.content, p.time FROM {$config["tablePrefix"]}posts p LEFT JOIN {$config["tablePrefix"]}conversations c USING (conversationId) INNER JOIN {$config["tablePrefix"]}members m ON (m.memberId=p.memberId) WHERE c.private=0 AND c.posts>0 AND p.deleteMember IS NULL ORDER BY p.time DESC LIMIT 20");
 			while (list($postId, $title, $member, $content, $time) = $this->eso->db->fetchRow($result)) {
+				$title = desanitize($title);
+				$member = desanitize($member);
 				$this->items[] = array(
 					"title" => "$member - $title",
 					"content" => $this->format($content),

@@ -58,6 +58,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}conversations (
 	KEY conversations_startTime (startTime),
 	KEY conversations_lastPostTime (lastPostTime),
 	KEY conversations_posts (posts),
+	KEY conversations_private_posts (private, posts),
 	KEY conversations_sticky (sticky, lastPostTime)
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 
@@ -119,7 +120,8 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}members (
 	UNIQUE KEY members_name (name),
 	UNIQUE KEY members_email (email),
 	KEY members_password (password),
-	KEY members_salt (salt)
+	KEY members_salt (salt),
+	KEY members_lastSeen (lastSeen)
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 
 // Create the tags table.

@@ -90,6 +90,13 @@ function init()
 		writeConfigFile("../config/versions.php", '$versions', $versions);
 	}
 	
+	// esoBB 1.0.0 delta 3 -> esoBB 1.0.0 epsilon 1
+	if ($versions["eso"] == "1.0.0d3") {
+		$this->upgrade_100e1();
+		$versions["eso"] = "1.0.0e1";
+		writeConfigFile("../config/versions.php", '$versions', $versions);
+	}
+
 	// Write the program version to the versions.php file.
 	if ($versions["eso"] != ESO_VERSION) {
 		$versions["eso"] = ESO_VERSION;
@@ -179,6 +186,22 @@ function warning($msg)
 {
 	if (!isset($_SESSION["warnings"]) or !is_array($_SESSION["warnings"])) $_SESSION["warnings"] = array();
 	$_SESSION["warnings"][] = $msg;	
+}
+
+// 1.0.0 delta 3 -> 1.0.0 epsilon 1
+function upgrade_100e1()
+{
+	global $config;
+
+	// Add missing columns if they don't exist.
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'showOnline'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN showOnline tinyint(1) NOT NULL default '1' AFTER disableLinkAlerts");
+
+	// Add indexes if they don't exist.
+	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}members WHERE Key_name='members_lastSeen'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD INDEX members_lastSeen (lastSeen)");
+	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}conversations WHERE Key_name='conversations_private_posts'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}conversations ADD INDEX conversations_private_posts (private, posts)");
 }
 
 // 1.0.0 delta 2 -> 1.0.0 delta 3
