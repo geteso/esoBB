@@ -56,7 +56,7 @@ function init()
 	// Change the user's avatar.
 	if (!empty($config["changeAvatar"]) and isset($_POST["changeAvatar"])
 	 	and $this->eso->validateToken(@$_POST["token"])
-		and $this->changeAvatar()) $this->eso->message("changesSaved");
+		and $this->changeAvatar()) { $this->eso->message("changesSaved"); unset($_POST["avatar"]); }
 	
 	// Change the user's password or email.
 	if (isset($_POST["settingsPasswordEmail"]["submit"])

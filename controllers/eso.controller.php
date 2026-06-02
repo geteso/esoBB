@@ -176,7 +176,7 @@ function init()
 		}
 
 		// Add "Forgot password" link to the footer,
-		if (!$this->eso->user) $this->eso->addToFooter("<a href='" . makeLink("forgot-password") . "' id='forgotPassword'><span class='button buttonSmall'><input type='submit' value='{$language["Forgot your password"]}'></span></a>", 100);
+		if (!$this->eso->user && !empty($config["sendEmail"])) $this->eso->addToFooter("<a href='" . makeLink("forgot-password") . "' id='forgotPassword'><span class='button buttonSmall'><input type='submit' value='{$language["Forgot your password"]}'></span></a>", 100);
 
 		// Set up some default JavaScript files and language definitions.
 		$this->addScript("js/eso.js", -1);
