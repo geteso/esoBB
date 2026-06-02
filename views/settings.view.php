@@ -32,10 +32,11 @@ if ($this->emailVerified !== 1) echo $this->eso->htmlMessage("accountNotYetVerif
 <fieldset id='appearance'>
 <legend><?php echo $language["Appearance settings"];?></legend>
 
-<div class='p <?php echo $this->eso->user["avatarAlignment"]=="right"?"r ":"l ";?>c<?php echo $this->eso->user["color"];?>' id='preview'>
+<?php $showAvatar=!empty($this->eso->user["avatarFormat"]) || $this->eso->user["avatarAlignment"]!="none"; ?>
+<div class='p <?php if($showAvatar)echo $this->eso->user["avatarAlignment"]=="right"?"r ":"l ";?>c<?php echo $this->eso->user["color"];?>' id='preview'>
 <div class='parts'><div>
 <div class='hdr'>
-<div class='thumb'><a href='<?php echo makeLink("profile",$this->eso->user["memberId"]);?>'><img src='<?php echo $this->eso->getAvatar($this->eso->user["memberId"],$this->eso->user["avatarFormat"],"thumb");?>' alt=''/></a></div>
+<?php if($showAvatar):?><div class='thumb'><a href='<?php echo makeLink("profile",$this->eso->user["memberId"]);?>'><img src='<?php echo $this->eso->getAvatar($this->eso->user["memberId"],$this->eso->user["avatarFormat"],"thumb");?>' alt=''/></a></div><?php endif;?>
 <div class='pInfo'><h3><?php echo $this->eso->user["name"];?></h3></div></div>
 <div class='body'>
 
@@ -105,9 +106,9 @@ Settings.initAvatarForm();
 
 </div>
 </div></div>
-<div class='avatar'><img src='<?php
+<?php if($showAvatar):?><div class='avatar'><img src='<?php
 echo $this->eso->getAvatar($this->eso->user["memberId"],$this->eso->user["avatarFormat"],$this->eso->user["avatarAlignment"]=="right"?"r":"l"),"?",time();
-?>' alt=''/></div>
+?>' alt=''/></div><?php endif;?>
 <div class='clear'></div>
 </div>
 

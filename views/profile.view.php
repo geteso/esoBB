@@ -22,16 +22,18 @@
  * Profile view: displays a member's profile.
  */
 if(!defined("IN_ESO"))exit;
+$side=false;
+switch(!empty($this->eso->user["avatarAlignment"])?$this->eso->user["avatarAlignment"]:$_SESSION["avatarAlignment"]){case "right":$side="r";break;case "left":$side="l";break;case "none":break;default:$side="l";}
 ?>
 <fieldset>
 <legend><?php printf($language["profile"],$this->member["name"]);?></legend>
 
-<div class='p l c<?php echo $this->member["color"];?> profile'>
+<div class='p <?php if($side)echo $side." ";?>c<?php echo $this->member["color"];?> profile'>
 <div class='parts'>
 
 <div>
 <div class='hdr'>
-<div class='thumb'><a href='<?php echo makeLink("profile",$this->member["memberId"]);?>'><img src='<?php echo $this->eso->getAvatar($this->member["memberId"],$this->member["avatarFormat"],"thumb");?>' alt=''/></a></div>
+<?php if($side):?><div class='thumb'><a href='<?php echo makeLink("profile",$this->member["memberId"]);?>'><img src='<?php echo $this->eso->getAvatar($this->member["memberId"],$this->member["avatarFormat"],"thumb");?>' alt=''/></a></div><?php endif;?>
 <div class='pInfo'>
 <h3><?php echo $this->member["name"];?></h3>
 <?php if(!empty($this->eso->canChangeGroup($this->member["memberId"], $this->member["account"]))):?><form action='<?php echo curLink();?>' method='post'><div style='display:inline'><select onchange='Conversation.changeMemberGroup(<?php echo $this->member["memberId"];?>,this.value)' name='group'>
@@ -84,7 +86,7 @@ foreach($this->sections as $section):?>
 <?php endforeach;?>
 
 </div>
-<div class='avatar'><img src='<?php echo $this->eso->getAvatar($this->member["memberId"],$this->member["avatarFormat"],"l");?>' alt=''/><?php $this->callHook("profileInfo"); ?></div>
+<?php if($side):?><div class='avatar'><img src='<?php echo $this->eso->getAvatar($this->member["memberId"],$this->member["avatarFormat"],$side);?>' alt=''/><?php $this->callHook("profileInfo"); ?></div><?php else: $this->callHook("profileInfo"); endif;?>
 <div class='clear'></div>
 </div>
 
