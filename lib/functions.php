@@ -685,6 +685,7 @@ function writeFile($file, $contents)
 		@unlink($temp);
 		return false;
 	}
+	if (function_exists("opcache_invalidate")) @opcache_invalidate($file, true);
 	return true;
 }
 

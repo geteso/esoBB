@@ -2001,11 +2001,11 @@ addMember: function(name) {
 			getById("addMember").value = "";
 			disable(getById("addMemberSubmit"));
 			if (this.messages) return;
-			
 			// Update the members allowed list and show the private label.
 			getById("allowedList").innerHTML = this.result.list;
 			show(getElementsByClassName(getById("cLabels"), "private")[0]);
-		}, 
+			if (this.result.title && getById("cTitle") && getById("cTitle").placeholderFlag) makePlaceholder(getById("cTitle"), this.result.title);
+		},
 		"post": "action=addMember&member=" + encodeURIComponent(name) + (Conversation.id ? "&id=" + Conversation.id : "")
 	});
 },
@@ -2018,6 +2018,7 @@ removeMember: function(name) {
 			// Update the members allowed list and hide the private label.
 			getById("allowedList").innerHTML = this.result.list;
 			if (!this.result.private) hide(getElementsByClassName(getById("cLabels"), "private")[0]);
+			if (this.result.title && getById("cTitle") && getById("cTitle").placeholderFlag) makePlaceholder(getById("cTitle"), this.result.title);
 		},
 		"post": "action=removeMember&member=" + encodeURIComponent(name) + (Conversation.id ? "&id=" + Conversation.id : "")
 	});

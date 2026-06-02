@@ -542,7 +542,11 @@ function ajax()
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			if (!$this->conversation = $this->getConversation(isset($_POST["id"]) ? (int)$_POST["id"] : false)) return;
 			$this->conversation["membersAllowed"] =& $this->getMembersAllowed();
-			if ($this->addMember(@$_POST["member"])) return array("list" => $this->htmlMembersAllowedList($this->conversation["membersAllowed"]), "private" => $this->conversation["private"]);
+			if ($this->addMember(@$_POST["member"])) {
+				$response = array("list" => $this->htmlMembersAllowedList($this->conversation["membersAllowed"]), "private" => $this->conversation["private"]);
+				if (!$this->conversation["id"]) $response["title"] = $this->draftTitle();
+				return $response;
+			}
 			break;
 
 		// Remove a member from the membersAllowed list.
@@ -550,7 +554,11 @@ function ajax()
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			if (!$this->conversation = $this->getConversation(isset($_POST["id"]) ? (int)$_POST["id"] : false)) return;
 			$this->conversation["membersAllowed"] =& $this->getMembersAllowed();
-			if ($this->removeMember(@$_POST["member"])) return array("list" => $this->htmlMembersAllowedList($this->conversation["membersAllowed"]), "private" => $this->conversation["private"]);
+			if ($this->removeMember(@$_POST["member"])) {
+				$response = array("list" => $this->htmlMembersAllowedList($this->conversation["membersAllowed"]), "private" => $this->conversation["private"]);
+				if (!$this->conversation["id"]) $response["title"] = $this->draftTitle();
+				return $response;
+			}
 			break;
 
 		// Save conversation tags.
@@ -671,10 +679,7 @@ function getConversation($id = false)
 			"labels" => array(),
 			"private" => true,
 			"tags" => !empty($_POST["cTags"]) ? $_POST["cTags"] : $language["exampleTags"],
-			"title" => !empty($_POST["cTitle"]) ? $_POST["cTitle"] :
-				((!empty($_SESSION["membersAllowed"]) and is_array($_SESSION["membersAllowed"]))
-					? sprintf($language["Start a private conversation"], reset($_SESSION["membersAllowed"]))
-					: $language["Enter a conversation title"]),
+			"title" => !empty($_POST["cTitle"]) ? $_POST["cTitle"] : $this->draftTitle(),
 			"slug" => "",
 			"startMember" => $this->eso->user["memberId"],
 			"startMemberName" => $this->eso->user["name"],
@@ -691,6 +696,16 @@ function getConversation($id = false)
 		
 		return $conversation;
 	}
+}
+
+// Returns the placeholder title for an unsaved conversation based on whether any members
+// have been added to the allowed list.
+function draftTitle()
+{
+	global $language;
+	return (!empty($_SESSION["membersAllowed"]) and is_array($_SESSION["membersAllowed"]))
+		? sprintf($language["Start a private conversation"], reset($_SESSION["membersAllowed"]))
+		: $language["Enter a conversation title"];
 }
 
 // Get a list of the members allowed in the conversation.
@@ -1483,7 +1498,7 @@ function removeMember($memberId)
 		
 	// If there are no members left allowed in the conversation, then everyone can view the conversation.
 	if (!is_array($this->conversation["membersAllowed"]) or !count($this->conversation["membersAllowed"])) {
-		$this->conversation["membersAllowed"] = "Everyone";
+		$this->conversation["membersAllowed"] = array();
 		$this->conversation["private"] = false;
 		if (($k = array_search("private", $this->conversation["labels"])) !== false) unset($this->conversation["labels"][$k]);
 		

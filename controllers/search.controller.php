@@ -131,7 +131,7 @@ function init()
 	
 	// Define the columns of the search results table.
 	if ($this->eso->user) $this->resultsTable[] = array("class" => "star", "content" => "columnStar");
-	if (!empty($config["showAvatarThumbnails"]) and (isset($this->eso->user) and $this->eso->user["avatarAlignment"] != "none") or ($_SESSION["avatarAlignment"] != "none")) $this->resultsTable[] = array("class" => "avatar", "content" => "columnAvatar");
+	if (!empty($config["showAvatarThumbnails"]) and (!empty($this->eso->user["avatarAlignment"]) ? $this->eso->user["avatarAlignment"] : $_SESSION["avatarAlignment"]) != "none") $this->resultsTable[] = array("class" => "avatar", "content" => "columnAvatar");
 	$this->resultsTable[] = array("title" => $language["Conversation"], "class" => "conversation", "content" => "columnConversation");
 	$this->resultsTable[] = array("title" => $language["Posts"], "class" => "posts", "content" => "columnPosts");
 	$this->resultsTable[] = array("title" => $language["Started by"], "class" => "author", "content" => "columnAuthor");
