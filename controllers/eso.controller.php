@@ -413,7 +413,7 @@ function getStatistics()
 	$result = $this->db->query("SELECT (SELECT COUNT(*) FROM {$config["tablePrefix"]}posts),
 		(SELECT COUNT(*) FROM {$config["tablePrefix"]}conversations),
 		(SELECT COUNT(*) FROM {$config["tablePrefix"]}members),
-		(SELECT COUNT(*) FROM {$config["tablePrefix"]}members WHERE UNIX_TIMESTAMP()-{$config["userOnlineExpire"]}<lastSeen)");
+		(SELECT COUNT(*) FROM {$config["tablePrefix"]}members WHERE UNIX_TIMESTAMP()-{$config["userOnlineExpire"]}<lastSeen AND showOnline=1)");
 	list($posts, $conversations, $membersList, $membersOnline) = $this->db->fetchRow($result);
 	$result = array(
 		"posts" => number_format($posts) . " {$language["posts"]}",

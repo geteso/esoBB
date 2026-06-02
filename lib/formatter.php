@@ -65,6 +65,7 @@ function __construct()
 		"quote" => new Formatter_Quote($this),
 		"fixedBlock" => new Formatter_Fixed_Block($this),
 		"fixedInline" => new Formatter_Fixed_Inline($this),
+		"plaintext" => new Formatter_Plaintext($this),
 		"horizontalRule" => new Formatter_Horizontal_Rule($this),
 		"specialCharacters" => new Formatter_Special_Characters($this),
 		"whitespace" => new Formatter_Whitespace($this)
@@ -590,6 +591,50 @@ function fixedInline($match, $state)
 		case LEXER_UNMATCHED: $this->formatter->output .= $match;
 	}
 	return true;
+}
+
+}
+
+
+class Formatter_Plaintext {
+
+var $formatter;
+var $modes = array("plaintext_html", "plaintext_bbcode");
+
+function __construct(&$formatter)
+{
+	$this->formatter =& $formatter;
+}
+
+function format()
+{
+	$this->formatter->lexer->mapFunction("plaintext", array($this, "plaintext"));
+	$this->formatter->lexer->mapHandler("plaintext_html", "plaintext");
+	$this->formatter->lexer->mapHandler("plaintext_bbcode", "plaintext");
+
+	// Add these plaintext modes to the lexer - they are allowed in inline-level modes.
+	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["inline"]);
+	foreach ($allowedModes as $mode) {
+		$this->formatter->lexer->addEntryPattern('&lt;span&gt;(?=.*&lt;\/span&gt;)', $mode, "plaintext_html");
+		$this->formatter->lexer->addEntryPattern('\[(?:span|raw|plain)\](?=.*\[\/(?:span|raw|plain)])', $mode, "plaintext_bbcode");
+	}
+	$this->formatter->lexer->addExitPattern('&lt;\/span&gt;', "plaintext_html");
+	$this->formatter->lexer->addExitPattern('\[\/(?:span|raw|plain)]', "plaintext_bbcode");
+}
+
+function plaintext($match, $state)
+{
+	switch ($state) {
+		case LEXER_ENTER: $this->formatter->output .= "<span class='esc'>"; break;
+		case LEXER_EXIT: $this->formatter->output .= "</span>"; break;
+		case LEXER_UNMATCHED: $this->formatter->output .= $match;
+	}
+	return true;
+}
+
+function revert($string)
+{
+	return preg_replace("/<span class='esc'>(.*?)<\/span>/s", "&lt;span&gt;$1&lt;/span&gt;", $string);
 }
 
 }

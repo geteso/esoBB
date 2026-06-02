@@ -548,7 +548,8 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 		"avatarAlignment" => "alternate",
 		"avatarFormat" => "",
 		"disableJSEffects" => false,
-		"disableLinkAlerts" => false
+		"disableLinkAlerts" => false,
+		"showOnline" => true
 	);
 }
 
