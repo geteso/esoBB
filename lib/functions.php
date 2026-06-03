@@ -511,18 +511,20 @@ function sendEmail($to, $subject, $body)
 // Return a list of files and their contents from a zip file.
 function unzip($filename)
 {
-	$files = array();	
+	$files = array();
 	$handle = fopen($filename, "rb");
+	if (!$handle) return false;
 
-	// Seek to the end of central directory record.
 	$size = filesize($filename);
-    @fseek($handle, $size - 22);
-
 	// Error checking.
-	if (ftell($handle) != $size - 22) return false; // Can't seek to end of central directory?
-	// Check end of central directory signature.
-	$data = unpack("Vid", fread($handle, 4));
-	if ($data["id"] != 0x06054b50) return false;
+	if ($size < 22) {fclose($handle); return false;}
+	// Scan backwards through the last ~64 KiB for the 0x06054b50 signature.
+	$scanLen = min($size, 22 + 0xFFFF);
+	@fseek($handle, $size - $scanLen);
+	$tail = fread($handle, $scanLen);
+	$eocdPos = strrpos($tail, "\x50\x4b\x05\x06");
+	if ($eocdPos === false) {fclose($handle); return false;}
+	@fseek($handle, $size - $scanLen + $eocdPos + 4);
 
 	// Extract the central directory information.
 	$centralDir = unpack("vdisk/vdiskStart/vdiskEntries/ventries/Vsize/Voffset/vcommentSize", fread($handle, 18));

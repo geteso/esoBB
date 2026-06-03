@@ -40,9 +40,6 @@ small a, dt a {color:#55f}
 #bar li:not(li:last-child) > .vr {margin-right:4px}
 #bar li:not(li:first-child) > .vl::after {content:''; height:32px; width:1px; position:absolute; top:-6px; left:-4px; background-color:gray}
 #bar li:not(li:last-child) > .vr::after {content:''; height:32px; width:1px; position:absolute; top:-6px; right:-4px; background-color:gray}
-/* RSS button */
-#bar #rss .button {background:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNzUgMTc1Ij4KICA8Y2lyY2xlIGN4PSIyNCIgY3k9IjE1MSIgcj0iMjQiIGZpbGw9IiNmZmYiLz4KICA8cGF0aCBmaWxsPSIjZmZmIiBkPSJNMTE2IDE3NUg4MkE4MiA4MiAwIDAgMCAwIDkzVjU5YTExNiAxMTYgMCAwIDEgMTE2IDExNnoiLz4KICA8cGF0aCBmaWxsPSIjZmZmIiBkPSJNMTQwIDE3NUExNDAgMTQwIDAgMCAwIDAgMzVWMGExNzUgMTc1IDAgMCAxIDE3NSAxNzV6Ii8+Cjwvc3ZnPgo=') no-repeat center/13px, linear-gradient(#fdc855 25%, #fa9f15 50%, #f87602 50%, #fdb522 100%); width:19px; border:1px solid #db5605; border-radius:5px}
-#bar #rss .button input {visibility:hidden; color:#fff; text-shadow:#db5605 0 -1px}
 
 /* Body */
 #body {background:linear-gradient(#cdcdcd, #fff); background-repeat:no-repeat; background-size:100% 90px}

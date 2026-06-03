@@ -455,6 +455,18 @@ function normalizePackageEntryPath($path)
 	return $isDirectory ? "$safePath/" : $safePath;
 }
 
+// Extract the class name declared in a plugin/skin package.
+// Anchors on the $parent class so that helpers in the same file don't match.
+function extractPackageClassName($content, $parent)
+{
+	if (!is_string($content) or $content === "") return false;
+	$pattern = '/\bclass\s+([A-Za-z_]\w*)\s+extends\s+' . preg_quote($parent, "/") . '\b/';
+	if (!preg_match($pattern, $content, $m)) return false;
+	$className = $m[1];
+	if (!preg_match('/^[A-Za-z_]\w*$/', $className)) return false;
+	return $className;
+}
+
 // Install an uploaded language pack.
 function installLanguage()
 {
@@ -634,81 +646,116 @@ function installPlugin()
 	}
 	
 	// Unzip the plugin. If we can't, show an error.
-	if (!($files = unzip($archivePath))) $this->eso->message("invalidPlugin");
-	else {
-		
-		// Loop through the files in the zip and make sure it's a valid plugin.
-		$directories = 0; $pluginFound = false; $unsafePackage = false;
-		foreach ($files as $k => $file) {
-			
-			// Strip out annoying Mac OS X files!
-			if (substr($file["name"], 0, 9) == "__MACOSX/" or substr($file["name"], -9) == ".DS_Store") {
-				unset($files[$k]);
-				continue;
-			}
+	if (!($files = unzip($archivePath))) {
+		$this->eso->message("invalidPlugin");
+		@unlink($archivePath);
+		return false;
+	}
 
-			$safeName = $this->normalizePackageEntryPath($file["name"]);
-			if ($safeName === false) {
-				$unsafePackage = true;
-				break;
-			}
-			$files[$k]["safeName"] = $safeName;
-			
-			// If the zip has more than one base directory, it's not a valid plugin.
-			if ($file["directory"] and substr_count($safeName, "/") < 2) $directories++;
-			
-			// Make sure there's an actual plugin file in there.
-			if (substr($safeName, -10) == "plugin.php") $pluginFound = true;
+	// Sanitize each entry's path and locate plugin.php (depth 0 or 1).
+	$unsafePackage = false; $descriptor = null;
+	foreach ($files as $k => $file) {
+
+		// Strip out annoying Mac OS X files!
+		if (substr($file["name"], 0, 9) == "__MACOSX/" or substr($file["name"], -9) == ".DS_Store") {
+			unset($files[$k]);
+			continue;
 		}
 
-		if ($unsafePackage) {
+		$safeName = $this->normalizePackageEntryPath($file["name"]);
+		if ($safeName === false) {
+			$unsafePackage = true;
+			break;
+		}
+		$files[$k]["safeName"] = $safeName;
+
+		// Identify plugin.php at the root of the package (or its single wrapping folder).
+		if (!$file["directory"] and ($safeName === "plugin.php"
+			or (substr($safeName, -11) === "/plugin.php" and substr_count($safeName, "/") === 1))) {
+			$descriptor = $files[$k];
+		}
+	}
+
+	if ($unsafePackage or !$descriptor) {
+		$this->eso->message("invalidPlugin");
+		@unlink($archivePath);
+		return false;
+	}
+
+	// Derive the wrapping prefix from context.
+	$slashPos = strpos($descriptor["safeName"], "/");
+	$originalPrefix = $slashPos === false ? "" : substr($descriptor["safeName"], 0, $slashPos + 1);
+
+	// Every other entry must live under that same prefix!
+	foreach ($files as $file) {
+		$name = $file["safeName"];
+		if ($originalPrefix === "") {
+			if (strpos($name, "/") !== false) {
+				$this->eso->message("invalidPlugin");
+				@unlink($archivePath);
+				return false;
+			}
+		} elseif (substr($name, 0, strlen($originalPrefix)) !== $originalPrefix) {
 			$this->eso->message("invalidPlugin");
 			@unlink($archivePath);
 			return false;
 		}
-		
-		// OK, this plugin in valid!
-		if ($pluginFound and $directories == 1) {
-			
-			// Loop through plugin files and write them to the plugins directory.
-			$error = false;
-			foreach ($files as $k => $file) {
-				$targetPath = "plugins/{$file["safeName"]}";
-				
-				// Make a directory if it doesn't exist!
-				if ($file["directory"]) {
-					$directoryPath = rtrim($targetPath, "/");
-					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
-						$this->eso->message("notWritable", false, $directoryPath);
-						$error = true;
-						break;
-					}
-				}
-				
-				// Write a file.
-				elseif (!$file["directory"]) {
-					$directoryPath = dirname($targetPath);
-					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
-						$this->eso->message("notWritable", false, $directoryPath);
-						$error = true;
-						break;
-					}
-					if (!writeFile($targetPath, $file["content"])) {
-						$this->eso->message("notWritable", false, $targetPath);
-						$error = true;
-						break;
-					}
-				}
-			}
-			
-			// Everything copied over correctly - success!
-			if (!$error) $this->eso->message("pluginAdded");
-		}
-		
-		// Hmm, something went wrong. Show an error.
-		else $this->eso->message("invalidPlugin");
 	}
-	
+
+	// Obtain the class name from plugin.php and use it as the install directory.
+	$className = $this->extractPackageClassName($descriptor["content"], "Plugin");
+	if (!$className) {
+		$this->eso->message("invalidPlugin");
+		@unlink($archivePath);
+		return false;
+	}
+
+	// Refuse if a plugin with this class is already installed.
+	if (is_dir("plugins/$className")) {
+		$this->eso->message("pluginAlreadyInstalled", false, $className);
+		@unlink($archivePath);
+		return false;
+	}
+
+	foreach ($files as $k => $file) {
+		$tail = $originalPrefix === "" ? $file["safeName"] : substr($file["safeName"], strlen($originalPrefix));
+		$files[$k]["safeName"] = "$className/" . $tail;
+	}
+
+	// Loop through plugin files and write them to the plugins directory.
+	$error = false;
+	foreach ($files as $k => $file) {
+		$targetPath = "plugins/{$file["safeName"]}";
+
+		// Make a directory if it doesn't exist!
+		if ($file["directory"]) {
+			$directoryPath = rtrim($targetPath, "/");
+			if ($directoryPath !== "" and !is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+				$this->eso->message("notWritable", false, $directoryPath);
+				$error = true;
+				break;
+			}
+		}
+
+		// Write a file.
+		else {
+			$directoryPath = dirname($targetPath);
+			if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+				$this->eso->message("notWritable", false, $directoryPath);
+				$error = true;
+				break;
+			}
+			if (!writeFile($targetPath, $file["content"])) {
+				$this->eso->message("notWritable", false, $targetPath);
+				$error = true;
+				break;
+			}
+		}
+	}
+
+	// Everything copied over correctly - success!
+	if (!$error) $this->eso->message("pluginAdded");
+
 	// Delete the temporarily uploaded plugin file.
 	@unlink($archivePath);
 }
@@ -791,81 +838,116 @@ function installSkin()
 	}
 
 	// Unzip the skin. If we can't, show an error.
-	if (!($files = unzip($archivePath))) $this->eso->message("invalidSkin");
-	else {
-		
-		// Loop through the files in the zip and make sure it's a valid skin.
-		$directories = 0; $skinFound = false; $unsafePackage = false;
-		foreach ($files as $k => $file) {
+	if (!($files = unzip($archivePath))) {
+		$this->eso->message("invalidSkin");
+		@unlink($archivePath);
+		return false;
+	}
 
-			// Strip out annoying Mac OS X files!
-			if (substr($file["name"], 0, 9) == "__MACOSX/" or substr($file["name"], -9) == ".DS_Store") {
-				unset($files[$k]);
-				continue;
-			}
+	// Sanitize each entry's path and locate skin.php (depth 0 or 1).
+	$unsafePackage = false; $descriptor = null;
+	foreach ($files as $k => $file) {
 
-			$safeName = $this->normalizePackageEntryPath($file["name"]);
-			if ($safeName === false) {
-				$unsafePackage = true;
-				break;
-			}
-			$files[$k]["safeName"] = $safeName;
-
-			// If the zip has more than one base directory, it's not a valid skin.
-			if ($file["directory"] and substr_count($safeName, "/") < 2) $directories++;
-
-			// Make sure there's an actual skin file in there.
-			if (substr($safeName, -8) == "skin.php") $skinFound = true;
+		// Strip out annoying Mac OS X files!
+		if (substr($file["name"], 0, 9) == "__MACOSX/" or substr($file["name"], -9) == ".DS_Store") {
+			unset($files[$k]);
+			continue;
 		}
 
-		if ($unsafePackage) {
+		$safeName = $this->normalizePackageEntryPath($file["name"]);
+		if ($safeName === false) {
+			$unsafePackage = true;
+			break;
+		}
+		$files[$k]["safeName"] = $safeName;
+
+		// Identify skin.php at the root of the package (or its single wrapping folder).
+		if (!$file["directory"] and ($safeName === "skin.php"
+			or (substr($safeName, -9) === "/skin.php" and substr_count($safeName, "/") === 1))) {
+			$descriptor = $files[$k];
+		}
+	}
+
+	if ($unsafePackage or !$descriptor) {
+		$this->eso->message("invalidSkin");
+		@unlink($archivePath);
+		return false;
+	}
+
+	// Derive the wrapping prefix from context.
+	$slashPos = strpos($descriptor["safeName"], "/");
+	$originalPrefix = $slashPos === false ? "" : substr($descriptor["safeName"], 0, $slashPos + 1);
+
+	// Every other entry must live under that same prefix!
+	foreach ($files as $file) {
+		$name = $file["safeName"];
+		if ($originalPrefix === "") {
+			if (strpos($name, "/") !== false) {
+				$this->eso->message("invalidSkin");
+				@unlink($archivePath);
+				return false;
+			}
+		} elseif (substr($name, 0, strlen($originalPrefix)) !== $originalPrefix) {
 			$this->eso->message("invalidSkin");
 			@unlink($archivePath);
 			return false;
 		}
-
-		// OK, this skin in valid!
-		if ($skinFound and $directories == 1) {
-
-			// Loop through skin files and write them to the skins directory.
-			$error = false;
-			foreach ($files as $k => $file) {
-				$targetPath = "skins/{$file["safeName"]}";
-
-				// Make a directory if it doesn't exist!
-				if ($file["directory"]) {
-					$directoryPath = rtrim($targetPath, "/");
-					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
-						$this->eso->message("notWritable", false, $directoryPath);
-						$error = true;
-						break;
-					}
-				}
-
-				// Write a file.
-				elseif (!$file["directory"]) {
-					$directoryPath = dirname($targetPath);
-					if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
-						$this->eso->message("notWritable", false, $directoryPath);
-						$error = true;
-						break;
-					}
-					if (!writeFile($targetPath, $file["content"])) {
-						$this->eso->message("notWritable", false, $targetPath);
-						$error = true;
-						break;
-					}
-				}
-			}
-			
-			// Everything copied over correctly - success!
-			if (!$error) $this->eso->message("skinAdded");
-		}
-		
-		// Hmm, something went wrong. Show an error.
-		else $this->eso->message("invalidSkin");
 	}
-	
+
+	// Obtain the class name from skin.php and use it as the install directory.
+	$className = $this->extractPackageClassName($descriptor["content"], "Skin");
+	if (!$className) {
+		$this->eso->message("invalidSkin");
+		@unlink($archivePath);
+		return false;
+	}
+
+	// Refuse if a skin with this class is already installed.
+	if (is_dir("skins/$className")) {
+		$this->eso->message("skinAlreadyInstalled", false, $className);
+		@unlink($archivePath);
+		return false;
+	}
+
+	foreach ($files as $k => $file) {
+		$tail = $originalPrefix === "" ? $file["safeName"] : substr($file["safeName"], strlen($originalPrefix));
+		$files[$k]["safeName"] = "$className/" . $tail;
+	}
+
+	// Loop through skin files and write them to the skins directory.
+	$error = false;
+	foreach ($files as $k => $file) {
+		$targetPath = "skins/{$file["safeName"]}";
+
+		// Make a directory if it doesn't exist!
+		if ($file["directory"]) {
+			$directoryPath = rtrim($targetPath, "/");
+			if ($directoryPath !== "" and !is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+				$this->eso->message("notWritable", false, $directoryPath);
+				$error = true;
+				break;
+			}
+		}
+
+		// Write a file.
+		else {
+			$directoryPath = dirname($targetPath);
+			if (!is_dir($directoryPath) and !mkdir($directoryPath, 0755, true)) {
+				$this->eso->message("notWritable", false, $directoryPath);
+				$error = true;
+				break;
+			}
+			if (!writeFile($targetPath, $file["content"])) {
+				$this->eso->message("notWritable", false, $targetPath);
+				$error = true;
+				break;
+			}
+		}
+	}
+
+	// Everything copied over correctly - success!
+	if (!$error) $this->eso->message("skinAdded");
+
 	// Delete the temporarily uploaded skin file.
 	@unlink($archivePath);
 }

@@ -202,6 +202,15 @@ function upgrade_100e1()
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD INDEX members_lastSeen (lastSeen)");
 	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}conversations WHERE Key_name='conversations_private_posts'"))
 		$this->query("ALTER TABLE {$config["tablePrefix"]}conversations ADD INDEX conversations_private_posts (private, posts)");
+
+	// Enable the Feed plugin so that RSS functionality doesn't break.
+	if (file_exists("../config/plugins.php")) {
+		include "../config/plugins.php";
+		if (!in_array("Feed", (array)@$config["loadedPlugins"])) {
+			$config["loadedPlugins"][] = "Feed";
+			writeConfigFile("../config/plugins.php", '$config["loadedPlugins"]', $config["loadedPlugins"]);
+		}
+	}
 }
 
 // 1.0.0 delta 2 -> 1.0.0 delta 3

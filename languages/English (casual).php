@@ -261,7 +261,6 @@ $language = array(
 "restore" => "restore",
 "Require email approval" => "Require email approval",
 "Require manual approval" => "Require manual approval",
-"RSS" => "RSS",
 
 "Sample captcha image" => "Sample captcha image",
 "Save changes" => "Save changes",
@@ -503,6 +502,7 @@ $messages = array(
 "passwordsDontMatch" => array("class" => "warning", "message" => "Your passwords do not match."),
 "passwordTooShort" => array("class" => "warning", "message" => "Your password must be at least {$config["minPasswordLength"]} characters."),
 "pluginAdded" => array("class" => "success", "message" => "The plugin was successfully added!"),
+"pluginAlreadyInstalled" => array("class" => "warning", "message" => "A plugin named <code>%s</code> is already installed. Remove it first if you want to reinstall or upgrade."),
 "pluginCannotBeEnabled" => array("class" => "warning", "message" => "The plugin <em>%s</em> cannot be enabled: %s"),
 "postTooLong" => array("class" => "warning", "message" => "Your post is really, really long! Too long! The maximum number of characters allowed is " . number_format($config["maxCharsPerPost"]) . ". That's really long!"),
 "reenterInformation" => array("class" => "info", "message" => "Please reenter this information."),
@@ -511,6 +511,7 @@ $messages = array(
 "sendEmailDisabled" => array("class" => "warning", "message" => "Sadly, email sending is disabled on this forum. I mean, you can always ask the forum administrator to configure it."),
 "setNewPassword" => array("class" => "info", "message" => "Alright! Now, what do you want your new password to be?"),
 "skinAdded" => array("class" => "success", "message" => "The skin was successfully added!"),
+"skinAlreadyInstalled" => array("class" => "warning", "message" => "A skin named <code>%s</code> is already installed. Remove it first if you want to reinstall or upgrade."),
 "suspended" => array("class" => "warning", "message" => "Ouch! A forum moderator has <strong>suspended</strong> your account. It sucks, but until the suspension is lifted you won't be able to do much around here. Hey, screw them!"),
 "unvalidated" => array("class" => "warning", "message" => "Your account still needs to be validated before you can do anything on this forum. Go check out your <a href='" . makeLink("settings") . "'>settings</a> for instructions on how to validate your account."),
 "updatesAvailable" => array("class" => "info", "message" => "A new version of esoBB (<strong>%s</strong>) is available for download. You have version {$versions["eso"]}. <strong><a href='https://geteso.org/download'>Get it now</a></strong>!"),

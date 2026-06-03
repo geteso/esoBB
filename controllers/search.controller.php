@@ -164,10 +164,7 @@ function init()
 		$this->eso->addLanguageToJS("Starred", "Unstarred", array("gambits", "member"), array("gambits", "tag:"), array("gambits", "more results"));
 		$this->eso->addVarToJS("updateCurrentResultsInterval", $config["updateCurrentResultsInterval"]);
 		$this->eso->addVarToJS("checkForNewResultsInterval", $config["checkForNewResultsInterval"]);
-		
-		// Add a link to the RSS feed in the bar.
-		$this->eso->addToBar("right", "<a href='" . makeLink("feed") . "' id='rss' class='vl'><span class='button buttonSmall'><input type='submit' value='{$language["RSS"]}'></span></a>", 500);
-		
+
 		// Update the user's last action.
 		$this->eso->updateLastAction("");
 		

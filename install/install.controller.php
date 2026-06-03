@@ -493,7 +493,7 @@ function doInstall()
 	writeConfigFile("../config/config.php", '$config', $config);
 	
 	// Write the plugins.php file, which contains plugins enabled by default.
-	$enabledPlugins = array("Emoticons");
+	$enabledPlugins = array("Emoticons", "Feed");
 	if ((extension_loaded("gd") or extension_loaded("gd2")) and function_exists("imagettftext"))
 		$enabledPlugins[] = "Captcha";
 	if (!file_exists("../config/plugins.php")) writeConfigFile(PATH_CONFIG."/plugins.php", '$config["loadedPlugins"]', $enabledPlugins);

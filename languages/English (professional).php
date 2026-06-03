@@ -261,7 +261,6 @@ $language = array(
 "restore" => "restore",
 "Require email approval" => "Require email approval",
 "Require manual approval" => "Require manual approval",
-"RSS" => "RSS",
 
 "Sample captcha image" => "Sample captcha image",
 "Save changes" => "Save changes",
@@ -502,6 +501,7 @@ $messages=array(
 "passwordsDontMatch" => array("class" => "warning","message" => "Your passwords do not match"),
 "passwordTooShort" => array("class" => "warning","message" => "Your password must be at least {$config["minPasswordLength"]} characters"),
 "pluginAdded" => array("class" => "success","message" => "The plugin was successfully added."),
+"pluginAlreadyInstalled" => array("class" => "warning","message" => "A plugin named <code>%s</code> is already installed. Please remove the existing installation before proceeding."),
 "pluginCannotBeEnabled" => array("class" => "warning","message" => "The plugin <em>%s</em> cannot be enabled: %s"),
 "postTooLong" => array("class" => "warning","message" => "Your post is too long. The maximum number of characters allowed is ".number_format($config["maxCharsPerPost"]).". Please shorten your post and re-submit."),
 "reenterInformation" => array("class" => "info","message" => "Please reenter this information."),
@@ -510,6 +510,7 @@ $messages=array(
 "sendEmailDisabled" => array("class" => "warning", "message" => "Email sending has been disabled on this forum. To reset your password, contact the forum administrator."),
 "setNewPassword" => array("class" => "info","message" => "Please choose a new password."),
 "skinAdded" => array("class" => "success","message" => "The skin was successfully added."),
+"skinAlreadyInstalled" => array("class" => "warning","message" => "A skin named <code>%s</code> is already installed. Please remove the existing installation before proceeding."),
 "suspended" => array("class" => "warning","message" => "A forum moderator has <strong>suspended</strong> your account. Until the suspension is lifted you will not be able to perform many actions on this forum."),
 "updatesAvailable" => array("class" => "info","message" => "A new version of the forum (<strong>%s</strong>) is available for download. You have version {$versions["eso"]}. You may <strong><a href='https://geteso.org/download'>download it now</a></strong> or <a href='' onclick='Messages.hide();return false'>dismiss this message</a>."),
 "verifyEmail" => array("class" => "success","message" => "Before you can start using your newly-created account, you'll need to verify your email address. Within the next minute or two you should receive an email from us containing a link to activate your account. <strong>Check your spam folder</strong> if you don't receive this email shortly."),
