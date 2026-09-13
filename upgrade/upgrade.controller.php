@@ -206,8 +206,8 @@ function upgrade_100e1()
 	// Enable the Feed plugin so that RSS functionality doesn't break.
 	if (file_exists("../config/plugins.php")) {
 		include "../config/plugins.php";
-		if (!in_array("Feed", (array)@$config["loadedPlugins"])) {
-			$config["loadedPlugins"][] = "Feed";
+		if (!in_array("Feeds", (array)@$config["loadedPlugins"])) {
+			$config["loadedPlugins"][] = "Feeds";
 			writeConfigFile("../config/plugins.php", '$config["loadedPlugins"]', $config["loadedPlugins"]);
 		}
 	}

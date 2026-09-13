@@ -20,12 +20,12 @@
 if (!defined("IN_ESO")) exit;
 
 /**
- * Feed plugin: serves a feed in the Atom format containing recent posts.
+ * Feeds plugin: serves a feed in the Atom format containing recent posts.
  */
-class Feed extends Plugin {
+class Feeds extends Plugin {
 
-var $id = "Feed";
-var $name = "Feed";
+var $id = "Feeds";
+var $name = "Feeds";
 var $version = "1.0";
 var $description = "Provides an Atom/RSS feed containing recent posts";
 var $author = "the esoBB team";
@@ -34,7 +34,7 @@ function init()
 {
 	parent::init();
 
-	$this->eso->skin->registerView("feed.view.php", PATH_PLUGINS."/Feed/feed.view.php");
+	$this->eso->skin->registerView("feed.view.php", PATH_PLUGINS."/Feeds/feed.view.php");
 
 	// Add a language string and stylesheet.
 	$this->eso->addLanguage("RSS", "RSS");
@@ -44,7 +44,7 @@ function init()
 	$this->eso->addHook("head", array($this, "addFeedTags"));
 
 	if (@$_GET["q1"] == "feed") {
-		$this->eso->registerController("feed", PATH_PLUGINS."/Feed/feed.controller.php");
+		$this->eso->registerController("feed", PATH_PLUGINS."/Feeds/feed.controller.php");
 		return;
 	}
 
