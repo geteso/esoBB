@@ -457,7 +457,7 @@ function normalizePackageEntryPath($path)
 
 // Extract the class name declared in a plugin/skin package.
 // Anchors on the $parent class so that helpers in the same file don't match.
-function extractPackageClassName($content, $parent)
+function getPackageClassName($content, $parent)
 {
 	if (!is_string($content) or $content === "") return false;
 	$pattern = '/\bclass\s+([A-Za-z_]\w*)\s+extends\s+' . preg_quote($parent, "/") . '\b/';
@@ -703,7 +703,7 @@ function installPlugin()
 	}
 
 	// Obtain the class name from plugin.php and use it as the install directory.
-	$className = $this->extractPackageClassName($descriptor["content"], "Plugin");
+	$className = $this->getPackageClassName($descriptor["content"], "Plugin");
 	if (!$className) {
 		$this->eso->message("invalidPlugin");
 		@unlink($archivePath);
@@ -766,6 +766,15 @@ var $skins = array();
 function skinsInit()
 {	
 	global $language, $config;
+
+	$preview = @$_GET["preview"];
+	if (!empty($preview) and preg_match('/^[A-Za-z0-9_]+$/', $preview)
+		and is_dir("skins/$preview") and file_exists("skins/$preview/skin.php")
+		and file_exists("skins/$preview/styles.css")) {
+		$this->previewSkin($preview);
+		exit;
+	}
+
 	$this->title = $language["Skins"];
 	$this->subView = "admin/skins.php";
 	
@@ -800,6 +809,154 @@ function skinsInit()
 	
 	// Activate a skin in necessary.
 	if (!empty($_GET["q3"]) and $this->eso->validateToken(@$_GET["token"])) $this->changeSkin($_GET["q3"]);
+}
+
+function previewSkin($name)
+{
+	global $config;
+
+	@include_once "skins/$name/skin.php";
+	if (!class_exists($name)) return;
+	$skin = new $name;
+
+	$logoFile = "";
+	if (isset($skin->logo) and file_exists("skins/$name/{$skin->logo}")) $logoFile = $skin->logo;
+	elseif (file_exists("skins/$name/logo.svg")) $logoFile = "logo.svg";
+	elseif (file_exists("skins/$name/logo.png")) $logoFile = "logo.png";
+
+	$base = htmlspecialchars($config["baseURL"], ENT_QUOTES);
+	$nameE = htmlspecialchars($name, ENT_QUOTES);
+	$baseCssVer = @filemtime("skins/base.css") ?: 0;
+	$skinCssVer = @filemtime("skins/$name/styles.css") ?: 0;
+	$logoUrl = $logoFile ? $base . "skins/$nameE/" . htmlspecialchars($logoFile, ENT_QUOTES) : "";
+
+	while (ob_get_level()) ob_end_clean();
+	header("Content-Type: text/html; charset=UTF-8");
+	header("X-Frame-Options: SAMEORIGIN");
+?>
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'/>
+<meta name='viewport' content='width=1100, initial-scale=1'/>
+<title>Skin preview: <?php echo $nameE; ?></title>
+<link rel='stylesheet' href='<?php echo $base; ?>skins/base.css?v=<?php echo $baseCssVer; ?>'/>
+<link rel='stylesheet' href='<?php echo $base; ?>skins/<?php echo $nameE; ?>/styles.css?v=<?php echo $skinCssVer; ?>'/>
+<style>
+html,body{overflow:hidden}
+body{pointer-events:none;user-select:none;-webkit-user-select:none}
+a{cursor:default}
+</style>
+</head>
+<body>
+<div id='wrapper'>
+
+<div id='header'>
+<div id='hdr'>
+<h1 id='hasForumDescription'>
+<a href='#'>
+<?php if ($logoUrl): ?><img src='<?php echo $logoUrl; ?>' alt=''/><?php endif; ?>
+<span id='forumTitle'>e.g. Simon's Krav Maga Forum<small id='forumDescription'>e.g. some short forum description</small></span>
+</a>
+</h1>
+<p id='stats'>
+<span>3 conversations</span><br/>
+<span>3 posts</span><br/>
+<span>1 member online</span>
+</p>
+</div>
+<div id='bar'>
+<ul class='fl'>
+<li><strong><a href='#'>Home</a></strong></li>
+<li><a href='#'>My settings</a></li>
+<li><a href='#'>Dashboard</a></li>
+<li><a href='#'>Logout</a></li>
+</ul>
+</div>
+</div>
+
+<div id='body'>
+<div id='body-content'>
+
+<div id='tagArea'>
+<p id='tags'>
+<a href='#' class='s2'>administration</a>
+<a href='#' class='s2'>customization</a>
+<a href='#' class='s2'>eso</a>
+<a href='#' class='s2'>faq</a>
+<a href='#' class='s2'>howto</a>
+<a href='#' class='s2'>introduction</a>
+<a href='#' class='s2'>tutorial</a>
+<a href='#' class='s2'>welcome</a>
+</p>
+<p id='gambits'>
+<a href='#'>active last 7 days</a>
+<a href='#'>active last 1 hour</a>
+<a href='#'>active today</a>
+<a href='#'>author</a>
+<a href='#'>author/myself</a>
+<a href='#'>contributor</a>
+<a href='#'>contributor/myself</a>
+<a href='#'>dead</a>
+<a href='#' class='draftText'>draft</a>
+<a href='#'>has &gt;10 posts</a>
+<a href='#'>has replies</a>
+<a href='#'>most recent</a>
+<a href='#'>order by newest</a>
+<a href='#'>order by oldest</a>
+<a href='#' class='privateText'>private</a>
+<a href='#'>random</a>
+<a href='#'>reverse</a>
+<a href='#' class='starredText'>starred</a>
+<a href='#' class='stickyText'>sticky</a>
+<a href='#'>unread</a>
+</p>
+</div>
+
+<form id='search' class='withStartConversation' action='#'>
+<div>
+<input id='searchText' type='text' class='text' value='' spellcheck='false'/>
+<div class='fr'>
+<a id='reset' href='#'>x</a>
+<span class='button big' id='submit'><input type='submit' value='Search!'/></span>
+<span class='button big' id='new'><input type='submit' value='Start a conversation'/></span>
+</div>
+</div>
+</form>
+
+<div id='searchResults'>
+<table cellspacing='0' cellpadding='2' class='c'>
+<thead>
+<tr><th class='star'>&nbsp;</th><th class='conversation'>Conversation</th><th class='posts'>Posts</th></tr>
+</thead>
+<tbody>
+<tr class='c0 starred'>
+<td class='star'><span class='star1'><span>&nbsp;</span></span></td>
+<td class='conversation'><strong><a href='#'>Welcome to esoBB!</a></strong><br/><small class='tags'>introduction, welcome</small></td>
+<td class='posts'><span class='postCount p3'>1</span></td>
+</tr>
+<tr class='c0'>
+<td class='star'><span class='star0'><span>&nbsp;</span></span></td>
+<td class='conversation'><strong><a href='#'>How to use your forum</a></strong><br/><small class='tags'>eso, faq, tutorial</small></td>
+<td class='posts'><span class='postCount p3'>1</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+</div>
+</div>
+
+<div id='ftr'>
+<div id='ftr-content'>
+<p id='copyright'>Powered by <a href='#'>esoBB</a></p>
+</div>
+</div>
+
+</div>
+</body>
+</html>
+<?php
 }
 
 // Change the skin.
@@ -895,7 +1052,7 @@ function installSkin()
 	}
 
 	// Obtain the class name from skin.php and use it as the install directory.
-	$className = $this->extractPackageClassName($descriptor["content"], "Skin");
+	$className = $this->getPackageClassName($descriptor["content"], "Skin");
 	if (!$className) {
 		$this->eso->message("invalidSkin");
 		@unlink($archivePath);

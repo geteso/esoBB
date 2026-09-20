@@ -1035,7 +1035,7 @@ function getEditArea($postId, $content)
 	$html = "<form action='" . curLink() . "' method='post' enctype='multipart/form-data'><div class='widthFixer'>
 <input type='hidden' name='token' value='{$_SESSION["token"]}'/>
 <textarea cols='100' rows='10' id='p$postId-textarea' name='content'>$content</textarea>
-<div id='p$postId-preview'></div>
+<div id='p$postId-preview' class='preview'></div>
 </div>
 <div class='editButtons'>
 " . $this->eso->skin->button(array("name" => "cancel", "class" => "big", "value" => $language["Cancel"], "onclick" => "Conversation.cancelEdit($postId);return false", "tabindex" => "-1")) . "
