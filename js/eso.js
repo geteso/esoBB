@@ -2179,24 +2179,24 @@ togglePreview: function(id, preview) {
 	// If the preview box is checked...
 	if (preview) {
 		
+		var preview = getById(id + "-preview");
+		var textarea = getById(id + "-textarea");
+
+		// Keep the minimum height - won't work in IE. :(
+		preview.style.minHeight = textarea.offsetHeight + "px";
+		preview.innerHTML = "";
 		// Hide the formatting buttons.
 		hide(getElementsByClassName(getById(id), "formattingButtons")[0]);
-		getById(id + "-preview").innerHTML = "";
-		
+		hide(textarea);
+		show(preview);
+
 		// Get the formatted post and show it.
 		Ajax.request({
 			"url": eso.baseURL + "ajax.php?controller=conversation",
 			"success": function() {
-
-				// Keep the minimum height - won't work in IE. :(
-				getById(id + "-preview").style.minHeight = getById(id + "-textarea").offsetHeight + "px";
-				
-				// Hide the textarea, and show the preview.
-				hide(getById(id + "-textarea"));
-				show(getById(id + "-preview"));
-				getById(id + "-preview").innerHTML = this.result;
+				preview.innerHTML = this.result;
 			},
-			"post": "action=getPostFormatted&content=" + encodeURIComponent(getById(id + "-textarea").value)
+			"post": "action=getPostFormatted&content=" + encodeURIComponent(textarea.value)
 		});
 	}
 	

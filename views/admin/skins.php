@@ -36,7 +36,8 @@ foreach ($this->skins as $k => $skin): ?>
 <li<?php if ($skin["selected"]): ?> class='enabled'<?php endif; ?>>
 <a href='<?php echo makeLink("admin", "skins", $k, "?token={$_SESSION["token"]}"); ?>'>
 <span class='preview'>
-<?php if ($skin["preview"]): ?><img src='skins/<?php echo $k; ?>/<?php echo $skin["preview"]; ?>' alt='<?php echo $skin["name"]; ?>'/>
+<?php if (file_exists("skins/$k/styles.css")): ?><iframe src='<?php echo makeLink("admin", "skins", "?preview=" . urlencode($k)); ?>' title='<?php echo $skin["name"]; ?>' loading='lazy' scrolling='no' tabindex='-1' aria-hidden='true'></iframe>
+<?php elseif ($skin["preview"]): ?><img src='skins/<?php echo $k; ?>/<?php echo $skin["preview"]; ?>' alt='<?php echo $skin["name"]; ?>'/>
 <?php else: ?><span><?php echo $language["No preview"]; ?></span>
 <?php endif; ?>
 </span>
@@ -74,3 +75,23 @@ else: ?>
 <?php echo $this->eso->htmlMessage("noUploadingPackages"); ?>
 </fieldset>
 <?php endif; ?>
+
+<script>
+// Scale the skin preview iframe: adjust CSS transform value on resize
+(function() {
+	var width = 650; //px
+	var fit = function(p) {
+		var f = p.querySelector('iframe');
+		if (f) f.style.transform = 'scale(' + (p.clientWidth / width) + ')';
+	};
+	var element = document.querySelectorAll('#skins .preview');
+	if (window.ResizeObserver) {
+		var ro = new ResizeObserver(function(es) { es.forEach(function(e) { fit(e.target); }); });
+		element.forEach(function(p) { ro.observe(p); fit(p); });
+	} else {
+		var all = function() { element.forEach(fit); };
+		window.addEventListener('resize', all);
+		all();
+	}
+})();
+</script>

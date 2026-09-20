@@ -88,7 +88,7 @@ a.s5 {font-size:90%}
 #submit input {font-size:100%; margin-left:-5px; padding-left:8px; width:5.5em}
 #new {float:right; font-size:100%}
 #new input {font-size:100%; width:10.5em}
-#reset {display:block; float:left; height:27px; line-height:23px; overflow:hidden; text-align:center; width:1.5em}
+#reset {display:block; float:left; height:27px; line-height:24px; overflow:hidden; text-align:center; width:1.5em}
 
 /* Messages */
 #messages .msg {margin:0}
@@ -211,10 +211,13 @@ hr {display:none}
 .p .edit {padding:10px 10px 10px 10px}
 .r .edit {padding:10px 10px 10px 0; padding-left:10px}
 .l .edit {padding:10px 0 10px 10px; padding-right:10px}
-.p .body textarea {height:25em; width:fill-available; width:-webkit-fill-available; width:-moz-available}
+.p .body textarea {height:25em; display:block; width:fill-available; width:-webkit-fill-available; width:-moz-available}
+.p .body textarea, .preview {margin-bottom:3px}
+@supports (-moz-appearance:none) {.preview {margin-bottom:4px}}
 .p .editButtons {text-align:right}
-#reply-preview p {text-align:justify}
+.preview p {word-wrap:break-word; text-align:justify}
 #discardDraft, #submitPost {margin-left:3px}
+#reply .hdr {min-height:16.6px}
 
 /* Formatting buttons */
 .p .controls {margin:-1px 0 -3px 0}
@@ -321,9 +324,10 @@ blockquote p {margin-bottom:.75em}
 #skins strong {font-weight:normal; font-size:120%}
 #skins li.enabled strong {font-weight:bold}
 #skins small {margin-left:10px}
-#skins .preview {display:block; font-size:20px; margin-bottom:5px; overflow:hidden; text-align:center}
+#skins .preview {display:block; aspect-ratio:5/3; font-size:20px; margin-bottom:5px; overflow:hidden; text-align:center}
 #skins .preview span {display:block; margin-top:65px}
-#skins .preview img {display:block; width:100%}
+#skins .preview img {display:block; width:100%; height:100%}
+#skins .preview iframe {width:650px; height:390px; border:0; transform-origin:top left; pointer-events:none}
 @media only screen and (max-width:400px) {
 #skins li {width:100%}
 }
@@ -453,7 +457,6 @@ ul.fr {z-index:0; right:25px}
 }
 
 @media only screen and (max-width:800px) {
-#reply .hdr {min-height:16px}
 #reply .pInfo {display:none}
 }
 

@@ -288,7 +288,7 @@ else:
 <?php if($this->conversation["id"]):?><form action='<?php echo curLink();?>' method='post' enctype='multipart/form-data'><div><?php endif;?>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
 <textarea cols='200' rows='20' id='reply-textarea' name='content' tabindex='30'><?php echo $this->conversation["draft"];?></textarea>
-<div id='reply-preview'></div>
+<div id='reply-preview' class='preview'></div>
 <div class='editButtons'><?php 
 echo $this->eso->skin->button(array("id"=>"saveDraft","name"=>"saveDraft","class"=>"fl","value"=>$language["Save draft"],"tabindex"=>50))," ",
 	$this->eso->skin->button(array("id"=>"discardDraft","name"=>"discardDraft","class"=>"fl","value"=>$language["Discard draft"]))," ",

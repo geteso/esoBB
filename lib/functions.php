@@ -325,10 +325,20 @@ function makeLink()
 
 function cookieIp()
 {
-	$ip = htmlspecialchars($_SERVER["REMOTE_ADDR"]);
-	// A fix for web servers that are not fully IPv6 compatible.
-	if (strpos($ip, "::")) $ip = substr($ip, strrpos($ip, ":")+1);
-	return ip2long($ip);
+	$ip = isset($_SERVER["REMOTE_ADDR"]) ? $_SERVER["REMOTE_ADDR"] : "";
+
+	$long = ip2long($ip);
+	if ($long !== false) return sprintf("%u", $long);
+
+	$packed = @inet_pton($ip);
+	if ($packed === false or strlen($packed) != 16) return "0";
+
+	if (substr($packed, 0, 12) === "\0\0\0\0\0\0\0\0\0\0\xff\xff") {
+		$long = unpack("N", substr($packed, 12));
+		return sprintf("%u", $long[1]);
+	}
+
+	return sprintf("%u", crc32(substr($packed, 0, 8)));
 }
 
 // Generate a link to the current page. To get a form to submit to the same page: <form action='curLink()'.
@@ -475,8 +485,9 @@ function sendEmail($to, $subject, $body)
 	if (!preg_match("/^[A-Z0-9._%-+]+@[A-Z0-9.-]+.[A-Z]{2,4}$/i", $to)) return false;
 
 	try {
-		$phpmailer = PATH_LIBRARY.'/vendor/PHPMailer.php';
-		require_once($phpmailer);
+		require_once(PATH_LIBRARY.'/vendor/Exception.php');
+		require_once(PATH_LIBRARY.'/vendor/PHPMailer.php');
+		require_once(PATH_LIBRARY.'/vendor/SMTP.php');
 		$mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
 		if (isset($eso) and ($return = $eso->callHook("sendEmail", array(&$to, &$subject, &$body), true)) !== null)

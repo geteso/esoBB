@@ -38,7 +38,7 @@ function init()
 
 	// Add a language string and stylesheet.
 	$this->eso->addLanguage("RSS", "RSS");
-	$this->eso->addCSS(PATH_PLUGINS."/Debug/debug.css");
+	$this->eso->addCSS("plugins/Feeds/feed.css");
 
 	// Add a hook to include autodiscovery <link> tags at render time via the head.
 	$this->eso->addHook("head", array($this, "addFeedTags"));
