@@ -84,6 +84,17 @@ function init()
 		$memberId = (int)$_SESSION["user"]["memberId"];
 		// Make sure the user data exists in the members table.
 		$memberExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+
+		// Refresh the account/role information from the database on every request.
+		// A member can be changed by another administrator while this session is
+		// still active, so relying only on the session copy can leave stale
+		// authorization flags in memory.
+		if ($memberExists == $memberId) {
+			$currentAccount = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+			if ($currentAccount !== false && $currentAccount !== $_SESSION["user"]["account"]) {
+				$_SESSION["user"]["account"] = $currentAccount;
+			}
+		}
 		// Also make sure this device exists in the logins table: first try by cookie if cookie exists, otherwise by IP
 		$whereClause = "";
 		$loginExists = false;
@@ -130,8 +141,11 @@ function init()
 		}
 	}
 	
-	// Attempt to log in, and user assign data to the user array.
-	if ($this->login(@$_POST["login"]["name"], @$_POST["login"]["password"])) {
+	// Attempt to log in. Treat malformed array input as an empty login attempt
+	// rather than allowing it to reach authentication code as an unexpected type.
+	$loginNameInput = isset($_POST["login"]["name"]) && is_scalar($_POST["login"]["name"]) ? (string)$_POST["login"]["name"] : false;
+	$loginPasswordInput = isset($_POST["login"]["password"]) && is_scalar($_POST["login"]["password"]) ? (string)$_POST["login"]["password"] : false;
+	if ($this->login($loginNameInput, $loginPasswordInput)) {
 		$this->user = $_SESSION["user"] + array(
 			"admin" => $_SESSION["user"]["account"] == "Administrator",
 			"moderator" => $_SESSION["user"]["account"] == "Moderator" or $_SESSION["user"]["account"] == "Administrator",
@@ -155,8 +169,9 @@ function init()
 
 		// If the user IS NOT logged in, add the login form and 'Join us' link to the bar.
 		if (!$this->user) {
+			$loginName = isset($_POST["login"]["name"]) && is_scalar($_POST["login"]["name"]) ? htmlspecialchars((string)$_POST["login"]["name"], ENT_QUOTES, "UTF-8") : "";
 			$this->addToBar("left", "<form action='" . curLink() . "' method='post' id='login' class='vr'><div>
- <input id='loginName' name='login[name]' type='text' class='text' autocomplete='username' placeholder='" . (!empty($_POST["login"]["name"]) ? $_POST["login"]["name"] : $language["Username"]) . "'/>
+ <input id='loginName' name='login[name]' type='text' class='text' autocomplete='username' placeholder='" . ($loginName !== "" ? $loginName : htmlspecialchars($language["Username"], ENT_QUOTES, "UTF-8")) . "'/>
  <input id='loginPassword' name='login[password]' type='password' class='text' autocomplete='current-password' placeholder='{$language["Password"]}'/>
  " . $this->skin->button(array("value" => $language["Log in"], "class" => "buttonSmall")) . "
  </div></form>", 100);
@@ -166,7 +181,8 @@ function init()
 		
 		// If the user IS logged in, we want to display their name and appropriate links.
 		else {
-						$this->addToBar("left", "<strong id='user'><a href='" . makeLink("profile") . "'>{$this->user["name"]}</a>:</strong>", 100);
+						$userName = htmlspecialchars((string)$this->user["name"], ENT_QUOTES, "UTF-8");
+						$this->addToBar("left", "<strong id='user'><a href='" . makeLink("profile") . "'>{$userName}</a>:</strong>", 100);
 						$this->addToBar("left", "<a href='{$config["baseURL"]}'><span class='button buttonSmall'><input type='submit' value='{$language["Home"]}'></span></a>", 200);
 						$this->addToBar("left", "<a href='" . makeLink("profile") . "' id='profile'><span class='button buttonSmall'><input type='submit' value='{$language["My profile"]}'></span></a>", 300);
 						$this->addToBar("left", "<a href='" . makeLink("settings") . "'><span class='button buttonSmall'><input type='submit' value='{$language["My settings"]}'></span></a>", 400);
@@ -208,6 +224,10 @@ function ajax()
 function login($name = false, $password = false, $hash = false)
 {
 	global $config;
+
+	if ($name !== false && !is_string($name)) $name = (string)$name;
+	if ($password !== false && !is_string($password)) $password = (string)$password;
+	if ($hash !== false && !is_string($hash)) $hash = (string)$hash;
 	
 	// Are we already logged in?
 	if (isset($_SESSION["user"])) return true;
@@ -291,10 +311,12 @@ function login($name = false, $password = false, $hash = false)
 				}
 			}
 			
-			// Assign the user data to a SESSION variable, and as a property of the eso class.
+			// Authentication is a privilege boundary. Regenerate the PHP session
+			// identifier before storing the authenticated identity to prevent session
+			// fixation. Keep the application's CSRF token rotation as well.
+			if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
 			$_SESSION["user"] = $this->user = $data;
-			
-			// Regenerate the session ID and token.
+			$this->updateUserRoleFlags($data["account"]);
 			regenerateToken();
 
 			// Set any necessary cookies and update the logins table.
@@ -375,8 +397,11 @@ function logout()
 	$memberId = isset($_SESSION["user"]["memberId"]) ? $_SESSION["user"]["memberId"] : 0;
 	$ip = cookieIp();
 	
-	// Destroy session data and regenerate the unique token.
+	// Destroy authentication state and rotate both the PHP session identifier
+	// and the application's CSRF token.
 	unset($_SESSION["user"]);
+	$this->user = false;
+	if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
 	regenerateToken();
 
 	// Delete the login record from the logins table.
@@ -400,10 +425,11 @@ function logout()
 // Validate $token against the actual token, $_SESSION["token"]. If it's incorrect, show a message.
 function validateToken($token)
 {
-	if ($token != $_SESSION["token"]) {
+	if (!isset($_SESSION["token"]) || !is_string($token) || !hash_equals((string)$_SESSION["token"], $token)) {
 		$this->message("noPermission");
 		return false;
-	} else return true;
+	}
+	return true;
 }
 
 // Fetch forum statistics, returning them in an array of key => statistic_text.
@@ -473,8 +499,9 @@ function checkForUpdates()
 	$latestVersion = fread($handle, 8192);
 	fclose($handle);
 	
-	// Compare the installed version and the latest version. Show a message if there is a new version.
-	if (version_compare(ESO_VERSION, $latestVersion) == -1) $latestVersion;
+	// Compare the installed version with the latest version. Return the
+	// available version to callers instead of evaluating it and discarding it.
+	return version_compare(ESO_VERSION, trim($latestVersion), "<") ? trim($latestVersion) : false;
 }
 
 // Check the first parameter of the URL against $name, and instigate the controller it refers to if they match.
@@ -523,8 +550,9 @@ function message($key, $disappear = true, $arguments = false)
 function htmlMessage($key, $arguments = false)
 {
 	global $messages;
+	if (!isset($messages[$key])) return "";
 	$m = $messages[$key];
-	if (!empty($arguments)) $m["message"] = is_array($arguments) ? vsprintf($m["message"], $arguments) : sprintf($m["message"], $arguments);
+	if (!empty($arguments)) $m["message"] = is_array($arguments) ? @vsprintf($m["message"], $arguments) : @sprintf($m["message"], $arguments);
 	return "<div class='msg {$m["class"]}'>{$m["message"]}</div>";
 }
 
@@ -654,7 +682,9 @@ var eso=" . json($esoJS) . ",isIE6,isIE7// ]]></script>\n";
 // Add a string of HTML to the bar.
 function addToBar($side, $html, $position = false)
 {
+	if (!isset($this->bar[$side])) return false;
 	addToArray($this->bar[$side], $html, $position);
+	return true;
 }
 
 // Add a string of HTML to the page footer.
@@ -708,6 +738,8 @@ function htmlStar($conversationId, $starred)
 // Return the path to a user's avatar, depending on its format.
 function getAvatar($memberId, $avatarFormat, $type = false)
 {
+	$memberId = (int)$memberId;
+	$avatarFormat = is_string($avatarFormat) ? preg_replace("/[^a-zA-Z0-9]/", "", $avatarFormat) : "";
 	if ($return = $this->callHook("getAvatar", array($memberId, $avatarFormat, $type))) return $return;
 	
 	// If this is a full-sized gif avatar, we need to render it via g.php for security purposes.
@@ -740,7 +772,7 @@ function updateLastAction($action)
 	$this->callHook("updateLastAction", array(&$action));
 	
 	global $config;
-	$action = substr($action, 0, 255);
+	$action = is_scalar($action) ? substr((string)$action, 0, 255) : "";
 	$lastSeen = time();
 	$memberId = (int)$this->user["memberId"];
 	$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET lastAction=?, lastSeen=? WHERE memberId=?", "sii", $action, $lastSeen, $memberId);
@@ -812,8 +844,7 @@ function canChangeGroup($memberId, $group)
 	//
 	// If their $member's group is unvalidated, return that same list but add "Unvalidated."
 	if ($this->user["admin"] and ($group == "Unvalidated")) {
-		$this->memberGroups[5] = "Unvalidated";
-		return $this->memberGroups;
+		return array_merge($this->memberGroups, array("Unvalidated"));
 	}
 
 	// Moderators don't get to choose from a complete list.
