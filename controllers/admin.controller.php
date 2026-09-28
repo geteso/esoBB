@@ -513,7 +513,7 @@ function membersInit(&$adminController)
 		}
 	
 	// Fetch a list of unvalidated mmbers.
-	$this->unvalidated = $this->eso->db->query("SELECT memberId, name, avatarFormat, IF(color>{$this->eso->skin->numberOfColors},{$this->eso->skin->numberOfColors},color), account, lastSeen, lastAction FROM {$config["tablePrefix"]}members WHERE account='Unvalidated' ORDER BY memberId DESC");
+	$this->unvalidated = $this->eso->db->query("SELECT memberId, name, avatarFormat, IF(color>{$this->eso->skin->numberOfColors},{$this->eso->skin->numberOfColors},color) AS color, account, lastSeen, lastAction FROM {$config["tablePrefix"]}members WHERE account='Unvalidated' ORDER BY memberId DESC");
 	$this->numberUnvalidated = $this->eso->db->numRows($this->unvalidated);
 }
 

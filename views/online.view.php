@@ -36,13 +36,9 @@ else:?>
 
 <div id='membersOnline'>
 <?php if($this->numberOnline):
-while(list($memberId,$name,$avatarFormat,$color,$account,$lastSeen,$lastAction)=$this->eso->db->fetchRow($this->online)):?>
-<div class='p c<?php echo $color;?>' data-member-id='<?php echo $memberId;?>'><div class='hdr'>
-<div class='thumb'><a href='<?php echo makeLink("profile",$memberId);?>'><img src='<?php echo $this->eso->getAvatar($memberId,$avatarFormat,"thumb");?>' alt=''/></a></div>
-<h3><a href='<?php echo makeLink("profile",$memberId);?>'><?php echo $name;?></a></h3>
-<span><?php echo translateLastAction($lastAction);?> (<?php echo relativeTime($lastSeen);?>)</span>
-</div></div>
-<?php endwhile;
+while($member=$this->eso->db->fetchAssoc($this->online)):
+echo $this->htmlMemberRow($member);
+endwhile;
 else:
 echo $this->eso->htmlMessage("noMembersOnline");
 endif;?>

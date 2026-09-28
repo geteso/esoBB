@@ -632,6 +632,7 @@ function head()
 		"avatarRight" => isset($this->skin->avatarRight) ? $this->skin->avatarRight : "avatarRight.svg",
 		"avatarThumb" => isset($this->skin->avatarThumb) ? $this->skin->avatarThumb : "avatarThumb.svg",
 		"disableAnimation" => !empty($this->eso->user["disableJSEffects"]),
+		"disableJSEffects" => !empty($this->eso->user["disableJSEffects"]),
 		"disableLinkAlerts" => !empty($this->eso->user["disableLinkAlerts"]),
 		"avatarAlignment" => !empty($this->eso->user["avatarAlignment"]) ? $this->eso->user["avatarAlignment"] : $_SESSION["avatarAlignment"],
 		"messageDisplayTime" => $config["messageDisplayTime"],
@@ -825,6 +826,109 @@ function canChangeGroup($memberId, $group)
 	} else {
 		return false;
 	}
+}
+
+// Generate the HTML for a single member row (used by any view which lists members, such as the online list).
+function htmlMember($member, $options = array())
+{
+	$memberId = (int)$member["memberId"];
+	$profileLink = makeLink("profile", $memberId);
+
+	if (!empty($options["group"])) $info = $this->htmlMemberGroup($member);
+	else $info = isset($options["info"]) ? $options["info"] : "";
+
+	$controls = array();
+	if (!isset($options["controls"]) or $options["controls"]) {
+		$this->callHook("getMemberControls", array($member, &$controls));
+		ksort($controls);
+	}
+
+	return "<div class='p c{$member["color"]}' data-member-id='$memberId'><div class='hdr'>
+<div class='thumb'><a href='$profileLink'><img src='" . $this->getAvatar($memberId, $member["avatarFormat"], "thumb") . "' alt=''/></a></div>
+<h3><a href='$profileLink'>{$member["name"]}</a></h3>
+$info" . (count($controls) ? "<div class='controls'>" . implode(" ", $controls) . "</div>" : "") . "
+</div></div>\n";
+}
+
+// Generate the group for a member row.  If the user can change this member's group, generate a dropdown.
+function htmlMemberGroup($member)
+{
+	global $language;
+
+	$memberId = (int)$member["memberId"];
+	$account = $member["account"];
+
+	$groups = $this->canChangeGroup($memberId, $account);
+	if (empty($groups)) return "<span>{$language[$account]}</span>";
+
+	$options = "";
+	foreach ($groups as $group)
+		$options .= "<option value='$group'" . ($group == $account ? " selected='selected'" : "") . ">{$language[$group]}</option>";
+
+	return "<form action='" . curLink() . "' method='post'><div style='display:inline'><select onchange='Conversation.changeMemberGroup($memberId,this.value)' name='group'>
+$options</select></div> <noscript><div style='display:inline'><input name='saveGroup' type='submit' value='Save' class='save'/><input type='hidden' name='member' value='$memberId'/></div></noscript></form>";
+}
+
+// Flatten an array of controls into HTML to go inside a control row.
+function htmlControls($controls, $options = array())
+{
+	if (empty($controls)) return "";
+
+	// Separate plain controls from the dropdowns by putting them in position order.
+	$plain = array();
+	$dropdowns = array();
+	foreach ($controls as $k => $v) {
+		if (is_string($k)) $dropdowns[$k] = $v;
+		else $plain[$k] = $v;
+	}
+	ksort($plain);
+
+	foreach ($dropdowns as $name => $items) {
+		if (empty($items)) continue;
+		$plain[] = $this->htmlDropdown($name, $items, $options);
+	}
+
+	if (empty($options["wrap"])) return implode(" ", $plain);
+
+	$html = "";
+	foreach ($plain as $control) $html .= "<{$options["wrap"]}>$control</{$options["wrap"]}>";
+	return $html;
+}
+
+// Generate a dropdown menu containing $items.
+function htmlDropdown($name, $items, $options = array())
+{
+	global $language;
+
+	if (!is_array($items)) $items = array($items);
+	ksort($items);
+
+	$label = isset($language[$name]) ? $language[$name] : $name;
+	$class = "dropdown" . (@$options["align"] == "right" ? " alignRight" : "");
+	$toggleAttributes = array("class" => "dropdownToggle", "onclick" => "return Dropdown.toggle(this)");
+
+	$toggle = !empty($options["button"])
+		? $this->htmlButton("#", $label, $toggleAttributes)
+		: $this->htmlLink("#", $label, $toggleAttributes);
+
+	$inner = $options;
+	unset($inner["wrap"]);
+
+	return "<span class='$class'>$toggle<span class='dropdownMenu'>" . $this->htmlControls($items, $inner) . "</span></span>";
+}
+
+// Generate a button link (used in lieu of the markup for sitting in a row of buttons).
+function htmlButton($link, $label, $attributes = array())
+{
+	return $this->htmlLink($link, "<span class='button buttonSmall'><input type='submit' value='$label'/></span>", $attributes);
+}
+
+// Generate an <a> link with $attributes.
+function htmlLink($link, $body, $attributes = array())
+{
+	$attr = "";
+	foreach ($attributes as $k => $v) $attr .= " $k='$v'";
+	return "<a href='$link'$attr>$body</a>";
 }
 
 // Returns whether or not the logged in user is suspended.

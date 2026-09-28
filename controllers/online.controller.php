@@ -64,16 +64,10 @@ function ajax()
 				$memberIds[] = $memberId;
 				$members[$memberId] = [
 					"id" => $memberId,
-					"name" => $row["name"],
-					"avatarFormat" => $row["avatarFormat"],
 					"color" => min((int)$row["color"], $this->eso->skin->numberOfColors),
-					"account" => $row["account"],
-					"lastSeen" => (int)$row["lastSeen"],
-					"lastAction" => $row["lastAction"],
-					"avatar" => $this->eso->getAvatar($memberId, $row["avatarFormat"], "thumb"),
-					"profileLink" => makeLink("profile", $memberId),
 					"lastActionText" => translateLastAction($row["lastAction"]),
-					"lastSeenText" => relativeTime($row["lastSeen"])
+					"lastSeenText" => relativeTime($row["lastSeen"]),
+					"html" => $this->htmlMemberRow($row)
 				];
 			}
 			
@@ -83,6 +77,14 @@ function ajax()
 				"count" => count($memberIds)
 			];
 	}
+}
+
+// Generate the HTML for a member in the online list.
+function htmlMemberRow($member)
+{
+	return $this->eso->htmlMember($member, array(
+		"info" => "<span>" . translateLastAction($member["lastAction"]) . " (" . relativeTime($member["lastSeen"]) . ")</span>"
+	));
 }
 
 // Fetch a list of members who have been online in the last $config["userOnlineExpire"] seconds.

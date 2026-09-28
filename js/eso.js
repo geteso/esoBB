@@ -270,6 +270,199 @@ function enable(button) {
 	else button.disabled = "";
 };
 
+// Dropdowns: stack controls under a single toggle.  Used by control rows (e.g. post/member controls) via $eso->htmlControls().
+var Dropdown = {
+
+// Find the .dropdown an element sits inside.
+wrapper: function(element) {
+	while (element && element != document) {
+		if ((" " + (element.className || "") + " ").indexOf(" dropdown ") != -1) return element;
+		element = element.parentNode;
+	}
+	return null;
+},
+
+// Find the menu belonging to a .dropdown wrapper.
+menu: function(wrapper) {
+	var children = wrapper.childNodes;
+	for (var i = 0; i < children.length; i++)
+		if (children[i].className && (" " + children[i].className + " ").indexOf(" dropdownMenu ") != -1) return children[i];
+	return null;
+},
+
+hasClass: function(element, name) {
+	return (" " + (element.className || "") + " ").indexOf(" " + name + " ") != -1;
+},
+
+setClass: function(element, name, on) {
+	element.className = element.className.replace(new RegExp("\\s*\\b" + name + "\\b", "g"), "");
+	if (on) element.className += " " + name;
+},
+
+// Returns true if $node is child to $ancestor.
+contains: function(ancestor, node) {
+	while (node) { if (node === ancestor) return true; node = node.parentNode; }
+	return false;
+},
+
+// Used to identify the parent menu of a sub-dropdown, otherwise returns null.
+parentMenu: function(wrapper) {
+	var element = wrapper.parentNode;
+	while (element && element.nodeType == 1) {
+		if (this.hasClass(element, "dropdownMenu")) return element;
+		element = element.parentNode;
+	}
+	return null;
+},
+
+style: function(element, property) {
+	if (window.getComputedStyle) return window.getComputedStyle(element, null)[property];
+	return element.currentStyle ? element.currentStyle[property] : "";
+},
+
+// Find the box a menu would be clipped by (nearest non-overflow ancestor).
+clipper: function(element) {
+	while (element && element.nodeType == 1 && element != document.documentElement) {
+		if (this.style(element, "overflowY") != "visible") return element;
+		element = element.parentNode;
+	}
+	return null;
+},
+
+// Open this dropdown menu and close any others.
+toggle: function(link) {
+	var wrapper = this.wrapper(link), menu = wrapper ? this.menu(wrapper) : null;
+	if (!menu) return true;
+	var wasOpen = this.hasClass(wrapper, "open");
+
+	// If it is a sub-dropdown, prevent the ancestor menu from being closed.
+	var parentMenu = this.parentMenu(wrapper);
+	var keep = wasOpen ? (parentMenu ? this.wrapper(parentMenu) : null) : wrapper;
+
+	this.closeAll(true, keep);
+	if (!wasOpen) this.open(wrapper, menu, link);
+	return false;
+},
+
+// Show a dropdown menu.
+open: function(wrapper, menu, link) {
+	var t = link.getBoundingClientRect();
+	var clipper = this.clipper(link);
+	var row = clipper ? clipper.getBoundingClientRect() : t;
+	wrapper.className += " open";
+
+	this.settle(menu);
+
+	menu.style.left = "0px";
+	menu.style.top = "0px";
+	var box = menu.getBoundingClientRect();
+	var w = box.width, h = box.height;
+	var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+
+	var alignRight = this.style(menu, "textAlign") == "right";
+	var parentMenu = this.parentMenu(wrapper);
+	var left, top;
+
+	// Sub-dropdown menu opening to the left/right.
+	if (parentMenu) {
+		var parent = parentMenu.getBoundingClientRect();
+		var fitsLeft = parent.left - w >= 0, fitsRight = parent.right + w <= vw;
+		var flyLeft = alignRight ? (fitsLeft || !fitsRight) : (!fitsRight && fitsLeft);
+		if (!fitsLeft && !fitsRight) flyLeft = parent.left > vw - parent.right;
+
+		this.setClass(wrapper, "flyLeft", flyLeft);
+		this.setClass(wrapper, "flyRight", !flyLeft);
+		box = menu.getBoundingClientRect();
+		w = box.width; h = box.height;
+
+		left = flyLeft ? parent.left - w : parent.right;
+		top = t.top;
+		if (top + h > vh) top = vh - h;
+	}
+
+	// A menu in a control row hangs off the bottom edge of that row.
+	else {
+		left = alignRight ? t.right - w : t.left;
+		top = (row.bottom + h > vh && row.top - h >= 0) ? row.top - h : row.bottom;
+	}
+
+	left = Math.max(0, Math.min(left, vw - w));
+	menu.style.left = left + "px";
+	menu.style.top = Math.max(0, top) + "px";
+
+	this.animate(menu, true);
+},
+
+// Cancel the ongoing animation of a menu (so its size can be measured).
+settle: function(menu) {
+	if (menu.animation) menu.animation.stop();
+	menu.style.height = "";
+	menu.style.opacity = "";
+	menu.style.overflow = "";
+},
+
+// Slide open/close animation for menus.
+animate: function(menu, opening, whenDone) {
+	this.settle(menu);
+	var height = menu.offsetHeight;
+	menu.style.overflow = "hidden";
+	if (opening) { menu.style.height = "0px"; menu.style.opacity = 0; }
+
+	menu.animation = new Animation(function(values, final) {
+		if (final) {
+			// Hide the menu before the height is returned (to prevent flickering).
+			if (whenDone) whenDone();
+			menu.style.height = "";
+			menu.style.opacity = "";
+			menu.style.overflow = "";
+		} else {
+			menu.style.height = values[0] + "px";
+			menu.style.opacity = values[1];
+		}
+	}, {begin: opening ? [0, 0] : [height, 1], end: opening ? [height, 1] : [0, 0], duration: 10});
+	menu.animation.start();
+},
+
+// Close every open dropdown menu.
+closeAll: function(animated, keep) {
+	var wrappers = getElementsByClassName(document, "dropdown");
+	for (var i = 0; i < wrappers.length; i++) {
+		if (!this.hasClass(wrappers[i], "open")) continue;
+		if (keep && this.contains(wrappers[i], keep)) continue;
+		var wrapper = wrappers[i], menu = this.menu(wrapper);
+		var shut = function(w) { return function() { w.className = w.className.replace(/\s*\bopen\b/g, ""); }; }(wrapper);
+		if (animated && menu) this.animate(menu, false, shut);
+		else {
+			if (menu) this.settle(menu);
+			shut();
+		}
+	}
+},
+
+// Close on Esc or a click outside the menu, and on scroll or resize (prevents fixed menu drifting away).
+init: function() {
+	var outside = function(e) {
+		e = e || window.event;
+		if (!Dropdown.wrapper(e.target || e.srcElement)) Dropdown.closeAll(true);
+	};
+	var escape = function(e) { e = e || window.event; if (e.keyCode == 27) Dropdown.closeAll(true); };
+	var close = function() { Dropdown.closeAll(); };
+	if (document.addEventListener) {
+		document.addEventListener("click", outside, false);
+		document.addEventListener("keydown", escape, false);
+		window.addEventListener("scroll", close, true);
+		window.addEventListener("resize", close, false);
+	} else if (document.attachEvent) {
+		document.attachEvent("onclick", outside);
+		document.attachEvent("onkeydown", escape);
+		window.attachEvent("onscroll", close);
+		window.attachEvent("onresize", close);
+	}
+}
+
+};
+Dropdown.init();
+
 // Show the login form (we're really just scrolling up to it.)
 function showLogin() {
 	if (!getById("loginName")) window.location = window.location;
@@ -3283,11 +3476,7 @@ refresh: function() {
 
 // Build HTML for a single member.
 buildMemberHTML: function(member) {
-	return "<div class='p c" + member.color + "' data-member-id='" + member.id + "'><div class='hdr'>" +
-		"<div class='thumb'><a href='" + member.profileLink + "'><img src='" + member.avatar + "' alt=''/></a></div>" +
-		"<h3><a href='" + member.profileLink + "'>" + member.name + "</a></h3>" +
-		"<span>" + member.lastActionText + " (" + member.lastSeenText + ")</span>" +
-		"</div></div>";
+	return member.html || "";
 },
 
 // Animate a new member appearing (similar to Conversation.animateNewPost).
