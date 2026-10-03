@@ -100,8 +100,8 @@ function dashboardAjax(&$adminController)
 	
  	switch (@$_POST["action"]) {
  		case "checkForUpdates":
- 			if ($latestVersion = $this->eso->checkForUpdates()
-				and ($this->user["memberId"] == $config["rootAdmin"]))
+ 			if ($this->eso->user["memberId"] == $config["rootAdmin"]
+				and ($latestVersion = $this->eso->checkForUpdates()))
  					return $this->eso->htmlMessage("updatesAvailable", $latestVersion);
  	}
 }

@@ -83,7 +83,9 @@ function init()
 		$ip = cookieIp();
 		$memberId = (int)$_SESSION["user"]["memberId"];
 		// Make sure the user data exists in the members table.
-		$memberExists = $this->db->fetchOne("SELECT memberId FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+		$member = $this->db->fetchAssocPrepared("SELECT memberId, account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+		$memberExists = $member ? $member["memberId"] : false;
+		if ($member) $_SESSION["user"]["account"] = $member["account"];
 		// Also make sure this device exists in the logins table: first try by cookie if cookie exists, otherwise by IP
 		$whereClause = "";
 		$loginExists = false;
@@ -131,13 +133,11 @@ function init()
 	}
 	
 	// Attempt to log in, and user assign data to the user array.
-	if ($this->login(@$_POST["login"]["name"], @$_POST["login"]["password"])) {
-		$this->user = $_SESSION["user"] + array(
-			"admin" => $_SESSION["user"]["account"] == "Administrator",
-			"moderator" => $_SESSION["user"]["account"] == "Moderator" or $_SESSION["user"]["account"] == "Administrator",
-			"member" => $_SESSION["user"]["account"] == "Member",
-			"suspended" => $_SESSION["user"]["account"] == "Suspended" ? true : null
-		);
+	$loginNameInput = isset($_POST["login"]["name"]) && is_scalar($_POST["login"]["name"]) ? (string)$_POST["login"]["name"] : null;
+	$loginPasswordInput = isset($_POST["login"]["password"]) && is_scalar($_POST["login"]["password"]) ? (string)$_POST["login"]["password"] : null;
+	if ($this->login($loginNameInput, $loginPasswordInput)) {
+		$this->user = $_SESSION["user"];
+		$this->updateUserRoleFlags();
 		$this->user["color"] = min($this->user["color"], $this->skin->numberOfColors);
 	}
 	
@@ -156,7 +156,7 @@ function init()
 		// If the user IS NOT logged in, add the login form and 'Join us' link to the bar.
 		if (!$this->user) {
 			$this->addToBar("left", "<form action='" . curLink() . "' method='post' id='login' class='vr'><div>
- <input id='loginName' name='login[name]' type='text' class='text' autocomplete='username' placeholder='" . (!empty($_POST["login"]["name"]) ? $_POST["login"]["name"] : $language["Username"]) . "'/>
+ <input id='loginName' name='login[name]' type='text' class='text' autocomplete='username' placeholder='" . (!empty($loginNameInput) ? $loginNameInput : $language["Username"]) . "'/>
  <input id='loginPassword' name='login[password]' type='password' class='text' autocomplete='current-password' placeholder='{$language["Password"]}'/>
  " . $this->skin->button(array("value" => $language["Log in"], "class" => "buttonSmall")) . "
  </div></form>", 100);
@@ -293,6 +293,7 @@ function login($name = false, $password = false, $hash = false)
 			
 			// Assign the user data to a SESSION variable, and as a property of the eso class.
 			$_SESSION["user"] = $this->user = $data;
+			$this->updateUserRoleFlags($data["account"]);
 			
 			// Regenerate the session ID and token.
 			regenerateToken();
@@ -377,6 +378,7 @@ function logout()
 	
 	// Destroy session data and regenerate the unique token.
 	unset($_SESSION["user"]);
+	$this->user = false;
 	regenerateToken();
 
 	// Delete the login record from the logins table.
@@ -400,10 +402,11 @@ function logout()
 // Validate $token against the actual token, $_SESSION["token"]. If it's incorrect, show a message.
 function validateToken($token)
 {
-	if ($token != $_SESSION["token"]) {
+	if (!isset($_SESSION["token"]) || !is_string($token) || !hash_equals((string)$_SESSION["token"], $token)) {
 		$this->message("noPermission");
 		return false;
-	} else return true;
+	}
+	return true;
 }
 
 // Fetch forum statistics, returning them in an array of key => statistic_text.
@@ -463,18 +466,33 @@ function getSkins()
 // Check for updates to the software.
 function checkForUpdates()
 {
-	if (defined("AJAX_REQUEST")) return;
+	global $config;
 	
-	// Write this as the latest update check time, so that another update check will not be performed for 24 hours.
-	writeConfigFile("config/lastUpdateCheck.php", '$lastUpdateCheck', time());
+	if (empty($config["updateCheckInterval"])) return false;
 	
 	// Get the latest version from geteso.org.
-	if (($handle = @fopen("https://geteso.org/latestVersion.txt", "r")) === false) return;
-	$latestVersion = fread($handle, 8192);
-	fclose($handle);
+	$lastUpdateCheck = null;
+	if (file_exists("config/lastUpdateCheck.php")) include "config/lastUpdateCheck.php";
+	if (is_array($lastUpdateCheck) and time() - $lastUpdateCheck["time"] < $config["updateCheckInterval"]) $latestVersion = $lastUpdateCheck["version"];
+	else {
+		$latestVersion = false;
+		$context = stream_context_create(array("http" => array("timeout" => 5)));
+		if (($handle = @fopen("https://geteso.org/latestVersion.txt", "r", false, $context)) !== false) {
+			$latestVersion = trim(fread($handle, 8192));
+			fclose($handle);
+			
+			if (!preg_match("/^[0-9A-Za-z.-]+$/", $latestVersion)) $latestVersion = false;
+		}
+		
+		writeConfigFile("config/lastUpdateCheck.php", '$lastUpdateCheck', array("time" => time(), "version" => $latestVersion));
+	}
+	if (!$latestVersion) return false;
 	
-	// Compare the installed version and the latest version. Show a message if there is a new version.
-	if (version_compare(ESO_VERSION, $latestVersion) == -1) $latestVersion;
+	// Compare the installed version and the latest version. Return the latest version if it's newer.
+	$normalize = function($version) {
+		return preg_replace_callback("/[a-z]/i", function($m) { return "." . (ord(strtolower($m[0])) - 96) . "."; }, $version);
+	};
+	return version_compare($normalize(ESO_VERSION), $normalize($latestVersion), "<") ? $latestVersion : false;
 }
 
 // Check the first parameter of the URL against $name, and instigate the controller it refers to if they match.
@@ -523,6 +541,7 @@ function message($key, $disappear = true, $arguments = false)
 function htmlMessage($key, $arguments = false)
 {
 	global $messages;
+	if (!isset($messages[$key])) return "";
 	$m = $messages[$key];
 	if (!empty($arguments)) $m["message"] = is_array($arguments) ? vsprintf($m["message"], $arguments) : sprintf($m["message"], $arguments);
 	return "<div class='msg {$m["class"]}'>{$m["message"]}</div>";
@@ -542,6 +561,7 @@ function getMessages()
 	$html .= "<script type='text/javascript'>
 Messages.init();";
 	foreach ($_SESSION["messages"] as $m) {
+		if (!isset($messages[$m["message"]])) continue;
 		if (!empty($m["arguments"])) $text = is_array($m["arguments"]) ? vsprintf($messages[$m["message"]]["message"], $m["arguments"]) : sprintf($messages[$m["message"]]["message"], $m["arguments"]);
 		else $text = $messages[$m["message"]]["message"];
 		$html .= "Messages.showMessage(\"{$m["message"]}\", \"{$messages[$m["message"]]["class"]}\", \"" . escapeDoubleQuotes($text) . "\", " . ($m["disappear"] ? "true" : "false") . ");\n";
@@ -654,7 +674,9 @@ var eso=" . json($esoJS) . ",isIE6,isIE7// ]]></script>\n";
 // Add a string of HTML to the bar.
 function addToBar($side, $html, $position = false)
 {
+	if (!isset($this->bar[$side])) return false;
 	addToArray($this->bar[$side], $html, $position);
+	return true;
 }
 
 // Add a string of HTML to the page footer.
@@ -708,6 +730,8 @@ function htmlStar($conversationId, $starred)
 // Return the path to a user's avatar, depending on its format.
 function getAvatar($memberId, $avatarFormat, $type = false)
 {
+	$memberId = (int)$memberId;
+	$avatarFormat = is_string($avatarFormat) ? preg_replace("/[^a-zA-Z0-9]/", "", $avatarFormat) : "";
 	if ($return = $this->callHook("getAvatar", array($memberId, $avatarFormat, $type))) return $return;
 	
 	// If this is a full-sized gif avatar, we need to render it via g.php for security purposes.
@@ -740,7 +764,7 @@ function updateLastAction($action)
 	$this->callHook("updateLastAction", array(&$action));
 	
 	global $config;
-	$action = substr($action, 0, 255);
+	$action = is_scalar($action) ? substr((string)$action, 0, 255) : "";
 	$lastSeen = time();
 	$memberId = (int)$this->user["memberId"];
 	$this->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET lastAction=?, lastSeen=? WHERE memberId=?", "sii", $action, $lastSeen, $memberId);
@@ -763,7 +787,7 @@ function updateUserRoleFlags($account = null)
 	$this->user["admin"] = ($account == "Administrator");
 	$this->user["moderator"] = ($account == "Moderator" || $account == "Administrator");
 	$this->user["member"] = ($account == "Member");
-	$this->user["suspended"] = ($account == "Suspended" ? true : null);
+	$this->user["suspended"] = ($account == "Suspended");
 	$this->user["unvalidated"] = ($account == "Unvalidated" ? true : false);
 	
 	$this->callHook("updateUserRoleFlags", array(&$this->user, $account));
@@ -812,8 +836,7 @@ function canChangeGroup($memberId, $group)
 	//
 	// If their $member's group is unvalidated, return that same list but add "Unvalidated."
 	if ($this->user["admin"] and ($group == "Unvalidated")) {
-		$this->memberGroups[5] = "Unvalidated";
-		return $this->memberGroups;
+		return array_merge($this->memberGroups, array("Unvalidated"));
 	}
 
 	// Moderators don't get to choose from a complete list.
@@ -934,17 +957,7 @@ function htmlLink($link, $body, $attributes = array())
 // Returns whether or not the logged in user is suspended.
 function isSuspended()
 {
-	global $config;
-	if (!$this->user) return false;
-	
-	// If the user's suspension status is unknown (null), refresh from database
-	if ($this->user["suspended"] === null) {
-		$memberId = (int)$this->user["memberId"];
-		$account = $this->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
-		$this->user["account"] = $_SESSION["user"]["account"] = $account;
-		$this->updateUserRoleFlags($account);
-	}
-	return $this->user["suspended"] ?? false;
+	return $this->user and !empty($this->user["suspended"]);
 }
 
 // Returns whether or not the logged in user has been validated or not.

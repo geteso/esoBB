@@ -58,6 +58,7 @@ $defaultConfig = array(
 "showDescription" => true, // Whether or not to display the forum description on the homepage.
 "sitemapCacheTime" => 3600, // Amount of time by which sitemaps are kept in cache.  (3600 seconds = 1 hour.)
 "manifestCacheTime" => 3600, // Same thing as before, but for the web app manifest.
+"updateCheckInterval" => 0, // Amount of time between checks for a new version of esoBB on the dashboard.  Set to 0 to disable.  (ex. 86400 seconds = 24 hours.)
 "manifestDisplay" => "browser", // The preferred way to display your forum in or outside of a browser.  Fullscreen, standalone, minimal-ui, or browser.
 // see https://www.w3.org/TR/mediaqueries-5/#display-mode for an explanation
 "verboseFatalErrors" => false, // Dumps SQL information in fatal errors.  Don't keep this enabled for production.
