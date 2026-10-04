@@ -180,7 +180,7 @@ function init()
 			$row = $this->eso->db->fetchRowPrepared("SELECT name, content FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE postId=? AND conversationId=?", "ii", $postId, $conversationId);
 			if (!$row) return false;
 			list($member, $content) = $row;
-			$this->conversation["draft"] = "<blockquote><cite>$member - [post:$postId]</cite>" . desanitize($this->formatForEditing($this->removeQuotes($content))) . "</blockquote>";
+			$this->conversation["draft"] = "<blockquote><cite>$member - [post:$postId]</cite>" . $this->formatForEditing($this->removeQuotes($content)) . "</blockquote>";
 		}
 
 		// Edit a post: set the $this->editingPost variable so that the post is outputted with a textarea later on.
@@ -522,7 +522,7 @@ function ajax()
 			if ($row) {
 				list($member, $content) = $row;
 				return array(
-					"member" => $member . " - [post:$postId]",
+					"member" => desanitize($member) . " - [post:$postId]",
 					"content" => desanitize($this->formatForEditing($this->removeQuotes($content))),
 				);
 			}
