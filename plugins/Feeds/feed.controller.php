@@ -41,7 +41,7 @@ function init()
 	// Set both the eso view and the controller view to bypass the wrapper
 	$this->eso->view = "feed.view.php";
 	$this->view = "feed.view.php";
-	header("Content-Type: application/xml; charset=" . $language["charset"]);
+	header("Content-Type: application/atom+xml; charset=" . $language["charset"]);
 	
 	if ($return = $this->callHook("init")) return;
 	
@@ -55,48 +55,49 @@ function init()
 			// Get the conversation details.
 			$conversationId = (int)$_GET["q3"];
 			if (!$conversationId or !($conversation = $this->eso->db->fetchAssoc("SELECT c.conversationId AS id, c.title AS title, c.slug AS slug, c.private AS private, c.posts AS posts, c.startMember AS startMember, c.lastActionTime AS lastActionTime, GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags FROM {$config["tablePrefix"]}conversations c LEFT JOIN {$config["tablePrefix"]}tags t USING (conversationId) WHERE c.conversationId=$conversationId GROUP BY c.conversationId")))
-				$this->eso->fatalError($messages["cannotViewConversation"]["message"]);
+				$this->error("404 Not Found");
 							
 			// Do we need authentication to view this conversation (ie. is it private or a draft)?
 			if ($conversation["private"] or $conversation["posts"] == 0) {
 				
 				// Try to login with provided credentials.
-				if (isset($_SERVER["PHP_AUTH_USER"])) $this->eso->login($_SERVER["PHP_AUTH_USER"], $_SERVER["PHP_AUTH_PW"]);
+				if (isset($_SERVER["PHP_AUTH_USER"], $_SERVER["PHP_AUTH_PW"]))
+					$this->eso->login(sanitize($_SERVER["PHP_AUTH_USER"]), sanitize($_SERVER["PHP_AUTH_PW"]), false, false);
 				
 				// Still not logged in?  Ask them again.
 				if (!$this->eso->user) {
 					header('WWW-Authenticate: Basic realm="esoBB Atom feed"');
-				    header('HTTP/1.0 401 Unauthorized');
-					$this->eso->fatalError($messages["cannotViewConversation"]["message"]);
+					$this->error("401 Unauthorized");
 				}
 				
 				// We're logged in now.  So, is this member actually allowed in this conversation?
 				if (!($conversation["startMember"] == $this->eso->user["memberId"]
 					or ($conversation["posts"] > 0 and (!$conversation["private"] or $this->eso->db->result("SELECT allowed FROM {$config["tablePrefix"]}status WHERE conversationId=$conversationId AND (memberId={$this->eso->user["memberId"]} OR memberId='{$this->eso->user["account"]}')", 0))))) {
 					// Nuh-uh. Get OUT!!!
-					$this->eso->fatalError($messages["cannotViewConversation"]["message"]);
+					$this->error("403 Forbidden");
 				}
 			}
 			
 			// Past this point, the user is allowed to view the conversation.
 			// Set the title, link, description, etc.
-			$this->title = desanitize($conversation["title"]) . " - " . $config["forumTitle"];
+			$title = desanitize($conversation["title"]);
+			$this->title = $title . " - " . $config["forumTitle"];
 			$this->link = $config["baseURL"] . makeLink($conversation["id"], $conversation["slug"]);
 			$this->subtitle = desanitize($conversation["tags"]);
 			$this->id = $config["baseURL"] . makeLink("feed", "conversation", $conversation["id"]);
-			$this->updated = date("Y-m-d\TH:i:s\Z", $conversation["lastActionTime"]);
+			$this->updated = gmdate("Y-m-d\TH:i:s\Z", $conversation["lastActionTime"]);
 			
 			// Fetch the 20 most recent posts in the conversation.
 			$result = $this->eso->db->query("SELECT postId, name, content, time FROM {$config["tablePrefix"]}posts INNER JOIN {$config["tablePrefix"]}members USING (memberId) WHERE conversationId={$conversation["id"]} AND deleteMember IS NULL ORDER BY time DESC LIMIT 20");
 			while (list($id, $member, $content, $time) = $this->eso->db->fetchRow($result)) {
 				$member = desanitize($member);
 				$this->items[] = array(
-					"title" => $member,
+					"title" => "$member - $title",
 					"content" => $this->format($content),
 					"link" => $config["baseURL"] . makeLink("post", $id),
 					"id" => $config["baseURL"] . makeLink("post", $id),
 					"author" => $member,
-					"updated" => date("Y-m-d\TH:i:s\Z", $time)
+					"updated" => gmdate("Y-m-d\TH:i:s\Z", $time)
 				);
 			}
 		
@@ -117,7 +118,7 @@ function init()
 					"link" => $config["baseURL"] . makeLink("post", $postId),
 					"id" => $config["baseURL"] . makeLink("post", $postId),
 					"author" => $member,
-					"updated" => date("Y-m-d\TH:i:s\Z", $time)
+					"updated" => gmdate("Y-m-d\TH:i:s\Z", $time)
 				);
 			}
 			
@@ -125,8 +126,41 @@ function init()
 			$this->title = "{$language["Recent posts"]} - {$config["forumTitle"]}";
 			$this->link = $config["baseURL"];
 			$this->id = $config["baseURL"] . makeLink("feed");
-			$this->updated = !empty($this->items[0]) ? $this->items[0]["updated"] : date("Y-m-d\TH:i:s\Z");
+			$this->updated = !empty($this->items[0]) ? $this->items[0]["updated"] : gmdate("Y-m-d\TH:i:s\Z");
 	}
+	
+	// Let readers skip downloading the feed again if it hasn't changed since.
+	$etag = '"' . md5(serialize(array($this->title, $this->subtitle, $this->link, $this->id, $this->items))) . '"';
+	header("ETag: $etag");
+	header("Cache-Control: private, no-cache");
+	$this->clearSession();
+	if (isset($_SERVER["HTTP_IF_NONE_MATCH"])) {
+		// ignore the W/ (weak) prefix sometimes added to the response by proxies
+		foreach (explode(",", $_SERVER["HTTP_IF_NONE_MATCH"]) as $tag) {
+			if (preg_replace("`^W/`", "", trim($tag)) === $etag) {
+				header("HTTP/1.0 304 Not Modified");
+				exit;
+			}
+		}
+	}
+}
+
+// Show an error page with an HTTP status instead of the feed.
+function error($status)
+{
+	global $language, $messages;
+	header("HTTP/1.0 $status");
+	header("Content-Type: text/html; charset=" . $language["charset"]);
+	$this->clearSession();
+	$this->eso->fatalError($messages["cannotViewConversation"]["message"]);
+}
+
+// Don't leave behind a new session for every request.
+function clearSession()
+{
+	if (isset($_COOKIE[session_name()]) or !empty($_SESSION["user"]) or session_status() != PHP_SESSION_ACTIVE) return;
+	session_destroy();
+	header_remove("Set-Cookie");
 }
 
 // Format post content to be outputted in the feed.

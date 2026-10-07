@@ -30,6 +30,7 @@ echo '<?xml version="1.0" encoding="' . htmlspecialchars($language["charset"], E
 <feed xmlns="http://www.w3.org/2005/Atom">
 	<title><?php echo htmlspecialchars($this->title, ENT_XML1, $language["charset"]);?></title>
 	<link href="<?php echo htmlspecialchars($this->link, ENT_XML1, $language["charset"]);?>" rel="alternate"/>
+	<link href="<?php echo htmlspecialchars($this->id, ENT_XML1, $language["charset"]);?>" rel="self" type="application/atom+xml"/>
 	<?php if (!empty($this->subtitle)):?><subtitle><?php echo htmlspecialchars($this->subtitle, ENT_XML1, $language["charset"]);?></subtitle><?php endif;?>
 	<id><?php echo htmlspecialchars($this->id, ENT_XML1, $language["charset"]);?></id>
 	<updated><?php echo htmlspecialchars($this->updated, ENT_XML1, $language["charset"]);?></updated>
