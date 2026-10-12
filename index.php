@@ -29,7 +29,7 @@ define("IN_ESO", 1);
 require "lib/init.php";
 
 // Set up the action controller.
-$q1 = strtolower(@$_GET["q1"]);
+$q1 = is_string(@$_GET["q1"]) ? strtolower($_GET["q1"]) : "";
 
 // If the first address parameter is numeric, assume the conversation controller.
 if (is_numeric($q1)) {

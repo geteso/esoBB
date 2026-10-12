@@ -24,18 +24,15 @@ Ajax.request = function(request) {
 	this.doNextRequest();
 };
 
-// Override the disconnect function to show debug information when there's a fatal error.
+// Extend the disconnect function to show debug information about the request that failed.
+Ajax._disconnect = Ajax.disconnect;
 Ajax.disconnect = function(request) {
-	this.disconnected = true;
-	request.repeat = true;
-	this.disconnectedRequest = request;
-	this.queue = [];
-	Messages.showMessage("ajaxDisconnected", "warning", eso.language["ajaxDisconnected"], false);
+	this._disconnect(request);
 	Messages.showMessage("disconnectedInfo", "info", "<a href='#' onclick='Ajax.toggleDebugInfo(this);return false'>show debug info</a><div id='debugInfo' style='display:none;overflow:auto;max-height:400px'><ul class='form'>" +
-		"<li><label>HTTP status code</label><div>" + Ajax.disconnectedRequest.http.status + "</div>" +
-		"<li><label>Request URL</label><div>" + Ajax.disconnectedRequest.url + "</div>" +
-		"<li><label>POST data</label><div>" + Ajax.disconnectedRequest.post + "</div>" +
-		"<li><label>Response text</label><div>" + Ajax.disconnectedRequest.http.responseText.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" +
+		"<li><label>HTTP status code</label><div>" + request.http.status + "</div>" +
+		"<li><label>Request URL</label><div>" + request.url + "</div>" +
+		"<li><label>POST data</label><div>" + request.post + "</div>" +
+		"<li><label>Response text</label><div>" + request.http.responseText.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</div>" +
 		"</ul></div>", false);
 };
 

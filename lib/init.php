@@ -86,30 +86,10 @@ require PATH_LIBRARY."/uploader.php";
 // Define the session save path.
 session_save_path(PATH_ROOT."/sessions");
 ini_set('session.gc_probability', 1);
+ini_set('session.gc_maxlifetime', $config["sessionExpire"]);
 
-if (session_id()) {
-	// Only validate session if it has the required fields (prevents issues after session regeneration)
-	if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
-		// Destroy sessions that are started longer ago than sessionExpire.
-		$sessionExpired = (time() - $_SESSION["time"] > $config["sessionExpire"]);
-		
-		// IP validation is optional (disabled by default) as it breaks for users behind proxies/VPNs/load balancers
-		// When enabled, it provides additional security but may cause legitimate users to be logged out
-		$ipMismatch = false;
-		if (!empty($config["validateSessionIp"])) {
-			$ipMismatch = ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]);
-		}
-		
-		// Check the current user agent against the one that initiated the session.
-		$userAgentMismatch = (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]);
-		
-		if ($sessionExpired or $ipMismatch or $userAgentMismatch) {
-			session_unset();
-			session_destroy();
-		}
-	}
 // Start a session if one does not already exist.
-} else {
+if (!session_id()) {
 	session_name("{$config["cookieName"]}_Session");
 	// Configure session cookie parameters
 	$lifetime = 0; // Session cookie (expires when browser closes)
@@ -134,11 +114,27 @@ if (session_id()) {
 		session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
 	}
 	session_start();
-	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
-	$_SESSION["time"] = time();
-	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
-	if (empty($_SESSION["token"])) regenerateToken();
 }
+
+// Only validate session if it has the required fields (prevents issues after session regeneration)
+if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
+	$sessionExpired = (time() - $_SESSION["time"] > $config["sessionExpire"]);
+
+	// IP validation is optional (disabled by default) as it breaks for users behind proxies/VPNs/load balancers
+	// When enabled, it provides additional security but may cause legitimate users to be logged out
+	$ipMismatch = false;
+	if (!empty($config["validateSessionIp"])) {
+		$ipMismatch = ($_SERVER["REMOTE_ADDR"] != $_SESSION["ip"]);
+	}
+
+	// Check the current user agent against the one that initiated the session.
+	$userAgentMismatch = (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]);
+
+	// Clear out the session's data.  It will be set up again below, under a new session ID.
+	if ($sessionExpired or $ipMismatch or $userAgentMismatch) session_unset();
+}
+
+if (empty($_SESSION["token"])) regenerateToken();
 
 // Do we want to force HTTPS?
 if (!empty($config["https"]) and $_SERVER["HTTPS"] != "on") {

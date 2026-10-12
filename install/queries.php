@@ -112,6 +112,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}members (
 	disableJSEffects tinyint(1) NOT NULL default '0',
 	disableLinkAlerts tinyint(1) NOT NULL default '1',
 	showOnline tinyint(1) NOT NULL default '1',
+	rememberMe enum('ask','always','never') NOT NULL default 'ask',
 	markedAsRead int unsigned default NULL,
 	lastSeen int unsigned default NULL,
 	lastAction varchar(191) default NULL,
@@ -138,16 +139,18 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}actions (
 	ip int unsigned NOT NULL,
 	memberId int unsigned default NULL,
 	action varchar(63) NOT NULL,
-	time int unsigned NOT NULL
+	time int unsigned NOT NULL,
+	KEY actions_member (action, memberId, time),
+	KEY actions_ip (action, ip, time)
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 
 // Create the logins table.
 $queries[] = "DROP TABLE IF EXISTS {$config["tablePrefix"]}logins";
 $queries[] = "CREATE TABLE {$config["tablePrefix"]}logins (
 	loginId int unsigned NOT NULL AUTO_INCREMENT,
-	cookie char(32) default NULL,
-	ip int unsigned NOT NULL,
-	userAgent varchar(191) default NULL,
+	cookie char(64) default NULL,
+	ip varbinary(16) default NULL,
+	userAgent varchar(255) default NULL,
 	memberId int unsigned NOT NULL,
 	action varchar(63) NOT NULL default 'login',
 	firstTime int unsigned default NULL,
@@ -235,12 +238,10 @@ $tagValues[] = "(3, '" . mysqli_real_escape_string($db, $tags["administration"])
 $queries[] = "INSERT INTO {$config["tablePrefix"]}tags (conversationId, tag) VALUES " . implode(", ", $tagValues);
 
 // Create login record for root user.
-$ip = cookieIp();
-$userAgent = md5($_SERVER["HTTP_USER_AGENT"]);
 $preparedQueries[] = array(
-	"query" => "INSERT INTO {$config["tablePrefix"]}logins (cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (NULL, ?, ?, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())",
-	"types" => "is",
-	"params" => array($ip, $userAgent)
+	"query" => "INSERT INTO {$config["tablePrefix"]}logins (loginId, cookie, ip, userAgent, memberId, firstTime, lastTime) VALUES (1, NULL, ?, ?, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())",
+	"types" => "ss",
+	"params" => array(loginIp(), loginUserAgent())
 );
 
 ?>

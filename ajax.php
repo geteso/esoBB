@@ -41,16 +41,15 @@ if (!ob_get_level()) {
 
 // Set up the action controller.
 if (isset($_GET["controller"])) {
-	$eso->action = strtolower($_GET["controller"]);
+	$eso->action = is_string($_GET["controller"]) ? strtolower($_GET["controller"]) : "";
 	
 	// Does this controller exist?
-	if (!in_array($eso->action, $eso->allowedActions) or !file_exists(dirname(__FILE__) . "/controllers/$eso->action.controller.php")) exit;
-	
-	// Require and set it up.
-	require_once "controllers/$eso->action.controller.php";
-	$className = str_replace("-", "", $eso->action);
-	$eso->controller = new $className;
-	$eso->controller->eso =& $eso;
+	if (in_array($eso->action, $eso->allowedActions) and file_exists(dirname(__FILE__) . "/controllers/$eso->action.controller.php")) {
+		require_once "controllers/$eso->action.controller.php";
+		$className = str_replace("-", "", $eso->action);
+		$eso->controller = new $className;
+		$eso->controller->eso =& $eso;
+	}
 }
 
 // If none was specified, use the main controller.
@@ -64,6 +63,8 @@ if (file_exists("config/custom.php")) include "config/custom.php";
 
 // Run plugin init() functions.  These will hook onto controllers and add things like language definitions.
 foreach ($eso->plugins as $plugin) $plugin->init();
+
+if (empty($eso->controller)) exit;
 
 // Forum software initialization.
 $eso->init();
@@ -80,7 +81,7 @@ if (!empty($_POST["loggedInAs"]) and empty($eso->user["name"])) {
 // Everything's fine; we're still logged in.  Proceed with normal page actions.
 else {
 	// Initialize the controller.
-	$eso->controller->init();
+	if ($eso->controller !== $eso) $eso->controller->init();
 	// Run the controller's ajax function.
 	$controllerResult = $eso->controller->ajax();
 }

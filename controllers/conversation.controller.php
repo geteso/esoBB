@@ -280,9 +280,7 @@ function init()
 			"lastActionTime" => $this->conversation["lastActionTime"],
 			"lastRead" => ($this->eso->user and $this->conversation["id"])
 				? max(0, min($this->conversation["postCount"], $this->conversation["lastRead"]))
-				: $this->conversation["postCount"],
-			// Start the auto-reload interval at the square root of the number of seconds since the last action.
-			"autoReloadInterval" => max(4, min(round(sqrt(time() - $this->conversation["lastActionTime"])), $config["autoReloadIntervalLimit"]))
+				: $this->conversation["postCount"]
 		));
 		
 		// Update the user's last read.

@@ -174,8 +174,6 @@ function saveAdvancedSettings()
 
 	$newConfig["uploadPackages"] = (bool)!empty($_POST["uploadPackages"]);
 
-	$newConfig["changeUsername"] = (bool)!empty($_POST["changeUsername"]);
-
 	// Logins per minute must be greater than or equal to 1.
 	if (empty($_POST["loginsPerMinute"]) or !is_numeric($_POST["loginsPerMinute"]) or ($_POST["loginsPerMinute"] < 1)) {$this->eso->message("invalidConfig"); return false;}
 	$newConfig["loginsPerMinute"] = $_POST["loginsPerMinute"];
@@ -511,7 +509,16 @@ function membersInit(&$adminController)
 			$this->eso->message("changesSaved");
 			refresh();
 		}
-	
+
+	// Save the default preferences?
+	if (isset($_POST["saveDefaultPreferences"])
+		and $this->eso->user["admin"]
+	 	and $this->eso->validateToken(@$_POST["token"])
+		and $this->saveDefaultPreferences()) {
+			$this->eso->message("changesSaved");
+			refresh();
+		}
+
 	// Fetch a list of unvalidated mmbers.
 	$this->unvalidated = $this->eso->db->query("SELECT memberId, name, avatarFormat, IF(color>{$this->eso->skin->numberOfColors},{$this->eso->skin->numberOfColors},color) AS color, account, lastSeen, lastAction FROM {$config["tablePrefix"]}members WHERE account='Unvalidated' ORDER BY memberId DESC");
 	$this->numberUnvalidated = $this->eso->db->numRows($this->unvalidated);
@@ -519,13 +526,27 @@ function membersInit(&$adminController)
 
 function saveMembersSettings()
 {
+	global $config;
 	$newConfig = array();
 
 	$newConfig["registrationOpen"] = (bool)!empty($_POST["registrationOpen"]);
 	if (!empty($config["sendEmail"])) $newConfig["requireEmailApproval"] = (bool)!empty($_POST["requireEmailApproval"]);
 	$newConfig["requireManualApproval"] = (bool)!empty($_POST["requireManualApproval"]);
 	
+	$newConfig["changeUsername"] = @$_POST["changeUsername"] === "changeCaps" ? "changeCaps" : !empty($_POST["changeUsername"]);
+
 	if (count($newConfig)) $this->writeSettingsConfig($newConfig);
+
+	return true;
+}
+
+// Save the preferences that new members start out with.
+function saveDefaultPreferences()
+{
+	$rememberMe = @$_POST["rememberMe"];
+	validateRememberMe($rememberMe);
+
+	$this->writeSettingsConfig(array("rememberMe" => $rememberMe));
 
 	return true;
 }
@@ -586,6 +607,8 @@ function pluginsInit(&$adminController)
 	// Toggle a plugin if necessary.
 	if (!empty($_GET["toggle"]) and $this->eso->validateToken(@$_GET["token"]) and $this->togglePlugin($_GET["toggle"]))
  		redirect("admin", "plugins");
+
+	$this->eso->addLanguageToJS("show", "hide", "Copied");
 }
 
 

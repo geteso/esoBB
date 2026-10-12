@@ -40,7 +40,7 @@ if (!is_dir($sessionsPath)) {
 	@mkdir($sessionsPath, 0755, true);
 }
 session_save_path($sessionsPath);
-ini_set('session.gc_probability', 1);
+ini_set('session.gc_probability', 0);
 
 // Start a session if one does not already exist.
 if (!session_id()) {

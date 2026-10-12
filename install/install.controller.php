@@ -61,7 +61,8 @@ function initSession($config, $user) {
 	// Set session save path before starting new session
 	session_save_path(PATH_ROOT."/sessions");
 	ini_set('session.gc_probability', 1);
-	
+	ini_set('session.gc_maxlifetime', $config["sessionExpire"]);
+
 	// Set session name to match forum's cookie name
 	session_name("{$config["cookieName"]}_Session");
 	
@@ -93,6 +94,8 @@ function initSession($config, $user) {
 	
 	// Set user data
 	$_SESSION["user"] = $user;
+	$_SESSION["loginId"] = 1;
+	$_SESSION["rememberPending"] = 1;
 	
 	// Set required session fields that the main application expects
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
@@ -549,7 +552,8 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 		"avatarFormat" => "",
 		"disableJSEffects" => false,
 		"disableLinkAlerts" => false,
-		"showOnline" => true
+		"showOnline" => true,
+		"rememberMe" => "ask"
 	);
 }
 
