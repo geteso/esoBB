@@ -27,7 +27,7 @@ if(!defined("IN_ESO"))exit;
 <div id='settings'>
 
 <?php // If the user hasn't verified their email address, show a message.
-if ($this->emailVerified !== 1) echo $this->eso->htmlMessage("accountNotYetVerified1", makeLink("join", "sendVerification", $this->eso->user["memberId"])); ?>
+if ($this->emailVerified !== 1 and !empty($config["confirmEmailNotice"])) echo $this->eso->htmlMessage("accountNotYetVerified1", makeLink("join", "sendVerification", $this->eso->user["memberId"])); ?>
 
 <fieldset id='appearance'>
 <legend><?php echo $language["Appearance settings"];?></legend>
@@ -151,6 +151,29 @@ Settings.initSettingsForm();
 // ]]>
 </script>
 
+<form action='<?php echo makeLink("settings");?>' method='post'>
+<input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
+<fieldset id='settingsSessions'>
+<legend><a href='#' onclick='Settings.toggleFieldset("settingsSessions");return false'><?php echo $language["Manage my sessions"];?> (<span id='sessionCount'><?php echo count($this->sessions);?></span>)</a></legend>
+<div id='settingsSessionsForm'>
+
+if (count($this->sessions) > 1):?><div id='otherSessionsMessage'><?php echo $this->eso->htmlMessage("unrecognizedSessions");?></div><?php endif;?>
+
+<ul class='list'>
+<?php foreach ($this->sessions as $session) echo $this->htmlSession($session);?>
+<?php if (count($this->sessions) > 1):?><li id='logOutOtherSessions'><?php echo $this->eso->skin->button(array("name" => "logOutOtherSessions", "value" => $language["Log out all other sessions"], "onclick" => "return Settings.logOutOtherSessions()"));?></li><?php endif;?>
+</ul>
+
+</div>
+</fieldset>
+</form>
+
+<script type='text/javascript'>
+// <![CDATA[
+Settings.initSessions();
+// ]]>
+</script>
+
 <?php // Output the change my password or email form. ?>
 <form action='<?php echo makeLink("settings");?>' method='post'>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
@@ -200,7 +223,7 @@ if (!empty($config["changeUsername"]) and !$this->eso->isSuspended()): ?>
 
 <li>
 <label><?php echo $language["New username"];?></label> <input id='name' type='text' name='settingsUsername[name]' class='text' autocomplete='username' value='<?php echo @$_POST["settingsUsername"]["name"];?>'/>
-<div id='name-message'><?php if(!empty($this->messages["username"]))echo $this->eso->htmlMessage($this->messages["username"]);else echo $this->eso->htmlMessage("changeYourName");?></div>
+<div id='name-message'><?php if(!empty($this->messages["username"]))echo $this->eso->htmlMessage($this->messages["username"]);else echo $this->eso->htmlMessage($config["changeUsername"] === "changeCaps" ? "changeYourNameCaps" : "changeYourName");?></div>
 </li>
 
 <li>

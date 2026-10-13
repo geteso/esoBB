@@ -30,6 +30,8 @@ var $messages = array();
 var $emailVerified = 1;
 var $languages;
 var $form;
+var $loggedOutElsewhere = 0;
+var $sessions = array();
 
 // Initialize: perform any necessary saving actions, and define the form contents.
 function init()
@@ -62,7 +64,7 @@ function init()
 	if (isset($_POST["settingsPasswordEmail"]["submit"])
 		and $this->eso->validateToken(@$_POST["token"])
 		and $this->changePasswordEmail()) {
-		$this->eso->message("changesSaved");
+		$this->eso->message($this->loggedOutElsewhere ? "changesSavedLoggedOutElsewhere" : "changesSaved");
 		redirect("settings");
 	}
 	// Change the user's name.
@@ -70,13 +72,24 @@ function init()
 		and $this->eso->validateToken(@$_POST["token"])
 		and $this->changeUsername()) {
 		$this->eso->message("changesSaved");
-		// Update the username in session and user object.
-		$newName = substr($_POST["settingsUsername"]["name"], 0, 31);
-		$_SESSION["user"]["name"] = $newName;
-		$this->eso->user["name"] = $newName;
 		redirect("settings");
 	}
-	
+
+	if (isset($_GET["logOutSession"]) and $this->eso->validateToken(@$_GET["token"])) {
+		if ($this->eso->endLogin($_GET["logOutSession"], $this->eso->user["memberId"])) $this->eso->message("sessionLoggedOut");
+		redirect("settings");
+	}
+	if (isset($_POST["logOutOtherSessions"]) and $this->eso->validateToken(@$_POST["token"])) {
+		$this->eso->endLogins($this->eso->user["memberId"], (int)@$_SESSION["loginId"]);
+		$this->eso->message("otherSessionsLoggedOut");
+		redirect("settings");
+	}
+
+	if (!defined("AJAX_REQUEST")) {
+		$this->sessions = $this->eso->getLogins($this->eso->user["memberId"]);
+		$this->eso->addLanguageToJS("show", "hide", "Copied", "confirmLogOutOtherSessions");
+	}
+
 	// Loop through the languages directory to create a string of options to go in the language <select> tag.
 	$langOptions = "";
 	$this->languages = $this->eso->getLanguages();
@@ -95,6 +108,13 @@ function init()
 	);
 	foreach ($align as $k => $v)
 		$avatarAlignmentOptions .= "<option value='$k'" . ($this->eso->user["avatarAlignment"] == $k ? " selected='selected'" : "") . ">$v</option>";
+
+	// Create a string of options to go in the 'remember me' <select> tag.
+	$rememberMeOptions = "";
+	foreach (array("ask" => "rememberMeAsk", "always" => "rememberMeAlways", "never" => "rememberMeNever") as $k => $v)
+		$rememberMeOptions .= "<option value='$k'" . ($this->eso->user["rememberMe"] == $k ? " selected='selected'" : "") . ">{$language[$v]}</option>";
+
+	$canEmail = ($this->emailVerified == 1 and !empty($config["sendEmail"]));
 	
 	// Define the elements in the settings form.
 	$this->form = array(
@@ -115,16 +135,23 @@ function init()
 				"validate" => array("Settings", "validateAvatarAlignment"),
 				"required" => true
 			),
+			250 => array(
+				"id" => "rememberMe",
+				"html" => "<label>{$language["rememberMe"]}</label> <select id='rememberMe' name='rememberMe'>$rememberMeOptions</select>",
+				"databaseField" => "rememberMe",
+				"validate" => "validateRememberMe",
+				"required" => true
+			),
 			300 => array(
 				"id" => "emailOnPrivateAdd",
-				"html" => "<label for='emailOnPrivateAdd' class='checkbox'>{$language["emailOnPrivateAdd"]} <span class='label private'>{$language["labels"]["private"]}</span></label> <input id='emailOnPrivateAdd' type='checkbox' class='checkbox' name='emailOnPrivateAdd' value='1' " . ($this->eso->user["emailOnPrivateAdd"] ? "checked='checked' " : "") . ($this->emailVerified == 1 && !empty($config["sendEmail"]) ? "" : "disabled") . "/>",
-				"databaseField" => "emailOnPrivateAdd",
+				"html" => "<label for='emailOnPrivateAdd' class='checkbox'>{$language["emailOnPrivateAdd"]} <span class='label private'>{$language["labels"]["private"]}</span></label> <input id='emailOnPrivateAdd' type='checkbox' class='checkbox' name='emailOnPrivateAdd' value='1' " . ($this->eso->user["emailOnPrivateAdd"] ? "checked='checked' " : "") . ($canEmail ? "" : "disabled") . "/>",
+				"databaseField" => $canEmail ? "emailOnPrivateAdd" : false,
 				"checkbox" => true
 			),
 			400 => array(
 				"id" => "emailOnStar",
-				"html" => "<label for='emailOnStar' class='checkbox'>{$language["emailOnStar"]} <span class='star1 starInline'>*</span></label> <input id='emailOnStar' type='checkbox' class='checkbox' name='emailOnStar' value='1' " .  ($this->eso->user["emailOnStar"] ? "checked='checked' " : "") . ($this->emailVerified == 1 && !empty($config["sendEmail"]) ? "" : "disabled") . "/>",
-				"databaseField" => "emailOnStar",
+				"html" => "<label for='emailOnStar' class='checkbox'>{$language["emailOnStar"]} <span class='star1 starInline'>*</span></label> <input id='emailOnStar' type='checkbox' class='checkbox' name='emailOnStar' value='1' " .  ($this->eso->user["emailOnStar"] ? "checked='checked' " : "") . ($canEmail ? "" : "disabled") . "/>",
+				"databaseField" => $canEmail ? "emailOnStar" : false,
 				"checkbox" => true
 			),
 			500 => array(
@@ -146,8 +173,10 @@ function init()
 				"checkbox" => true
 			)
 		)
-		
+	
 	);
+	
+	if (empty($config["sendEmail"])) unset($this->form["settingsOther"][300], $this->form["settingsOther"][400]);
 	
 	$this->callHook("init");
 	
@@ -194,8 +223,6 @@ function saveSettings()
 	foreach ($fields as $field) {
 		if (!is_array($field)) continue;
 		if (!empty($field["databaseField"])) {
-			// Skip email-related settings if email is not verified or sendEmail is disabled.
-			if (($field["databaseField"] == "emailOnPrivateAdd" || $field["databaseField"] == "emailOnStar") && ($this->emailVerified != 1 || empty($config["sendEmail"]))) continue;
 			$updateData[$field["databaseField"]] = !empty($field["checkbox"])
 				? ($field["input"] ? 1 : 0)
 				: $field["input"];
@@ -251,43 +278,32 @@ function changeUsername()
 
 		// Validate the name, then add the updating part to the query.
 		$name = substr($_POST["settingsUsername"]["name"], 0, 31);
-		// Prevent duplicates and allow changes to capitalization of the same name.
-		if (!($name !== $this->eso->user["name"] and strtolower($name) == strtolower($this->eso->user["name"])) and $error = validateName($name)) $this->messages["username"] = $error;
-		else $updateData["name"] = $_POST["settingsUsername"]["name"];
-
-		if ($name !== $this->eso->user["name"]) {
-			if ($name !== $this->eso->user["name"] and strtolower($name) == strtolower($this->eso->user["name"]))
-			if ($error = validateName($name)) $this->messages["username"] = $error;
-			else $updateData["name"] = $_POST["settingsUsername"]["name"];
-		} else {
-
-		}
+		if ($error = $this->validateNewName($name)) $this->messages["username"] = $error;
+		elseif ($name !== $this->eso->user["name"]) $updateData["name"] = $name;
 	}
 
 	// Check if the user entered their old password correctly.
 	if (!verifyPassword($_POST["settingsUsername"]["password"], $password, $salt, $config)) {
 		$this->messages["password"] = "incorrectPassword";
+		return false;
 	}
 
-	// Everything is valid and good to go! Run the query if necessary.
-	elseif (count($updateData)) {
-		$setClause = array();
-		$types = "";
-		$params = array();
-		foreach ($updateData as $field => $value) {
-			$setClause[] = "$field=?";
-			$types .= is_int($value) ? "i" : "s";
-			$params[] = $value;
-		}
-		$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
-		$types .= "i";
-		$params[] = $memberId;
-		$this->eso->db->queryPrepared($query, $types, ...$params);
-		$this->messages = array();
-		return true;
-	}
+	// If the new name wasn't valid, don't save it.
+	if (count($this->messages)) return false;
+	
+	// Everything is valid and good to go! Save the new name, if it's different.
+	if (count($updateData)) $this->updateMember($updateData);
+	$this->messages = array();
+	return true;
+}
 
-	return false;
+// Validate a new username for the member.
+function validateNewName(&$name)
+{
+	global $config;
+	$lower = function($s) { return function_exists("mb_strtolower") ? mb_strtolower($s, "UTF-8") : strtolower($s); };
+	if ($config["changeUsername"] === "changeCaps" and $lower($name) !== $lower($this->eso->user["name"])) return "nameChangeCapsOnly";
+	return validateName($name, (int)$this->eso->user["memberId"]);
 }
 
 // Change the user's password and/or email.
@@ -296,7 +312,7 @@ function changePasswordEmail()
 	global $config;
 	$updateData = array();
 	$memberId = (int)$this->eso->user["memberId"];
-	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
+	$row = $this->eso->db->fetchAssocPrepared("SELECT salt, password, email FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 	if ($row) {
 		$salt = $row["salt"];
 		$password = $row["password"];
@@ -332,36 +348,47 @@ function changePasswordEmail()
 		if ($this->eso->isSuspended()) return false;
 		
 		// Validate the email address. If it's ok, add the updating part to the query.
-		if ($error = validateEmail($_POST["settingsPasswordEmail"]["email"])) $this->messages["email"] = $error;
-		else $updateData["email"] = $_POST["settingsPasswordEmail"]["email"];
+		$email = $_POST["settingsPasswordEmail"]["email"];
+		if ($error = validateEmail($email, $memberId)) $this->messages["email"] = $error;
+		elseif ($email !== $row["email"]) $updateData["email"] = $email;
 		$this->messages["current"] = "reenterInformation";
-		
+	
 	}
 	
 	// Check if the user entered their old password correctly.
 	if (!verifyPassword($_POST["settingsPasswordEmail"]["current"], $password, $salt, $config)) {
 		$this->messages["current"] = "incorrectPassword";
+		return false;
 	}
 
 	// Everything is valid and good to go! Run the query if necessary.
-	elseif (count($updateData)) {
-		$setClause = array();
-		$types = "";
-		$params = array();
-		foreach ($updateData as $field => $value) {
-			$setClause[] = "$field=?";
-			$types .= is_int($value) ? "i" : "s";
-			$params[] = $value;
-		}
-		$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
-		$types .= "i";
-		$params[] = $memberId;
-		$this->eso->db->queryPrepared($query, $types, ...$params);
-		$this->messages = array();
-		return true;
-	}
+	if (count(array_diff_key($this->messages, array("current" => true)))) return false;
 	
-	return false;
+	// Everything is valid and good to go! Save whatever has changed.
+	if (count($updateData)) $this->updateMember($updateData);
+
+	if (isset($updateData["password"])) $this->loggedOutElsewhere = $this->eso->endLogins($memberId, (int)@$_SESSION["loginId"]);
+
+	$this->messages = array();
+	return true;
+}
+
+function updateMember($updateData)
+{
+	global $config;
+	$setClause = array();
+	$types = "";
+	$params = array();
+	foreach ($updateData as $field => $value) {
+		$setClause[] = "$field=?";
+		$types .= is_int($value) ? "i" : "s";
+		$params[] = $value;
+	}
+	$query = "UPDATE {$config["tablePrefix"]}members SET " . implode(", ", $setClause) . " WHERE memberId=?";
+	$types .= "i";
+	$params[] = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared($query, $types, ...$params);
+	foreach ($updateData as $field => $value) $_SESSION["user"][$field] = $this->eso->user[$field] = $value;
 }
 
 // Change the user's avatar.
@@ -537,7 +564,21 @@ function ajax()
 			if (!$this->eso->validateToken(@$_POST["token"])) return;
 			$this->changeColor(@$_POST["color"]);
 			break;
-		
+
+		// Log out one of the member's other sessions.
+		case "logOutSession":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			if (!$this->eso->endLogin(@$_POST["id"], $this->eso->user["memberId"])) return false;
+			$this->eso->message("sessionLoggedOut");
+			return true;
+
+		// Log out all of the member's other sessions.
+		case "logOutOtherSessions":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			$this->eso->endLogins($this->eso->user["memberId"], (int)@$_SESSION["loginId"]);
+			$this->eso->message("otherSessionsLoggedOut");
+			return true;
+
 		// Validate a form field.
 		case "validate":
 			$fieldId = @$_POST["field"];
@@ -557,6 +598,59 @@ function ajax()
 				return array("validated" => true, "message" => $defaultMessage);
 			}
 	}
+}
+
+// Generate the HTML for one of the member's sessions.
+function htmlSession($session)
+{
+	global $language, $config;
+	$id = (int)$session["loginId"];
+	$current = $id == (int)@$_SESSION["loginId"];
+	$agent = parseUserAgent($session["userAgent"]);
+	$ip = $session["ip"] !== null ? @inet_ntop($session["ip"]) : false;
+	$lastTime = $current ? time() : (int)$session["lastTime"];
+	$abbrTime = function($time) use ($language) {
+		return "<abbr title='" . date($language["dateFormat"], $time) . "'>" . relativeTime($time) . "</abbr>";
+	};
+
+	$where = $agent["device"] ? $agent["device"] : $agent["system"];
+	if ($agent["browser"] and $where) $title = sprintf($language["browserOnSystem"], $agent["browser"], $where);
+	elseif ($agent["browser"] or $where) $title = $agent["browser"] ? $agent["browser"] : $where;
+	else $title = $language["Unknown browser"];
+
+	// Controls: show its details, and an actions menu.
+	$copy = array(100 => "<a href='#' onclick='return copyText(\"$id\")'>{$language["session ID"]}</a>");
+	if ($session["userAgent"]) $copy[200] = "<a href='#' onclick='return Settings.copySessionDetail($id, \"userAgent\")'>{$language["user agent"]}</a>";
+	if ($ip) $copy[300] = "<a href='#' onclick='return Settings.copySessionDetail($id, \"ip\")'>{$language["IP address"]}</a>";
+	$actions = array(100 => $this->eso->htmlDropdown("copy text", $copy, array("align" => "right")));
+	if (!$current) $actions[200] = "<a href='" . makeLink("settings", "?logOutSession=$id", "&token={$_SESSION["token"]}") . "' onclick='return Settings.logOutSession($id)'>{$language["log out session"]}</a>";
+	$controls = array(
+		100 => "<a href='#' id='session-$id-toggle' onclick='return Settings.toggleSession($id)'>{$language["show"]}</a>",
+		"actions" => $actions
+	);
+	$this->callHook("getSessionControls", array($session, &$controls));
+
+	$details = array();
+	if ($session["firstTime"]) $details[$language["Logged in"]] = $abbrTime((int)$session["firstTime"]);
+	$details[$language["Last active"]] = $abbrTime($lastTime);
+	if ($session["remembered"]) $details[$language["Remember until"]] = $abbrTime($lastTime + $config["cookieExpire"]);
+	if ($agent["system"]) $details[$language["System"]] = $agent["system"] . ($agent["device"] ? " ({$agent["device"]})" : "");
+	if ($agent["browser"]) $details[$language["Browser"]] = $agent["browser"] . ($agent["version"] ? " {$agent["version"]}" : "");
+	if ($session["userAgent"]) $details[$language["User agent"]] = "<code class='userAgent'>" . sanitizeHTML($session["userAgent"]) . "</code>";
+	if ($ip) $details[$language["IP address"]] = "<code class='ip'>$ip</code>";
+	$detailsHtml = "";
+	foreach ($details as $label => $value) $detailsHtml .= "<li><label>$label</label> <div>$value</div></li>\n";
+
+	return "<li id='session-$id'" . ($current ? " class='current'" : "") . ">
+<div class='hdr'>
+<div class='controls'>" . $this->eso->htmlControls($controls, array("align" => "right")) . "</div>
+<strong>$title</strong>
+<small>#$id" . ($current ? " {$language["(this device)"]}" : "") . "</small>
+<small><span title='" . date($language["dateFormat"], $lastTime) . "'>" . relativeTime($lastTime) . "</span></small>
+</div>
+<div id='session-$id-details' class='details'><ul class='form stats'>
+$detailsHtml</ul></div>
+</li>\n";
 }
 
 // Add an element to the a fieldset in the form.
@@ -618,16 +712,7 @@ function validateFieldAjax($fieldId, $formId, $value, $newPassword = null)
 					// Validate email format (but allow same email).
 					if (empty($value)) return false; // Optional field
 					$email = $value;
-					if ($error = validateEmail($email)) {
-						// If email is taken, check if it's the user's own email.
-						if ($error == "emailTaken") {
-							$memberId = (int)$this->eso->user["memberId"];
-							$currentEmail = $this->eso->db->fetchOne("SELECT email FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
-							if (strtolower($email) == strtolower($currentEmail)) return false; // Same email is valid
-						}
-						return $error;
-					}
-					return false; // Valid
+					return validateEmail($email, (int)$this->eso->user["memberId"]);
 				
 				case "current":
 					// Current password validation: check format only for AJAX.
@@ -654,11 +739,7 @@ function validateFieldAjax($fieldId, $formId, $value, $newPassword = null)
 					// Don't show error when empty - match Join behavior (errors only show after user types)
 					if (empty($value)) return false;
 					$name = substr($value, 0, 31);
-					// Allow capitalization changes of the same name.
-					if ($name !== $this->eso->user["name"] && strtolower($name) == strtolower($this->eso->user["name"])) {
-						return false; // Valid (just capitalization change)
-					}
-					return validateName($name);
+					return $this->validateNewName($name);
 				
 				case "password":
 					// Password is required for username form - match Join behavior

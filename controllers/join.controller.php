@@ -33,19 +33,10 @@ function init()
 {
 	global $language, $config;
 
-	// If we're already logged in, go to 'My settings'.
-	if ($this->eso->user) redirect("settings");
-
-	// If registration is disabled, kick them out.
-	elseif (empty($config["registrationOpen"])) {
-		$this->eso->message("registrationClosed");
-		redirect("");
-	}
-
 	// Set the title.
 	$this->title = $language["Join this forum"];
 
-	// Only respond to requests for verification emails if we require e-mail verification.
+	// Only respond to requests for verification emails if the forum sends email.
 	if (!empty($config["sendEmail"]) && isset($_GET["q2"])) {
 		
 		// If the user is requesting that we resend their verification email...
@@ -53,14 +44,18 @@ function init()
 			$memberId = (int)@$_GET["q3"];
 			// Generate cryptographically secure random string for verification hash
 			$rand = bin2hex(random_bytes(16));
-			$row = $this->eso->db->fetchRowPrepared("SELECT email, name FROM {$config["tablePrefix"]}members WHERE memberId=? AND account='Unvalidated'", "i", $memberId);
-			if ($row) {
-				list($email, $name) = $row;
-				if ($this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $rand, $memberId)) {
-					$this->sendVerificationEmail($email, $name, $memberId . $rand);
+			$userId = $this->eso->user ? (int)$this->eso->user["memberId"] : 0;
+			// Limit how often verification emails can be sent, since anyone can ask for one.
+			if (checkFloodControl("verificationEmail", $config["registrationsPerMinute"], "verificationEmails", "waitToSendEmail", $userId ?: null)) {
+				$row = $this->eso->db->fetchRowPrepared("SELECT email, name, account FROM {$config["tablePrefix"]}members WHERE memberId=? AND emailVerified!=1 AND (account='Unvalidated' OR memberId=?)", "ii", $memberId, $userId);
+				if ($row) {
+					list($email, $name, $account) = $row;
+					if ($this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $rand, $memberId)) {
+						$this->sendVerificationEmail($email, $name, $memberId . $rand, $account);
+					}
 				}
+				$this->eso->message(($row and $account != "Unvalidated") ? "verificationEmailSent" : "verifyEmail", false);
 			}
-			$this->eso->message("verifyEmail", false);
 		// Otherwise, if there's a verification hash in the URL, attempt to verify the user.
 		} else $this->validateMember($_GET["q2"]);
 		// Make sure to redirect any requests from logged in users back to 'My settings'.
@@ -193,12 +188,8 @@ function addMember()
 	// If registration has been disabled, there's no need to go any further.
 	if (($error = $this->canJoin()) !== true) return false;
 
-	// If we're counting logins per minute, impose some flood control measures.
-	if (!isset($cookie) and $config["loginsPerMinute"] > 0) {
-		if (!checkFloodControl("login", $config["loginsPerMinute"], "logins", "waitToLogin", null)) {
-			return;
-		}
-	}
+	// If we're counting registrations per minute, impose some flood control measures.
+	if (!checkFloodControl("join", $config["registrationsPerMinute"], "registrations", "waitToJoin", null)) return false;
 	
 	// Construct the data to insert the member into the database.
 	// Loop through the form fields and use their "databaseField" and "input" attributes.
@@ -227,7 +218,10 @@ function addMember()
 	$insertData["language"] = "'" . $this->eso->db->escape($config["language"]) . "'";
 	$insertData["avatarAlignment"] = "'{$_SESSION["avatarAlignment"]}'";
 	$insertData["showOnline"] = $config["showOnline"] ? 1 : 0;
-	
+	$insertData["emailOnPrivateAdd"] = $config["emailPrivateAdd"] ? 1 : 0;
+	$insertData["emailOnStar"] = $config["emailStarReply"] ? 1 : 0;
+	$insertData["rememberMe"] = "'" . defaultRememberMe() . "'";
+
 	$this->callHook("beforeAddMember", array(&$insertData));
 	
 	// Build prepared statement parameters
@@ -284,7 +278,7 @@ function addMember()
 		// Generate cryptographically secure random string for verification hash
 		$rand = bin2hex(random_bytes(16));
 		$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=? WHERE memberId=?", "si", $rand, $memberId);
-		$this->sendVerificationEmail($_POST["join"]["email"], $_POST["join"]["name"], $memberId . $rand);
+		$this->sendVerificationEmail($_POST["join"]["email"], $_POST["join"]["name"], $memberId . $rand, isset($insertData["account"]) ? "Member" : "Unvalidated");
 	}
 	
 	return true;
@@ -298,10 +292,11 @@ function canJoin() {
 }
 
 // Send a verification email.
-function sendVerificationEmail($email, $name, $verifyHash)
+function sendVerificationEmail($email, $name, $verifyHash, $account = "Unvalidated")
 {
 	global $language, $config;
-	sendEmail($email, sprintf($language["emails"]["join"]["subject"], $name), sprintf($language["emails"]["join"]["body"], $name, $config["forumTitle"], $config["baseURL"] . makeLink("join", $verifyHash)));
+	$text = ($account == "Unvalidated" and !empty($config["requireEmailApproval"])) ? $language["emails"]["join"] : $language["emails"]["confirmEmail"];
+	sendEmail($email, sprintf($text["subject"], $name), sprintf($text["body"], $name, $config["forumTitle"], $config["baseURL"] . makeLink("join", $verifyHash)));
 }
 
 // Validate a member with the provided validation hash.
@@ -313,18 +308,20 @@ function validateMember($hash)
 	$memberId = (int)substr($hash, 0, strlen($hash) - 32);
 	$resetPassword = substr($hash, -32);
 	
-	// See if there is an unvalidated user with this ID and password hash. If there is, validate them and log them in.
-	$row = $this->eso->db->fetchAssocPrepared("SELECT name, password FROM {$config["tablePrefix"]}members WHERE memberId=? AND resetPassword=? AND emailVerified!=1", "is", $memberId, $resetPassword);
+	// See if there is a member with this ID and password hash whose email address hasn't been verified. If there is,
+	// verify it and log them in.
+	$row = $this->eso->db->fetchAssocPrepared("SELECT name, password, account FROM {$config["tablePrefix"]}members WHERE memberId=? AND resetPassword=? AND emailVerified!=1", "is", $memberId, $resetPassword);
 	if ($row) {
 		$name = $row["name"];
 		$password = $row["password"];
-		if (empty($config["requireManualApproval"])) {
+		if ($row["account"] == "Unvalidated" and empty($config["requireManualApproval"])) {
 			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET account='Member', emailVerified=1 WHERE memberId=?", "i", $memberId);
 		} else {
 			$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET emailVerified=1 WHERE memberId=?", "i", $memberId);
 		}
 		$this->eso->login($name, false, $password);
-		if (empty($config["requireManualApproval"])) {
+		if ($row["account"] != "Unvalidated") $this->eso->message("emailAddressVerified", false);
+		elseif (empty($config["requireManualApproval"])) {
 			$account = $this->eso->db->fetchOne("SELECT account FROM {$config["tablePrefix"]}members WHERE memberId=?", "i", $memberId);
 			if ($account == "Member") $this->eso->message("accountValidated", false);
 		}
