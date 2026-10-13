@@ -341,6 +341,23 @@ function cookieIp()
 	return sprintf("%u", crc32(substr($packed, 0, 8)));
 }
 
+// Work out whether this request came in over HTTPS.
+function isHttpsRequest()
+{
+	$server = function($key) {return isset($_SERVER[$key]) ? strtolower(trim((string)$_SERVER[$key])) : "";};
+
+	if ($server("HTTPS") !== "" and $server("HTTPS") != "off") return true;
+	if ($server("SERVER_PORT") == "443" or $server("REQUEST_SCHEME") == "https") return true;
+
+	// X-Forwarded-Proto can return a list of protocols when behind several proxies, so use the first one.
+	$proto = explode(",", $server("HTTP_X_FORWARDED_PROTO"));
+	if (trim($proto[0]) == "https") return true;
+	if ($server("HTTP_X_FORWARDED_SSL") == "on") return true;
+	if (preg_match("/^[^,]*\bproto=\"?https\b/", $server("HTTP_FORWARDED"))) return true;
+
+	return false;
+}
+
 // Get the user's IP address in binary form (4 bytes for IPv4, 16 for IPv6) for storing in logins.
 function loginIp()
 {

@@ -174,16 +174,6 @@ function saveAdvancedSettings()
 
 	$newConfig["uploadPackages"] = (bool)!empty($_POST["uploadPackages"]);
 
-	// Logins per minute must be greater than or equal to 1.
-	if (empty($_POST["loginsPerMinute"]) or !is_numeric($_POST["loginsPerMinute"]) or ($_POST["loginsPerMinute"] < 1)) {$this->eso->message("invalidConfig"); return false;}
-	$newConfig["loginsPerMinute"] = $_POST["loginsPerMinute"];
-
-	// Minimum password length must be greater than or equal to 1.
-	if (empty($_POST["minPasswordLength"]) or !is_numeric($_POST["minPasswordLength"]) or ($_POST["minPasswordLength"] < 1)) {$this->eso->message("invalidConfig"); return false;}
-	$newConfig["minPasswordLength"] = $_POST["minPasswordLength"];
-
-	$newConfig["nonAsciiCharacters"] = (bool)!empty($_POST["nonAsciiCharacters"]);
-
 	if (empty($_POST["userOnlineExpire"]) or !is_numeric($_POST["userOnlineExpire"]) or ($_POST["userOnlineExpire"] < 1)) {$this->eso->message("invalidConfig"); return false;}
 	$newConfig["userOnlineExpire"] = $_POST["userOnlineExpire"];
 
@@ -533,7 +523,17 @@ function saveMembersSettings()
 	if (!empty($config["sendEmail"])) $newConfig["requireEmailApproval"] = (bool)!empty($_POST["requireEmailApproval"]);
 	$newConfig["requireManualApproval"] = (bool)!empty($_POST["requireManualApproval"]);
 	
+	$newConfig["nonAsciiCharacters"] = (bool)!empty($_POST["nonAsciiCharacters"]);
+
 	$newConfig["changeUsername"] = @$_POST["changeUsername"] === "changeCaps" ? "changeCaps" : !empty($_POST["changeUsername"]);
+
+	// Minimum password length must be greater than or equal to 1.
+	if (empty($_POST["minPasswordLength"]) or !is_numeric($_POST["minPasswordLength"]) or ($_POST["minPasswordLength"] < 1)) {$this->eso->message("invalidConfig"); return false;}
+	$newConfig["minPasswordLength"] = $_POST["minPasswordLength"];
+
+	// Logins per minute must be greater than or equal to 1.
+	if (empty($_POST["loginsPerMinute"]) or !is_numeric($_POST["loginsPerMinute"]) or ($_POST["loginsPerMinute"] < 1)) {$this->eso->message("invalidConfig"); return false;}
+	$newConfig["loginsPerMinute"] = $_POST["loginsPerMinute"];
 
 	if (count($newConfig)) $this->writeSettingsConfig($newConfig);
 

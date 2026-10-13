@@ -283,7 +283,7 @@ blockquote p {margin-bottom:.75em}
 #settingsAvatar li:last-child {margin-top:-28px}
 #settingsOther label {width:32em}
 .hidden#settingsOther, .hidden#settingsSessions, .hidden#settingsPassword {margin-bottom:5px; padding-bottom:0}
-#logOutOtherSessions {margin-top:5px; border-bottom:none}
+#logOutOtherSessions {padding:10px 0 0; border-bottom:none}
 @media only screen and (max-width:870px) {
 #settingsAvatar li:last-child {margin-top:0}
 }
@@ -551,10 +551,6 @@ ul.fl, ul.fr {white-space:nowrap}
 
 @media only screen and (max-width:420px) {
 #addMember {width:5em}
-}
-
-@media only screen and (max-width:405px) {
-#rememberMe, #rememberChk {display:none}
 }
 
 @media only screen and (max-width:395px) {

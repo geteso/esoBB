@@ -333,9 +333,7 @@ function suggestBaseUrl()
 {
 	$dir = substr($_SERVER["PHP_SELF"], 0, strrpos($_SERVER["PHP_SELF"], "/"));
 	$dir = substr($dir, 0, strrpos($dir, "/"));
-	if (array_key_exists("HTTPS", $_SERVER) and $_SERVER["HTTPS"] === "on") $baseURL = "https://{$_SERVER["HTTP_HOST"]}{$dir}/";
-	else $baseURL = "http://{$_SERVER["HTTP_HOST"]}{$dir}/";
-	return $baseURL;
+	return (isHttpsRequest() ? "https" : "http") . "://{$_SERVER["HTTP_HOST"]}{$dir}/";
 }
 
 // Generate a default value for whether or not to use friendly URLs, depending on if the REQUEST_URI variable is available.

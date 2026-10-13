@@ -76,18 +76,6 @@ if ($this->eso->user["memberId"] == $config["rootAdmin"]): ?>
 
 <hr/>
 
-<li><label class='checkbox'><?php echo $language["nonAsciiCharacters"]; ?><br/><small><?php echo $language["nonAsciiInfo"]; ?></small></label>
-<input type='checkbox' class='checkbox' name='nonAsciiCharacters' value='1'<?php echo !empty($config["nonAsciiCharacters"]) ? " checked='checked'" : ""; ?>/></li>
-
-<li><label><?php echo $language["loginsPerMinute"]; ?></label>
-<div><input type='text' class='text' name='loginsPerMinute' value='<?php echo $config["loginsPerMinute"]; ?>'/>
-<br/><small><?php echo $language["loginsMinuteInfo"]; ?></small></div></li>
-
-<li><label><?php echo $language["minPasswordLength"]; ?></label>
-<input type='text' class='text' name='minPasswordLength' value='<?php echo $config["minPasswordLength"]; ?>'/></li>
-
-<hr/>
-
 <li><label><?php echo $language["userOnlineExpire"]; ?></label>
 <div><input type='text' class='text' name='userOnlineExpire' value='<?php echo $config["userOnlineExpire"]; ?>'/>
 <br/><small><?php echo $language["userOnlineExpireInfo"]; ?></small></div></li>

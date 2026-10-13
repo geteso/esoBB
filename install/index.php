@@ -384,7 +384,13 @@ function toggleSmtpConfig() {
 <li><label><?php echo $language["install"]["useFriendlyURLs"]; ?></label> <input name='friendlyURLs' type='checkbox' tabindex='25' class='checkbox' value='1' <?php echo (!empty($_POST["friendlyURLs"]) or $install->suggestFriendlyUrls()) ? "checked" : ""; ?>/></li>
 </ul>
 </fieldset>
-<script type='text/javascript'>Settings.hideFieldset("advancedOptions")</script>
+<script type='text/javascript'>
+Settings.hideFieldset("advancedOptions");
+(function() {
+	var baseURL = getById("baseURL"), insecure = "http://" + window.location.host + "/";
+	if (window.location.protocol == "https:" && baseURL.value.indexOf(insecure) == 0) baseURL.value = "https://" + baseURL.value.substring(7);
+})();
+</script>
 
 <p id='footer' style='margin:0'><input type='submit' class='button' value='&#139; <?php echo $language["install"]["goBack"]; ?>' name='back'/> <input type='submit' id='installSubmit' tabindex='26' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' class='button'/></p>
 <script type='text/javascript'>

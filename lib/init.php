@@ -140,7 +140,7 @@ if (isset($_SESSION["ip"]) && isset($_SESSION["userAgent"])) {
 if (empty($_SESSION["token"])) regenerateToken();
 
 // Do we want to force HTTPS?
-if (!empty($config["https"]) and $_SERVER["HTTPS"] != "on") {
+if (!empty($config["https"]) and !isHttpsRequest()) {
     header("Location: https://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"]);
     exit;
 }
