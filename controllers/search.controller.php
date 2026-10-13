@@ -556,19 +556,8 @@ function ajax()
 			
 			// Search flood control - if the user has performed >= $config["searchesPerMinute"] searches in the last 
 			// minute, don't bother checking for new results.
-			if ($this->searchString and $config["searchesPerMinute"] > 0) {
-				// Check the session record of searches if it exists.
-				if (!empty($_SESSION["searches"])) {
-					foreach ($_SESSION["searches"] as $k => $v) {
-						if ($v < time() - 60) unset($_SESSION["searches"][$k]);
-					}
-					if (count($_SESSION["searches"]) >= $config["searchesPerMinute"]) return array("newActivity" => false);
-				// Otherwise, check the database.
-				} else {
-					$ip = cookieIp();
-					if ($this->eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='search' AND time>UNIX_TIMESTAMP()-60", 0) >= $config["searchesPerMinute"]) return array("newActivity" => false);
-				}
-			}
+			if ($this->searchString and floodControlWait("search", $config["searchesPerMinute"], $this->eso->user ? $this->eso->user["memberId"] : null))
+				return array("newActivity" => false);
 			
 			// Get a list of conversation IDs that match the search string.
 			$this->limit($config["results"]);

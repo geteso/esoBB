@@ -19,8 +19,8 @@
 
 /**
  * eso's JavaScript: contains global functions, Animation class, Messages
- * system, Ajax system, Conversation JavaScript, Search JavaScript, 'Join
- * this forum' JavaScript, and 'My settings' JavaScript.
+ * system, Ajax system, Poller class, Conversation JavaScript, Search
+ * JavaScript, 'Join this forum' JavaScript, and 'My settings' JavaScript.
  */
 
 // document.getElementById shortcut.
@@ -214,6 +214,33 @@ function animate(element, options) {
 			overflowDiv.animation.start();
 			break;
 			
+		case "collapse":
+			if (element.animation) element.animation.stop();
+			var fade = options.fade !== false;
+			var sizes = ["height", "paddingTop", "paddingBottom", "marginTop", "marginBottom"];
+
+			// Measure the element as it is when it's showing.
+			element.style.display = "";
+			for (var i = 0; i < sizes.length; i++) element.style[sizes[i]] = "";
+			var computed = window.getComputedStyle ? window.getComputedStyle(element, null) : element.currentStyle;
+			var full = [element.clientHeight - (parseFloat(computed.paddingTop) || 0) - (parseFloat(computed.paddingBottom) || 0)];
+			for (var i = 1; i < sizes.length; i++) full.push(parseFloat(computed[sizes[i]]) || 0);
+			full.push(1);
+			var none = [0, 0, 0, 0, 0, 0];
+
+			element.style.overflow = "hidden";
+			element.animation = new Animation(function(values, final) {
+				for (var i = 0; i < sizes.length; i++) element.style[sizes[i]] = final ? "" : values[i] + "px";
+				if (fade) element.style.opacity = final ? "" : values[sizes.length];
+				if (final) {
+					element.style.overflow = "";
+					if (!element.showing) element.style.display = "none";
+					if (options.done) options.done();
+				}
+			}, {begin: element.showing ? none : full, end: element.showing ? full : none});
+			element.animation.start();
+			break;
+
 		case "fade":
 			element.style.display = "";
 			var initOpacity = typeof element.style.opacity != "undefined" ? parseFloat(element.style.opacity) : 1;
@@ -268,6 +295,37 @@ function enable(button) {
 	button.className = button.className.replace(/(buttonD|bigD|d)isabled/g, "");
 	if (button.getElementsByTagName("input")[0]) button.getElementsByTagName("input")[0].disabled = "";
 	else button.disabled = "";
+};
+
+function copyText(text) {
+	Dropdown.closeAll();
+	var fallback = function() {
+		var area = document.createElement("textarea"), copied = false;
+		area.value = text;
+		document.body.appendChild(area);
+		area.select();
+		try {copied = document.execCommand("copy");} catch (e) {}
+		document.body.removeChild(area);
+		if (copied) showCopied();
+	};
+	if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(showCopied, fallback);
+	else fallback();
+	return false;
+};
+
+function showCopied() {
+	var copied = getById("copied");
+	if (!copied) {
+		copied = document.createElement("div");
+		copied.id = "copied";
+		copied.className = "info";
+		copied.style.display = "none";
+		copied.innerHTML = eso.language["Copied"];
+		document.body.appendChild(copied);
+	}
+	clearTimeout(copied.timeout);
+	show(copied, {animation: "fade"});
+	copied.timeout = setTimeout(function() {hide(copied, {animation: "fade"});}, 1500);
 };
 
 // Dropdowns: stack controls under a single toggle.  Used by control rows (e.g. post/member controls) via $eso->htmlControls().
@@ -545,6 +603,9 @@ var Messages = {
 
 container: null,
 messages: {},
+onShow: {}, // Functions to run when a message is shown, by message key.
+onHide: {}, // Functions to run when a message is hidden (however that happens), by message key.
+onClose: {}, // Functions to run when a message is closed with its "x" link, by message key.
 
 // Initialize: set up the messages container.
 init: function() {
@@ -580,7 +641,7 @@ showMessage: function(key, type, text, disappear, hideX) {
 	
 	// Update the message details.
 	this.messages[key].div.className = "msg " + type;
-	this.messages[key].div.innerHTML = (!hideX ? "<a href='javascript:Messages.hideMessage(\"" + key + "\")' class='close'>x</a>" : "") + text;
+	this.messages[key].div.innerHTML = (!hideX ? "<a href='javascript:Messages.close(\"" + key + "\")' class='close'>x</a>" : "") + text;
 	this.messages[key].type = type;
 	this.messages[key].text = text;
 	clearTimeout(this.messages[key].timeout);
@@ -591,12 +652,19 @@ showMessage: function(key, type, text, disappear, hideX) {
 	
 	// Animate the message.
 	this.animateMessage(key, "show");
+	if (this.onShow[key]) this.onShow[key]();
 },
 
 // Hide a specific message.
 hideMessage: function(key) {
 	if (!this.messages[key]) return false;
+	if (this.onHide[key]) this.onHide[key]();
 	this.animateMessage(key, "hide");
+},
+
+close: function(key) {
+	this.hideMessage(key);
+	if (this.onClose[key]) this.onClose[key]();
 },
 
 // Animate an individual message. type can be "show" or "hide".
@@ -637,6 +705,38 @@ animateMessage: function(key, type) {
 // Hide all messages.
 clearMessages: function() {
 	for (var i in this.messages) this.hideMessage(i);
+},
+
+showShadow: function(id) {
+	if (getById(id)) return getById(id);
+	var div = document.createElement("div");
+	div.id = id;
+	div.style.background = "#000";
+	div.style.opacity = "0.75";
+	div.style.position = "fixed";
+	div.style.top = div.style.right = div.style.bottom = div.style.left = "0px";
+	div.style.zIndex = "8999";
+	document.body.appendChild(div);
+
+	// If we're using IE6, we need to emulate position:fixed (which also means giving the shadow a size.)
+	if (isIE6) {
+		var d = getClientDimensions();
+		div.style.width = d[0] + "px";
+		div.style.height = d[1] + "px";
+		div.style.position = "absolute";
+		div.runtimeStyle.setExpression("top", "eval(document.documentElement.scrollTop)");
+		// The fixed element will flicker when the page is scrolled. Fix this by applying a "background image" to the
+		// body. Thanks http://ie7-js.googlecode.com/svn/trunk/src/ie7-fixed.js!
+		document.body.runtimeStyle.backgroundRepeat = "no-repeat";
+		document.body.runtimeStyle.backgroundImage = "url(x.gif)";
+		document.body.runtimeStyle.backgroundAttachment = "fixed";
+		div.style.filter = "alpha(opacity=75)";
+	}
+	return div;
+},
+
+hideShadow: function(id) {
+	if (getById(id)) document.body.removeChild(getById(id));
 }
 
 };
@@ -686,6 +786,9 @@ doRequest: function(request) {
 	request.http.open("POST", request.url, true);
 	request.http.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 	
+	// If the request has a timeout (in seconds), give up on it after that long.  It will be treated like a lost connection.
+	if (request.timeout && "timeout" in request.http) request.http.timeout = request.timeout * 1000;
+	
 	// If another ajax request isn't already loading, change the window onbeforeunload.
 	// Add an onbeforeunload to prevent the user from quitting during a request, but only if it's not a background
 	// request.
@@ -712,15 +815,19 @@ doRequest: function(request) {
 			}
 			
 			// Check the status code to see if the request went OK (200). If we had problems, alert the user.
-			if (request.http.status == 0) return; // Null status code.
+			if (request.http.status == 0) {
+				setTimeout(function() {Ajax.disconnect(request);}, 1000);
+				return;
+			}
 			// Something other than 200 - disconnect the ajax system.
 			if (request.http.status != 200) {
 				Ajax.disconnect(request);
 				return false;
 			}
 			// If the ajax system is disconnected but this request was successful, reconnect.
-			else if (Ajax.disconnected && !request.background) {
+			else if (Ajax.disconnected && !request.background && (!Ajax.disconnectedRequest || Ajax.disconnectedRequest.background)) {
 				Ajax.disconnected = false;
+				Ajax.disconnectedRequest = false;
 				Messages.clearMessages();
 			}
 			
@@ -762,31 +869,7 @@ doRequest: function(request) {
 			if (Ajax.beenLoggedOut) {
 				
 				// Show a big shadow over the page.
-				if (!getById("beenLoggedOutShadow")) {
-					var div = document.createElement("div");
-					div.id = "beenLoggedOutShadow";
-					div.style.background = "#000";
-					div.style.opacity = "0.75";
-					div.style.position = "fixed";
-					div.style.top = div.style.left = "0px";
-					var d = getClientDimensions();
-					div.style.width = d[0] + "px";
-					div.style.height = d[1] + "px";
-					div.style.zIndex = "8999";
-					document.body.appendChild(div);
-					
-					// If we're using IE6, we need to emulate position:fixed.
-					if (isIE6) {
-						div.style.position = "absolute";
-						div.runtimeStyle.setExpression("top", "eval(document.documentElement.scrollTop)");
-						// The fixed element will flicker when the page is scrolled. Fix this by applying a "background 
-						// image" to the body. Thanks http://ie7-js.googlecode.com/svn/trunk/src/ie7-fixed.js!
-						document.body.runtimeStyle.backgroundRepeat = "no-repeat";
-						document.body.runtimeStyle.backgroundImage = "url(x.gif)";
-						document.body.runtimeStyle.backgroundAttachment = "fixed";
-						div.style.filter = "alpha(opacity=75)";
-					}
-				}
+				Messages.showShadow("beenLoggedOutShadow");
 				// Focus on the password input.
 				getById("loginMsgPassword").focus();
 				request.repeat = true;
@@ -811,6 +894,7 @@ doRequest: function(request) {
 
 // Resume normal activity after recovering from a disconnection: clear messages and repeat the request that failed.
 resumeAfterDisconnection: function() {
+	Ajax.disconnected = false;
 	Messages.clearMessages();
 	Ajax.request(Ajax.disconnectedRequest);
 	Ajax.disconnectedRequest = false;
@@ -821,30 +905,184 @@ disconnect: function(request) {
 	this.disconnected = true;
 	request.repeat = true;
 	if (!this.disconnectedRequest || !request.background) this.disconnectedRequest = request;
-	this.queue = [];
+	for (var i = this.queue.length - 1; i >= 0; i--) {
+		if (this.queue[i] === request) this.queue.splice(i, 1);
+	}
 	Messages.showMessage("ajaxDisconnected", "warning", eso.language["ajaxDisconnected"], false);
+	this.doNextRequest();
 },
 
 // Dismiss the "beenLoggedOut" message by pressing cancel or successfully logging in.
-dismissLoggedOut: function(loggedInAs) {
+dismissLoggedOut: function(loggedInAs, keep) {
 	this.beenLoggedOut = false;
 	// Hide the message and the shadow.
-	Messages.clearMessages();
-	if (getById("beenLoggedOutShadow")) document.body.removeChild(getById("beenLoggedOutShadow"));
+	for (var i in Messages.messages) {
+		if (!keep || !(i in keep)) Messages.hideMessage(i);
+	}
+	Messages.hideShadow("beenLoggedOutShadow");
 	// Set the new 'logged in' user.
 	eso.user = loggedInAs ? loggedInAs : "";
 },
 
 // Login from the form in the "beenLoggedOut" message.
 login: function(password) {
+	var name = eso.user.replace(/&#39;/g, "'").replace(/&quot;/g, "\"").replace(/&#92;/g, "\\").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 	this.queue.unshift({
 		"url": eso.baseURL + "ajax.php",
-		"post": "login[name]=" + eso.user + "&login[password]=" + password,
-		"success": function(){Ajax.dismissLoggedOut(eso.user)}
+		"post": "login[name]=" + encodeURIComponent(name) + "&login[password]=" + encodeURIComponent(password),
+		"success": function(){Ajax.dismissLoggedOut(eso.user, this.messages)}
 	});
 	this.doRequest(this.queue[0]);
 }
- 
+
+};
+
+
+function rememberLogin(remember, closed) {
+	if (rememberLogin.answered) return false;
+	rememberLogin.answered = true;
+	var always = !closed && getById("rememberLoginAlways") && getById("rememberLoginAlways").checked;
+	if (!closed) Messages.hideMessage("rememberLogin");
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php",
+		"post": "action=rememberLogin&remember=" + (remember ? 1 : 0) + "&always=" + (always ? 1 : 0)
+	});
+	return false;
+}
+
+Messages.onShow.rememberLogin = function() {
+	rememberLogin.answered = false;
+	var shownAt = new Date().getTime();
+	Messages.showShadow("rememberLoginShadow").onclick = function() {
+		if (new Date().getTime() - shownAt >= 1000) Messages.close("rememberLogin");
+	};
+};
+Messages.onHide.rememberLogin = function() {Messages.hideShadow("rememberLoginShadow");};
+Messages.onClose.rememberLogin = function() {rememberLogin(false, true);};
+
+(function() {
+	var escape = function(e) {
+		e = e || window.event;
+		if (e.keyCode == 27 && getById("rememberLoginShadow")) Messages.close("rememberLogin");
+	};
+	if (document.addEventListener) document.addEventListener("keydown", escape, false);
+	else if (document.attachEvent) document.attachEvent("onkeydown", escape);
+})();
+
+
+// Poller class: repeatedly makes a background ajax request, one at a time. While nothing changes, it waits longer before
+// each request (up to a limit.) It pauses while the page is hidden, and while the ajax system is disconnected or logged
+// out. Example usage:
+// (new Poller({
+// 	interval: 4, multiplier: 1.5, limit: 60,
+// 	request: function() {return {url: eso.baseURL + "ajax.php?controller=example", post: "action=getUpdates"};},
+// 	update: function(result) {return result.updates.length > 0;}
+// })).start();
+var Poller = function(parameters) {
+	this.interval = parameters.interval; // Seconds to wait before a request (to begin with, and after something changes.)
+	this.multiplier = parameters.multiplier || 1; // Each time nothing changes, multiply the time to wait by this.
+	this.limit = parameters.limit || 0; // The most seconds to wait between requests. (0 = no limit.)
+	this.hiddenInterval = parameters.hiddenInterval || 0; // Seconds between requests while the page is hidden. (0 = pause.)
+	this.timeout = parameters.timeout || 30; // Seconds to wait for a response before giving up on a request.
+	this.request = parameters.request; // Returns the request's url and post data, or false to skip it for now.
+	this.update = parameters.update; // Handles the request's result (with this = the request.) Returns true if something changed.
+	this.delay = this.interval; // Seconds to wait before the next request.
+	this.pending = null; // The request we're waiting for a response to.
+	this.timer = null;
+	this.running = false;
+	this.paused = false; // Did we skip a request because the page was hidden?
+	
+	var poller = this;
+	if (typeof document.hidden != "undefined" && document.addEventListener) {
+		document.addEventListener("visibilitychange", function() {
+			if (!document.hidden && poller.paused) poller.poll();
+		}, false);
+	}
+};
+
+Poller.prototype.start = function() {
+	this.running = true;
+	this.delay = this.interval;
+	if (!this.pending) this.wait();
+};
+
+Poller.prototype.stop = function() {
+	clearTimeout(this.timer);
+	this.running = false;
+	this.pending = null;
+};
+
+// Wait before making the next request.
+Poller.prototype.wait = function() {
+	clearTimeout(this.timer);
+	if (!this.running) return;
+	var poller = this;
+	var seconds = document.hidden && this.hiddenInterval ? Math.max(this.delay, this.hiddenInterval) : this.delay;
+	this.timer = setTimeout(function() {poller.poll();}, Math.max(1, seconds) * 1000);
+};
+
+// Make a request now, unless we're waiting for a response to one already.
+Poller.prototype.poll = function() {
+	if (!this.running || this.pending) return;
+	clearTimeout(this.timer);
+	this.paused = false;
+	var poller = this;
+	
+	if (document.hidden && !this.hiddenInterval) {
+		this.paused = true;
+		return;
+	}
+	
+	// If the ajax system is disconnected or logged out, check back every second until it's working again.
+	if (Ajax.disconnected || Ajax.beenLoggedOut) {
+		this.timer = setTimeout(function() {poller.poll();}, 1000);
+		return;
+	}
+	
+	// Get the request's details. If there's nothing to request right now, ask again later.
+	var details = this.request();
+	if (!details) {
+		this.wait();
+		return;
+	}
+	
+	var request = this.pending = {
+		"url": details.url,
+		"post": details.post,
+		"background": true,
+		"timeout": this.timeout,
+		"success": function() {
+			if (poller.pending !== this) return;
+			poller.pending = null;
+			var changed = false;
+			try {changed = poller.update.call(this, this.result);}
+			finally {
+				// If something changed, go back to the starting interval. Otherwise, wait longer before the next request.
+				if (changed) poller.delay = poller.interval;
+				else {
+					poller.delay *= poller.multiplier;
+					if (poller.limit) poller.delay = Math.min(poller.delay, poller.limit);
+				}
+				poller.wait();
+			}
+		}
+	};
+	this.watch(request, 0);
+	Ajax.request(request);
+};
+
+// While a request is pending, check on it every second. If the connection has been lost (which takes our request with
+// it), or it's been much too long, give up on it and make another request.
+Poller.prototype.watch = function(request, seconds) {
+	var poller = this;
+	this.timer = setTimeout(function() {
+		if (poller.pending !== request) return;
+		if (Ajax.disconnected || Ajax.beenLoggedOut || seconds >= poller.timeout + 5) {
+			poller.pending = null;
+			poller.poll();
+		}
+		else poller.watch(request, seconds + 1);
+	}, 1000);
 };
 
 
@@ -870,8 +1108,7 @@ lastActionTime: null, // The conversation's last action time.
 lastRead: 0, // The last post in the conversation the user has read (start of the unread bar).
 updateLastRead: false, // A flag for whether or not to make an AJAX request to update the last read when fetching posts.
 
-autoReloadInterval: 4, // The number of seconds in which to check for new posts.
-timeout: null, // A timeout to periodically check for new posts.
+poller: null, // Periodically checks for new posts.
 disableJumpTo: false, // A flag for when the [viewing] part of the pagination bar is moused-over.
 editingReply: false, // Are we typing a reply?
 editingPosts: 0, // Number of posts being edited.
@@ -887,7 +1124,6 @@ init: function() {
 		this.startFrom = eso.conversation.startFrom;
 		this.lastActionTime = eso.conversation.lastActionTime;
 		this.lastRead = eso.conversation.lastRead;
-		this.autoReloadInterval = eso.conversation.autoReloadInterval;
 	}
 	
 	setInterval(function() {eso.time++}, 1000);
@@ -898,7 +1134,14 @@ init: function() {
 	// If we're not starting a new conversation...
 	if (this.id) {
 		
-		this.setReloadTimeout(this.autoReloadInterval = eso.autoReloadIntervalStart);
+		this.poller = new Poller({
+			interval: eso.autoReloadIntervalStart,
+			multiplier: eso.autoReloadIntervalMultiplier,
+			limit: eso.autoReloadIntervalLimit,
+			request: Conversation.checkForNewPosts,
+			update: Conversation.showNewPosts
+		});
+		this.poller.start();
 		
 		// Keep watch for any changes to the hash in the url - reload the posts if it does change.
 		setInterval(function() {
@@ -1114,14 +1357,6 @@ reloadPosts: function(startFrom, scrollTo, dontDisplay) {
 	Conversation.updateLastRead = false;
 },
 
-// Return a timeout to check for new posts.
-setReloadTimeout: function(seconds) {
-	seconds = Math.max(1, seconds);
-	if (eso.autoReloadIntervalLimit > 0) seconds = Math.min(seconds, eso.autoReloadIntervalLimit);
-	clearTimeout(Conversation.timeout);
-	Conversation.timeout = setTimeout(function() {Conversation.checkForNewPosts();}, seconds * 1000);
-},
-
 // Update the timestamps in posts.
 updatePostTimes: function() {
 	Conversation.posts.forEach(function(post) {
@@ -1144,87 +1379,85 @@ changeAvatarAlignment: function(alignment) {
 
 // Check if there are any new posts in the conversation, and update the conversation display as appropriate.
 checkForNewPosts: function() {
-	if (Conversation.editingPosts > 0) return;
+	if (Conversation.editingPosts > 0) return false;
 	// Ensure postCount is a valid number before using it
 	var postCount = parseInt(Conversation.postCount) || 0;
-	Ajax.request({
+	return {
 		"url": eso.baseURL + "ajax.php?controller=conversation",
-		"post": "action=getNewPosts&id=" + Conversation.id + "&lastActionTime=" + Conversation.lastActionTime + (Conversation.startFrom + eso.postsPerPage >= postCount && postCount > 0 ? "&oldPostCount=" + postCount : ""),
-		"background": true,
-		"success": function() {
-			
-			// Update the eso 'clock'.
-			eso.time = this.result.time;
+		"post": "action=getNewPosts&id=" + Conversation.id + "&lastActionTime=" + Conversation.lastActionTime + (Conversation.startFrom + eso.postsPerPage >= postCount && postCount > 0 ? "&oldPostCount=" + postCount : "")
+	};
+},
 
-			// Update the timestamps in posts.
-			Conversation.updatePostTimes();
-			
-			// If there are no updated or new posts, set a longer timeout to check again.
-			if (!this.result.newPosts) {
-				Conversation.setReloadTimeout(Conversation.autoReloadInterval *= eso.autoReloadIntervalMultiplier);
-				return;
-			}
-			
-			// Update our post cache with the new posts.
-			for (var i in this.result.newPosts) Conversation.posts[i] = this.result.newPosts[i];
-			var oldPostCount = Conversation.postCount;
-			Conversation.postCount = this.result.postCount;
-			Conversation.lastActionTime = this.result.lastActionTime;
-			var newPosts = Conversation.postCount - oldPostCount;
-			
-			// Handle permanently deleted posts (when postCount decreases)
-			if (newPosts < 0) {
-				// When posts are permanently deleted, we need to reload the current view
-				// because we don't know which specific post was deleted and indices may have shifted
-				// Remove posts beyond the new count from cache
-				for (var i = Conversation.postCount; i < oldPostCount; i++) {
-					delete Conversation.posts[i];
-				}
-				// Clear the current view range to force reload with correct indices
-				var currentViewStart = Conversation.startFrom;
-				var currentViewEnd = Math.min(Conversation.startFrom + eso.postsPerPage, Conversation.postCount);
-				for (var i = currentViewStart; i < currentViewEnd; i++) {
-					delete Conversation.posts[i];
-				}
-				// Adjust startFrom if we're now past the end
-				if (Conversation.startFrom >= Conversation.postCount && Conversation.postCount > 0) {
-					Conversation.startFrom = Math.max(0, Conversation.postCount - eso.postsPerPage);
-					window.location.hash = Conversation.startFrom;
-				}
-				// Reload the current view to get posts with correct indices
-				Conversation.reloadPosts(Conversation.startFrom, null, false);
-				return; // Don't continue with normal new posts handling
-			}
-			
-			// If there are no new posts, set a longer timeout to check again. Otherwise, reset the timeout length.
-			if (!newPosts) Conversation.setReloadTimeout(Conversation.autoReloadInterval *= eso.autoReloadIntervalMultiplier);
-			else Conversation.setReloadTimeout(Conversation.autoReloadInterval = eso.autoReloadIntervalStart);
+// Update the conversation display with the result of checking for new posts. Returns true if posts were added or removed
+showNewPosts: function(result) {
+	if (!result) return false;
 
-			// Store the current position of the bottom pagination bar within the browser's window so it won't move
-			// when changing the post area HTML.
-			Conversation.scrollStart = getOffsetTop(Conversation.paginations[1].bar) - getScrollTop();
-			
-			// Show the unread area.
-			Conversation.unreadWidth += newPosts * (100 / Conversation.postCount);
-			
-			// Mark the new posts for animation.
-			for (var i = oldPostCount; i < Conversation.postCount; i++) Conversation.posts[i].animateNew = true;
-			
-			// If we were viewing the last post, move to the _new_ last post.
-			if (Conversation.startFrom + eso.postsPerPage >= oldPostCount) {
-				
-				// If the amount of new posts is greater than the posts per page, go to the first new post.
-				if (newPosts > eso.postsPerPage) Conversation.moveTo(oldPostCount, "top");
-				
-				// If we're _just_ on the edge of the conversation, move forward the amount of new posts
-				else if (Conversation.startFrom + eso.postsPerPage <= Conversation.postCount) Conversation.moveTo(Conversation.postCount - eso.postsPerPage, "newReply");
-				
-				// Otherwise, just display from where we currently are.
-				else Conversation.moveTo(Conversation.startFrom);
-				
-			} else Conversation.moveTo(Conversation.startFrom);
+	// Update the eso 'clock'.
+	eso.time = result.time;
+	
+	// Update the timestamps in posts.
+	Conversation.updatePostTimes();
+	
+	// If there are no updated or new posts, there's nothing else to do.
+	if (!result.newPosts) return false;
+	
+	// Update our post cache with the new posts.
+	for (var i in result.newPosts) Conversation.posts[i] = result.newPosts[i];
+	var oldPostCount = Conversation.postCount;
+	Conversation.postCount = result.postCount;
+	Conversation.lastActionTime = result.lastActionTime;
+	var newPosts = Conversation.postCount - oldPostCount;
+	
+	// Handle permanently deleted posts (when postCount decreases)
+	if (newPosts < 0) {
+		// When posts are permanently deleted, we need to reload the current view
+		// because we don't know which specific post was deleted and indices may have shifted
+		// Remove posts beyond the new count from cache
+		for (var i = Conversation.postCount; i < oldPostCount; i++) {
+			delete Conversation.posts[i];
 		}
-	});
+		// Clear the current view range to force reload with correct indices
+		var currentViewStart = Conversation.startFrom;
+		var currentViewEnd = Math.min(Conversation.startFrom + eso.postsPerPage, Conversation.postCount);
+		for (var i = currentViewStart; i < currentViewEnd; i++) {
+			delete Conversation.posts[i];
+		}
+		// Adjust startFrom if we're now past the end
+		if (Conversation.startFrom >= Conversation.postCount && Conversation.postCount > 0) {
+			Conversation.startFrom = Math.max(0, Conversation.postCount - eso.postsPerPage);
+			window.location.hash = Conversation.startFrom;
+		}
+		// Reload the current view to get posts with correct indices
+		Conversation.reloadPosts(Conversation.startFrom, null, false);
+		return true; // Don't continue with normal new posts handling
+	}
+	
+	// Store the current position of the bottom pagination bar within the browser's window so it won't move
+	// when changing the post area HTML.
+	Conversation.scrollStart = getOffsetTop(Conversation.paginations[1].bar) - getScrollTop();
+	
+	// Show the unread area.
+	Conversation.unreadWidth += newPosts * (100 / Conversation.postCount);
+	
+	// Mark the new posts for animation.
+	for (var i = oldPostCount; i < Conversation.postCount; i++) Conversation.posts[i].animateNew = true;
+	
+	// If we were viewing the last post, move to the _new_ last post.
+	if (Conversation.startFrom + eso.postsPerPage >= oldPostCount) {
+		
+		// If the amount of new posts is greater than the posts per page, go to the first new post.
+		if (newPosts > eso.postsPerPage) Conversation.moveTo(oldPostCount, "top");
+		
+		// If we're _just_ on the edge of the conversation, move forward the amount of new posts
+		else if (Conversation.startFrom + eso.postsPerPage <= Conversation.postCount) Conversation.moveTo(Conversation.postCount - eso.postsPerPage, "newReply");
+		
+		// Otherwise, just display from where we currently are.
+		else Conversation.moveTo(Conversation.startFrom);
+	
+	} else Conversation.moveTo(Conversation.startFrom);
+	
+	// If there were only edited posts, check less often. If there were new ones, check sooner.
+	return newPosts > 0;
 },
 
 // Update the post area with new post HTML.
@@ -1691,21 +1924,15 @@ addReply: function() {
 			// Otherwise, just display from where we currently are.
 			else Conversation.moveTo(Conversation.startFrom, "newReply");
 			
-			// Reset the post-checking timeout.
-			Conversation.setReloadTimeout(Conversation.autoReloadInterval = eso.autoReloadIntervalStart);
+			// Go back to checking for new posts often.
+			Conversation.poller.start();
 		}
 	});
 },
 
 // Animate a new post (e.g. reply), fading it in and expanding its height from 0.
 animateNewPost: function(post) {
-	var overflowDiv = createOverflowDiv(post);
-	var height = overflowDiv.offsetHeight;
-	overflowDiv.style.height = "0px";
-	setTimeout(function(){(overflowDiv.animation = new Animation(function(values, final) {
-		overflowDiv.style.height = final ? "" : values[0] + "px";
-		overflowDiv.style.opacity = final ? "" : values[1];
-	}, {begin: [0, 0], end: [height, 1]})).start()}, 1);
+	show(post, {animation: "collapse"});
 },
 
 // Animate a post expanding/shrinking to the correct height when being edited.
@@ -2036,20 +2263,11 @@ deletePostForever: function(postId) {
 			
 			// Animate the post shrinking before removing it
 			if (postElement && oldHeight > 0) {
-				postElement.style.overflow = "hidden";
-				var animationComplete = false;
 				var self = this; // Store reference to the AJAX response
-				(postElement.animation = new Animation(function(height, final) {
-					postElement.style.height = height + "px";
-					if (final && !animationComplete) {
-						animationComplete = true;
-						// Remove the post from DOM after animation completes
-						if (postElement.parentNode) postElement.parentNode.removeChild(postElement);
-						postElement.style.height = "";
-						// Continue with the rest of the deletion logic
-						processDeletion.call(self);
-					}
-				}, {begin: oldHeight, end: 0})).start();
+				hide(postElement, {animation: "collapse", done: function() {
+					if (postElement.parentNode) postElement.parentNode.removeChild(postElement);
+					processDeletion.call(self);
+				}});
 			} else {
 				// If we couldn't get height or element, remove immediately and process
 				if (postElement) postElement.parentNode.removeChild(postElement);
@@ -2151,9 +2369,6 @@ cancelEdit: function(postId) {
 	
 	// Animate the post.
 	Conversation.animateEditPost(getById("p" + postId), startHeight);
-	
-	// Set the post-checking timeout.
-	Conversation.setReloadTimeout(Conversation.autoReloadInterval);
 },
 
 // Toggle sticky.
@@ -2412,8 +2627,8 @@ var Search = {
 
 currentSearch: "", // The current search string.
 negativeGambit: false, // A flag which determines whether gambits should be added negatively when clicked on.
-updateCurrentResultsTimeout: null,
-checkForNewResultsTimeout: null,
+updateCurrentResultsPoller: null,
+checkForNewResultsPoller: null,
 
 init: function() {
 
@@ -2478,15 +2693,23 @@ init: function() {
 // Set a timeout to update current results.
 resetUpdateCurrentResultsTimeout: function() {
 	if (!eso.updateCurrentResultsInterval) return;
-	if (this.updateCurrentResultsTimeout) clearInterval(this.updateCurrentResultsTimeout);
-	this.updateCurrentResultsTimeout = setInterval(function() {Search.updateCurrentResults();}, eso.updateCurrentResultsInterval * 1000);
+	if (!this.updateCurrentResultsPoller) this.updateCurrentResultsPoller = new Poller({
+		interval: eso.updateCurrentResultsInterval,
+		request: Search.updateCurrentResults,
+		update: Search.showUpdatedResults
+	});
+	this.updateCurrentResultsPoller.start();
 },
 
 // Set a timeout to check for new results.
 resetCheckForNewResultsTimeout: function() {
 	if (!eso.checkForNewResultsInterval) return;
-	if (this.checkForNewResultsTimeout) clearInterval(this.checkForNewResultsTimeout);
-	this.checkForNewResultsTimeout = setInterval(function() {Search.checkForNewResults();}, eso.checkForNewResultsInterval * 1000);
+	if (!this.checkForNewResultsPoller) this.checkForNewResultsPoller = new Poller({
+		interval: eso.checkForNewResultsInterval,
+		request: Search.checkForNewResults,
+		update: Search.showNewResults
+	});
+	this.checkForNewResultsPoller.start();
 },
 
 // Get rid of HTML entities from tags and gambits.
@@ -2522,22 +2745,21 @@ checkForNewResults: function() {
 	var rows = getById("conversations").getElementsByTagName("tr");
 	for (var i = 0; i < rows.length; i++) conversationIds += rows[i].id.substr(1) + ",";
 	
-	// Make an ajax request.
-	Ajax.request({
+	return {
 		"url": eso.baseURL + "ajax.php?controller=search",
-		"post": "action=checkForNewResults&conversationIds=" + conversationIds + "&query=" + encodeURIComponent(Search.currentSearch),
-		"background": true,
-		"success": function() {
-			if (!this.result.newActivity) return;
-			// If there is new activity, show the 'new activity' message.
-			getById("newResults").style.display = "table-row";
-			show(getById("newResults").getElementsByTagName("div")[0], {animation: "verticalSlide"});
-			clearInterval(Search.checkForNewResultsTimeout);
-		}
-	});
+		"post": "action=checkForNewResults&conversationIds=" + conversationIds + "&query=" + encodeURIComponent(Search.currentSearch)
+	};
 },
 
-// Update the current search results with new post counts, last post times, etc.
+// If there is new activity in the current search, show the 'new activity' message and stop checking.
+showNewResults: function(result) {
+	if (!result || !result.newActivity) return false;
+	getById("newResults").style.display = "table-row";
+	show(getById("newResults").getElementsByTagName("div")[0], {animation: "verticalSlide"});
+	Search.checkForNewResultsPoller.stop();
+	return true;
+},
+
 updateCurrentResults: function() {
 	
 	// Construct a list of conversation IDs for which to get updated details.
@@ -2545,49 +2767,50 @@ updateCurrentResults: function() {
 	var rows = getById("conversations").getElementsByTagName("tr");
 	var count = Math.min(rows.length, 20);
 	for (var i = 0; i < count; i++) conversationIds += rows[i].id.substr(1) + ",";
-	if (!conversationIds) return;
+	if (!conversationIds) return false;
 	
-	// Make an ajax request.
-	Ajax.request({
+	return {
 		"url": eso.baseURL + "ajax.php?controller=search",
-		"post": "action=updateCurrentResults&conversationIds=" + conversationIds,
-		"background": true,
-		"success": function() {
-			if (!this.result) return;
-			
-			// For each of the conversations...
-			for (var i in this.result.conversations) {
-				if (!getById("c" + i)) continue;
-				var row = getById("c" + i);
-				var data = this.result.conversations[i];
-				
-				// Update the last post member and time.
-				if (data.postCount > 1) {
-					getElementsByClassName(row, "lastPostMember")[0].innerHTML = data.lastPostMember;
-					getElementsByClassName(row, "lastPostTime")[0].innerHTML = data.lastPostTime;
-				}
-				
-				// Update the post count.
-				getElementsByClassName(row, "postCount")[0].innerHTML = data.postCount;
-				
-				// Mark the conversation title as read or unread.
-				row.getElementsByTagName("strong")[0].className = data.unread ? "" : "read";
-				
-				// Update the star.
-				var star, cell;
-				if ((cell = getElementsByClassName(row, "star")[0]) && (star = cell.getElementsByTagName("a")[0])) {
-					star.className = data.starred ? "star1" : "star0";
-					star.getElementsByTagName("span")[0].innerHTML = eso.language[data.starred ? "Starred" : "Unstarred"];
-					row.className = "c" + data.color + (data.starred ? " starred" : "");
-				}
-			}
-			
-			// Update forum statistics.
-			for (var i in this.result.statistics) {
-				if (getById("statistic-" + i)) getById("statistic-" + i).innerHTML = this.result.statistics[i];
-			}
+		"post": "action=updateCurrentResults&conversationIds=" + conversationIds
+	};
+},
+
+// Update the current search results with the details we got from the server.
+showUpdatedResults: function(result) {
+	if (!result) return false;
+	
+	// For each of the conversations...
+	for (var i in result.conversations) {
+		if (!getById("c" + i)) continue;
+		var row = getById("c" + i);
+		var data = result.conversations[i];
+		
+		// Update the last post member and time.
+		if (data.postCount > 1) {
+			getElementsByClassName(row, "lastPostMember")[0].innerHTML = data.lastPostMember;
+			getElementsByClassName(row, "lastPostTime")[0].innerHTML = data.lastPostTime;
 		}
-	});
+		
+		// Update the post count.
+		getElementsByClassName(row, "postCount")[0].innerHTML = data.postCount;
+		
+		// Mark the conversation title as read or unread.
+		row.getElementsByTagName("strong")[0].className = data.unread ? "" : "read";
+		
+		// Update the star.
+		var star, cell;
+		if ((cell = getElementsByClassName(row, "star")[0]) && (star = cell.getElementsByTagName("a")[0])) {
+			star.className = data.starred ? "star1" : "star0";
+			star.getElementsByTagName("span")[0].innerHTML = eso.language[data.starred ? "Starred" : "Unstarred"];
+			row.className = "c" + data.color + (data.starred ? " starred" : "");
+		}
+	}
+	
+	// Update forum statistics.
+	for (var i in result.statistics) {
+		if (getById("statistic-" + i)) getById("statistic-" + i).innerHTML = result.statistics[i];
+	}
+	return false;
 },
 
 // View more search results - just search with the "more results" gambit.
@@ -3135,6 +3358,81 @@ hideFieldset: function(id) {
 	getById(id).className = "hidden";
 },
 
+// Open a fieldset (if it's collapsed), scroll to it, and focus one of its fields.
+showFieldset: function(id, focusId) {
+	if (getById(id).className == "hidden") this.toggleFieldset(id);
+	animateScroll(getOffsetTop(getById(id)));
+	if (focusId) getById(focusId).focus({preventScroll: true});
+	return false;
+},
+
+initSessions: function() {
+	this.hideFieldset("settingsSessions");
+	var details = getElementsByClassName(getById("settingsSessions"), "details");
+	for (var i = 0; i < details.length; i++) hide(details[i]);
+},
+
+// Show or hide a session's details.
+toggleSession: function(id) {
+	var details = getById("session-" + id + "-details");
+	toggle(details, {animation: "verticalSlide"});
+	getById("session-" + id + "-toggle").innerHTML = eso.language[details.showing ? "hide" : "show"];
+	return false;
+},
+
+logOutSession: function(id) {
+	Dropdown.closeAll();
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=settings",
+		"post": "action=logOutSession&id=" + id,
+		"success": function() {
+			// A message comes back when this works (to say so), so it's the result that says whether it did.
+			if (!this.result) return;
+			Settings.removeSessions([id]);
+		}
+	});
+	return false;
+},
+
+logOutOtherSessions: function() {
+	if (!confirm(eso.language["confirmLogOutOtherSessions"])) return false;
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=settings",
+		"post": "action=logOutOtherSessions",
+		"success": function() {
+			if (!this.result) return;
+			var ids = [], rows = getById("settingsSessions").getElementsByTagName("li");
+			for (var i = 0; i < rows.length; i++) {
+				if (/^session-\d+$/.test(rows[i].id) && !/(^|\s)current(\s|$)/.test(rows[i].className)) ids.push(rows[i].id.substr(8));
+			}
+			Settings.removeSessions(ids);
+		}
+	});
+	return false;
+},
+
+removeSessions: function(ids) {
+	for (var i = 0; i < ids.length; i++) {
+		var row = getById("session-" + ids[i]);
+		if (!row || row.removed) continue;
+		row.removed = true;
+		hide(row, {animation: "collapse"});
+	}
+	var left = 0, rows = getById("settingsSessions").getElementsByTagName("li");
+	for (var i = 0; i < rows.length; i++) {
+		if (/^session-\d+$/.test(rows[i].id) && !rows[i].removed) left++;
+	}
+	getById("sessionCount").innerHTML = left;
+	if (left <= 1) {
+		if (getById("otherSessionsMessage")) hide(getById("otherSessionsMessage"), {animation: "collapse"});
+		if (getById("logOutOtherSessions")) hide(getById("logOutOtherSessions"), {animation: "collapse"});
+	}
+},
+
+copySessionDetail: function(id, className) {
+	return copyText(getElementsByClassName(getById("session-" + id + "-details"), className)[0].textContent);
+},
+
 // Initialize settings form handlers.
 initSettingsForm: function() {
 	var settingsForm = document.querySelector("#settings > form");
@@ -3380,7 +3678,7 @@ initUsernameForm: function() {
 // "Online members" JavaScript.
 var Online = {
 
-refreshInterval: null,
+poller: null,
 currentMemberIds: [],
 
 init: function() {
@@ -3392,9 +3690,14 @@ init: function() {
 	this.currentMemberIds = this.getMemberIdsFromDOM();
 	
 	// Start polling for updates.
-	this.refreshInterval = setInterval(function() {
-		Online.refresh();
-	}, eso.onlineRefreshInterval * 1000);
+	this.poller = new Poller({
+		interval: eso.onlineRefreshInterval,
+		request: function() {
+			return {"url": eso.baseURL + "ajax.php?controller=online", "post": "action=getOnlineMembers"};
+		},
+		update: Online.refresh
+	});
+	this.poller.start();
 },
 
 // Get member IDs currently displayed in the DOM.
@@ -3409,69 +3712,62 @@ getMemberIdsFromDOM: function() {
 	return ids;
 },
 
-refresh: function() {
-	Ajax.request({
-		"url": eso.baseURL + "ajax.php?controller=online",
-		"post": "action=getOnlineMembers",
-		"background": true,
-		"success": function() {
-			if (!this.result || !this.result.memberIds) return;
-			
-			var container = getById("membersOnline");
-			if (!container) return;
-			
-			var newIds = this.result.memberIds;
-			var oldIds = Online.currentMemberIds;
-			var members = this.result.members;
-			
-			// Find members to remove (in old but not in new).
-			var toRemove = [];
-			for (var i = 0; i < oldIds.length; i++) {
-				if (newIds.indexOf(oldIds[i]) === -1) {
-					toRemove.push(oldIds[i]);
-				}
-			}
-			
-			// Find members to add (in new but not in old).
-			var toAdd = [];
-			for (var i = 0; i < newIds.length; i++) {
-				if (oldIds.indexOf(newIds[i]) === -1) {
-					toAdd.push(newIds[i]);
-				}
-			}
-			
-			// Find members to update (in both).
-			var toUpdate = [];
-			for (var i = 0; i < newIds.length; i++) {
-				if (oldIds.indexOf(newIds[i]) !== -1) {
-					toUpdate.push(newIds[i]);
-				}
-			}
-			
-			// Animate out removed members.
-			for (var i = 0; i < toRemove.length; i++) {
-				Online.animateRemoveMember(toRemove[i]);
-			}
-			
-			// Update existing members (no animation, just refresh text).
-			for (var i = 0; i < toUpdate.length; i++) {
-				Online.updateMember(toUpdate[i], members[toUpdate[i]]);
-			}
-			
-			// Add new members with animation.
-			for (var i = 0; i < toAdd.length; i++) {
-				Online.animateAddMember(members[toAdd[i]]);
-			}
-			
-			// Update our tracking array.
-			Online.currentMemberIds = newIds;
-			
-			// Handle empty state.
-			if (newIds.length === 0 && container.querySelector(".p")) {
-				container.innerHTML = eso.noMembersOnlineHTML;
-			}
+refresh: function(result) {
+	if (!result || !result.memberIds) return;
+	
+	var container = getById("membersOnline");
+	if (!container) return;
+	
+	var newIds = result.memberIds;
+	var oldIds = Online.currentMemberIds;
+	var members = result.members;
+	
+	// Find members to remove (in old but not in new).
+	var toRemove = [];
+	for (var i = 0; i < oldIds.length; i++) {
+		if (newIds.indexOf(oldIds[i]) === -1) {
+			toRemove.push(oldIds[i]);
 		}
-	});
+	}
+	
+	// Find members to add (in new but not in old).
+	var toAdd = [];
+	for (var i = 0; i < newIds.length; i++) {
+		if (oldIds.indexOf(newIds[i]) === -1) {
+			toAdd.push(newIds[i]);
+		}
+	}
+	
+	// Find members to update (in both).
+	var toUpdate = [];
+	for (var i = 0; i < newIds.length; i++) {
+		if (oldIds.indexOf(newIds[i]) !== -1) {
+			toUpdate.push(newIds[i]);
+		}
+	}
+	
+	// Animate out removed members.
+	for (var i = 0; i < toRemove.length; i++) {
+		Online.animateRemoveMember(toRemove[i]);
+	}
+	
+	// Update existing members (no animation, just refresh text).
+	for (var i = 0; i < toUpdate.length; i++) {
+		Online.updateMember(toUpdate[i], members[toUpdate[i]]);
+	}
+	
+	// Add new members with animation.
+	for (var i = 0; i < toAdd.length; i++) {
+		Online.animateAddMember(members[toAdd[i]]);
+	}
+	
+	// Update our tracking array.
+	Online.currentMemberIds = newIds;
+	
+	// Handle empty state.
+	if (newIds.length === 0 && container.querySelector(".p")) {
+		container.innerHTML = eso.noMembersOnlineHTML;
+	}
 },
 
 // Build HTML for a single member.
@@ -3501,23 +3797,7 @@ animateAddMember: function(member) {
 	}
 	
 	// Animate if JS effects are enabled.
-	if (!eso.disableJSEffects) {
-		var overflowDiv = createOverflowDiv(element);
-		var height = overflowDiv.offsetHeight;
-		overflowDiv.style.height = "0px";
-		overflowDiv.style.opacity = "0";
-		setTimeout(function() {
-			(overflowDiv.animation = new Animation(function(values, final) {
-				overflowDiv.style.height = final ? "" : values[0] + "px";
-				overflowDiv.style.opacity = final ? "" : values[1];
-				// When animation is done, unwrap the element (remove overflowDiv wrapper).
-				if (final && overflowDiv.parentNode) {
-					overflowDiv.parentNode.insertBefore(element, overflowDiv);
-					overflowDiv.parentNode.removeChild(overflowDiv);
-				}
-			}, {begin: [0, 0], end: [height, 1]})).start();
-		}, 1);
-	}
+	show(element, {animation: "collapse"});
 },
 
 // Animate a member disappearing.
@@ -3529,23 +3809,9 @@ animateRemoveMember: function(memberId) {
 	if (!element) return;
 	
 	// Animate if JS effects are enabled.
-	if (!eso.disableJSEffects) {
-		var overflowDiv = createOverflowDiv(element);
-		var height = overflowDiv.offsetHeight;
-		(overflowDiv.animation = new Animation(function(values, final) {
-			overflowDiv.style.height = final ? "0px" : values[0] + "px";
-			overflowDiv.style.opacity = final ? "0" : values[1];
-			// When animation is done, remove the overflowDiv (which contains the element).
-			if (final && overflowDiv.parentNode) {
-				overflowDiv.parentNode.removeChild(overflowDiv);
-			}
-		}, {begin: [height, 1], end: [0, 0]})).start();
-	} else {
-		// No animation - just remove.
-		if (element.parentNode) {
-			element.parentNode.removeChild(element);
-		}
-	}
+	hide(element, {animation: "collapse", done: function() {
+		if (element.parentNode) element.parentNode.removeChild(element);
+	}});
 },
 
 // Update an existing member's display (color and status text).

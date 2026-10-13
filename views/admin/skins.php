@@ -29,7 +29,7 @@ if (count($this->skins)): ?>
 
 <fieldset id='skins'>
 <legend><?php echo $language["Installed skins"]; ?></legend>
-<ul>
+<ul class='list grid'>
 
 <?php // Loop through each skin and output its preview/information.
 foreach ($this->skins as $k => $skin): ?>
@@ -41,7 +41,7 @@ foreach ($this->skins as $k => $skin): ?>
 <?php else: ?><span><?php echo $language["No preview"]; ?></span>
 <?php endif; ?>
 </span>
-<strong><?php echo $skin["name"]; ?></strong> <small><?php printf($language["version"], $skin["version"]); ?> <?php printf($language["author"], $skin["author"]); ?></small>
+<span class='hdr'><strong><?php echo $skin["name"]; ?></strong> <small><?php printf($language["version"], $skin["version"]); ?> <?php printf($language["author"], $skin["author"]); ?></small></span>
 </a>
 </li>
 <?php endforeach; ?>

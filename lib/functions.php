@@ -341,6 +341,83 @@ function cookieIp()
 	return sprintf("%u", crc32(substr($packed, 0, 8)));
 }
 
+// Get the user's IP address in binary form (4 bytes for IPv4, 16 for IPv6) for storing in logins.
+function loginIp()
+{
+	$packed = isset($_SERVER["REMOTE_ADDR"]) ? @inet_pton($_SERVER["REMOTE_ADDR"]) : false;
+	return $packed === false ? null : $packed;
+}
+
+// Get their user agent.
+function loginUserAgent()
+{
+	$userAgent = isset($_SERVER["HTTP_USER_AGENT"]) ? preg_replace("/[^\x20-\x7E]/", "", $_SERVER["HTTP_USER_AGENT"]) : "";
+	return $userAgent === "" ? null : substr($userAgent, 0, 255);
+}
+
+// Returns an array of browser, version, system and device (default false).
+function parseUserAgent($userAgent)
+{
+	$info = array("browser" => false, "version" => false, "system" => false, "device" => false);
+	if (!$userAgent) return $info;
+
+	$browsers = array(
+		"Edge" => "(?:Edge?|EdgA|EdgiOS)/(\d+)",
+		"Opera" => "(?:OPR|OPiOS)/(\d+)",
+		"Samsung Internet" => "SamsungBrowser/(\d+)",
+		"Vivaldi" => "Vivaldi/(\d+)",
+		"Firefox" => "(?:Firefox|FxiOS)/(\d+)",
+		"Chrome" => "(?:CriOS|Chrome)/(\d+)",
+		"Safari" => "Version/(\d+).*Safari/",
+		"Internet Explorer" => "(?:MSIE |Trident/.*rv:)(\d+)"
+	);
+	foreach ($browsers as $browser => $pattern) {
+		if (!preg_match("#$pattern#", $userAgent, $match)) continue;
+		$info["browser"] = $browser;
+		$info["version"] = $match[1];
+		break;
+	}
+
+	$systems = array(
+		array("iOS", "iPhone", "iPhone"),
+		array("iPadOS", "iPad", "iPad"),
+		array("iOS", "iPod", "iPod"),
+		array("Android", false, "Android"),
+		array("ChromeOS", false, "CrOS"),
+		array("Windows", false, "Windows"),
+		array("macOS", false, "Macintosh|Mac OS X"),
+		array("Linux", false, "Linux")
+	);
+	foreach ($systems as $system) {
+		if (!preg_match("#{$system[2]}#", $userAgent)) continue;
+		$info["system"] = $system[0];
+		$info["device"] = $system[1];
+		break;
+	}
+
+	return $info;
+}
+
+// Hash a 'remember me' cookie for storing/looking up from logins.
+function hashLoginCookie($cookie)
+{
+	return hash("sha256", (string)$cookie);
+}
+
+function validateRememberMe(&$rememberMe)
+{
+	if (!in_array($rememberMe, array("ask", "always", "never"), true)) $rememberMe = defaultRememberMe();
+}
+
+function defaultRememberMe()
+{
+	global $config;
+	$rememberMe = isset($config["rememberMe"]) ? $config["rememberMe"] : "ask";
+	if ($rememberMe === true) return "always";
+	if ($rememberMe === false) return "never";
+	return in_array($rememberMe, array("ask", "always", "never"), true) ? $rememberMe : "ask";
+}
+
 // Generate a link to the current page. To get a form to submit to the same page: <form action='curLink()'.
 function curLink()
 {
@@ -372,16 +449,17 @@ function refresh()
 }
 
 // Validate an email field: check it against a regular expression and make sure no validated account is using it.
-function validateEmail(&$email)
+function validateEmail(&$email, $memberId = false)
 {
 	global $eso, $config;
 	$email = substr($email, 0, 63);
+	$others = $memberId ? "memberId!=" . (int)$memberId : "account!='Unvalidated'";
 	if (!preg_match("/^[A-Z0-9._%-+.-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $email)) return "invalidEmail";
-	elseif ($eso->db->numRows($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE email='" . $eso->db->escape($email) . "' AND account!='Unvalidated'"))) return "emailTaken";
+	elseif ($eso->db->numRows($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE email='" . $eso->db->escape($email) . "' AND $others"))) return "emailTaken";
 }
 
 // Validate the name field: make sure it's not reserved, is long enough, doesn't contain invalid characters, and is not already taken by another member.
-function validateName(&$name)
+function validateName(&$name, $memberId = false)
 {
 	global $eso, $config;
 	$reservedNames = $config["reservedNames"];
@@ -405,7 +483,8 @@ function validateName(&$name)
 		if (preg_match("/[^[:print:]]/", $name)) return "invalidCharacters";
 	}
 	
-	if (@$eso->db->result($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE name='" . $eso->db->escape($name) . "' AND account!='Unvalidated'"), 0))
+	$others = $memberId ? "memberId!=" . (int)$memberId : "account!='Unvalidated'";
+	if (@$eso->db->result($eso->db->query("SELECT 1 FROM {$config["tablePrefix"]}members WHERE name='" . $eso->db->escape($name) . "' AND $others"), 0))
 		return "nameTaken";
 }
 
@@ -419,7 +498,7 @@ function validatePassword(&$password)
 }
 
 // Work out the relative difference between the current time and a given timestamp.
-// Returns a human-friendly string, ex. '1 hour ago'.
+// Returns a human-friendly string, ex. '1 hour ago', or for a time that's yet to come, ex. '4 weeks from now'.
 function relativeTime($then)
 {
 	global $language;
@@ -427,46 +506,48 @@ function relativeTime($then)
 	// If there is no $then, we can only assume that whatever it is never happened...
 	if (!$then) return $language["Never"];
 	
-	// Work out how many seconds it has been since $then.
+	// Work out how many seconds it has been since/until $then.
 	$ago = time() - $then;
 	
 	// If $then happened less than 1 second ago (or is yet to happen,) say "Just now".
-	if ($ago < 1) return $language["Just now"];
+	if ($ago < 1 and $ago > -60) return $language["Just now"];
+	$suffix = $ago < 0 ? " from now" : " ago";
+	$ago = abs($ago);
 
 	// 31536000 seconds = 1 year
 	if ($ago >= 31536000) {
 		$years = floor($ago / 31536000);
-		return sprintf($language[($years == 1 ? "year" : "years") . " ago"], $years);
+		return sprintf($language[($years == 1 ? "year" : "years") . $suffix], $years);
 	}
 	// 2626560 seconds = 1 month
 	elseif ($ago >= 2626560) {
 		$months = floor($ago / 2626560);
-		return sprintf($language[($months == 1 ? "month" : "months") . " ago"], $months);
+		return sprintf($language[($months == 1 ? "month" : "months") . $suffix], $months);
 	}
 	// 604800 seconds = 1 week
 	elseif ($ago >= 604800) {
 		$weeks = floor($ago / 604800);
-		return sprintf($language[($weeks == 1 ? "week" : "weeks") . " ago"], $weeks);
+		return sprintf($language[($weeks == 1 ? "week" : "weeks") . $suffix], $weeks);
 	}
 	// 86400 seconds = 1 day
 	elseif ($ago >= 86400) {
 		$days = floor($ago / 86400);
-		return sprintf($language[($days == 1 ? "day" : "days") . " ago"], $days);
+		return sprintf($language[($days == 1 ? "day" : "days") . $suffix], $days);
 	}
 	// 3600 seconds = 1 hour
 	elseif ($ago >= 3600) {
 		$hours = floor($ago / 3600);
-		return sprintf($language[($hours == 1 ? "hour" : "hours") . " ago"], $hours);
+		return sprintf($language[($hours == 1 ? "hour" : "hours") . $suffix], $hours);
 	}
 	// 60 seconds = 1 minute
 	elseif ($ago >= 60) {
 		$minutes = floor($ago / 60);
-		return sprintf($language[($minutes == 1 ? "minute" : "minutes") . " ago"], $minutes);
+		return sprintf($language[($minutes == 1 ? "minute" : "minutes") . $suffix], $minutes);
 	}
 	// 1 second = 1 second. Duh.
 	elseif ($ago >= 1) {
 		$seconds = floor($ago / 1);
-		return sprintf($language[($seconds == 1 ? "second" : "seconds") . " ago"], $seconds);
+		return sprintf($language[($seconds == 1 ? "second" : "seconds") . $suffix], $seconds);
 	}
 }
 
@@ -758,49 +839,45 @@ function validateRemoteUrl($url)
 	return $url;
 }
 
-// Check flood control for a given action. Returns true if allowed, false if rate limited.
-// Sets error message via $eso->message() if rate limited.
+function floodControlWait($action, $rateLimit, $memberId = null, $window = 60)
+{
+	global $eso, $config;
+	if ($rateLimit <= 0) return 0;
+
+	$since = time() - $window;
+	if ($memberId) $row = $eso->db->fetchRowPrepared("SELECT COUNT(*), MIN(time) FROM {$config["tablePrefix"]}actions WHERE action=? AND memberId=? AND time>?", "sii", $action, (int)$memberId, $since);
+	else $row = $eso->db->fetchRowPrepared("SELECT COUNT(*), MIN(time) FROM {$config["tablePrefix"]}actions WHERE action=? AND memberId IS NULL AND ip=? AND time>?", "sii", $action, cookieIp(), $since);
+
+	if (!$row or $row[0] < $rateLimit) return 0;
+	return max(1, $row[1] - $since);
+}
+
+function recordFloodControl($action, $memberId = null, $window = 60)
+{
+	global $eso, $config;
+	$time = time();
+	$eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}actions (ip, memberId, action, time) VALUES (?, ?, ?, ?)", "iisi", cookieIp(), $memberId ? (int)$memberId : null, $action, $time);
+	$eso->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}actions WHERE action=? AND time<?", "si", $action, $time - $window);
+}
+
+function clearFloodControl($action, $memberId)
+{
+	global $eso, $config;
+	$eso->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}actions WHERE action=? AND memberId=?", "si", $action, (int)$memberId);
+}
+
 function checkFloodControl($action, $rateLimit, $sessionKey, $errorMessage, $memberId = null)
 {
 	global $eso, $config;
-	
-	// If flood control is disabled, allow the action.
 	if ($rateLimit <= 0) return true;
-	
-	// Get the user's IP address.
-	$ip = cookieIp();
-	
-	// If we have a record of their attempts in the session, check how many they've performed in the last minute.
-	if (!empty($_SESSION[$sessionKey])) {
-		// Clean anything older than 60 seconds out of the session array.
-		foreach ($_SESSION[$sessionKey] as $k => $v) {
-			if ($v < time() - 60) unset($_SESSION[$sessionKey][$k]);
-		}
-		// Have they performed >= $rateLimit attempts in the last minute? If so, don't continue.
-		if (count($_SESSION[$sessionKey]) >= $rateLimit) {
-			$eso->message($errorMessage, true, array(60 - time() + min($_SESSION[$sessionKey])));
-			return false;
-		}
+
+	if ($wait = floodControlWait($action, $rateLimit, $memberId)) {
+		$eso->message($errorMessage, true, array($wait));
+		return false;
 	}
-	
-	// However, if we don't have a record in the session, use the MySQL actions table.
-	else {
-		// Have they performed >= $rateLimit attempts in the last minute?
-		if ($eso->db->result("SELECT COUNT(*) FROM {$config["tablePrefix"]}actions WHERE ip=$ip AND action='" . $eso->db->escape($action) . "' AND time>UNIX_TIMESTAMP()-60", 0) >= $rateLimit) {
-			$eso->message($errorMessage, true, 60);
-			return false;
-		}
-		// Log this attempt in the actions table.
-		$memberIdValue = $memberId !== null ? $memberId : "NULL";
-		$eso->db->query("INSERT INTO {$config["tablePrefix"]}actions (ip, memberId, action, time) VALUES ($ip, $memberIdValue, '" . $eso->db->escape($action) . "', UNIX_TIMESTAMP())");
-		// Proactively clean the actions table of attempts older than 60 seconds.
-		$eso->db->query("DELETE FROM {$config["tablePrefix"]}actions WHERE action='" . $eso->db->escape($action) . "' AND time<UNIX_TIMESTAMP()-60");
-	}
-	
-	// Log this attempt in the session array.
-	if (!isset($_SESSION[$sessionKey]) or !is_array($_SESSION[$sessionKey])) $_SESSION[$sessionKey] = array();
-	$_SESSION[$sessionKey][] = time();
-	
+
+	recordFloodControl($action, $memberId);
+
 	return true;
 }
 
@@ -858,7 +935,7 @@ function deleteSecureCookie($name, $config)
 
 // Hash a password using the configured hashing method (bcrypt or md5).
 // Returns the hashed password.
-function hashPassword($password, $salt = null, $config)
+function hashPassword($password, $salt, $config)
 {
 	if ($config["hashingMethod"] == "bcrypt") {
 		return password_hash($password, PASSWORD_DEFAULT);

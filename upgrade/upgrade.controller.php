@@ -197,6 +197,16 @@ function upgrade_100e1()
 	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'showOnline'"))
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN showOnline tinyint(1) NOT NULL default '1' AFTER disableLinkAlerts");
 
+	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}actions WHERE Key_name='actions_member'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}actions ADD INDEX actions_member (action, memberId, time)");
+	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}actions WHERE Key_name='actions_ip'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}actions ADD INDEX actions_ip (action, ip, time)");
+
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'rememberMe'")) {
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN rememberMe enum('ask','always','never') NOT NULL default 'ask' AFTER showOnline");
+		$this->query("UPDATE {$config["tablePrefix"]}members SET rememberMe='" . defaultRememberMe() . "'");
+	}
+
 	// Add indexes if they don't exist.
 	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}members WHERE Key_name='members_lastSeen'"))
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD INDEX members_lastSeen (lastSeen)");
@@ -210,6 +220,22 @@ function upgrade_100e1()
 			$config["loadedPlugins"][] = "Feeds";
 			writeConfigFile("../config/plugins.php", '$config["loadedPlugins"]', $config["loadedPlugins"]);
 		}
+	}
+
+	$column = $this->fetchAssoc($this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'cookie'"));
+	if (stripos($column["Type"], "char(32)") !== false) {
+		$this->query("ALTER TABLE {$config["tablePrefix"]}logins MODIFY COLUMN cookie char(64) default NULL");
+		$this->query("UPDATE {$config["tablePrefix"]}logins SET cookie=SHA2(cookie, 256) WHERE cookie IS NOT NULL");
+	}
+
+	$column = $this->fetchAssoc($this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'ip'"));
+	if (stripos($column["Type"], "varbinary") === false)
+		$this->query("ALTER TABLE {$config["tablePrefix"]}logins DROP COLUMN ip, ADD COLUMN ip varbinary(16) default NULL AFTER cookie");
+
+	$column = $this->fetchAssoc($this->query("SHOW COLUMNS FROM {$config["tablePrefix"]}logins LIKE 'userAgent'"));
+	if (stripos($column["Type"], "varchar(255)") === false) {
+		$this->query("ALTER TABLE {$config["tablePrefix"]}logins MODIFY COLUMN userAgent varchar(255) default NULL");
+		$this->query("UPDATE {$config["tablePrefix"]}logins SET userAgent=NULL");
 	}
 }
 

@@ -71,6 +71,8 @@ function init()
 				$passwordHash = hashPassword($password, $salt ?: null, $config);
 				$memberId = (int)$memberId;
 				$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}members SET resetPassword=NULL, password=?, salt=? WHERE memberId=?", "ssi", $passwordHash, $salt, $memberId);
+			$this->eso->endLogins($memberId);
+			clearFloodControl("loginFailed", $memberId);
 				$this->eso->message("passwordChanged", false);
 				redirect("");
 			}
@@ -81,11 +83,7 @@ function init()
 	if (isset($_POST["email"])) {
 
 		// If we're counting logins per minute, impose some flood control measures.
-		if ($config["loginsPerMinute"] > 0) {
-			if (!checkFloodControl("login", $config["loginsPerMinute"], "logins", "waitToLogin", null)) {
-				return;
-			}
-		}
+		if (!checkFloodControl("resetPassword", $config["loginsPerMinute"], "resetPasswords", "waitToSendEmail", null)) return;
 		
 		// Find the member with this email.
 		$row = $this->eso->db->fetchAssocPrepared("SELECT memberId, name, email FROM {$config["tablePrefix"]}members WHERE email=?", "s", $_POST["email"]);

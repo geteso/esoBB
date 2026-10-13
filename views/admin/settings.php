@@ -76,9 +76,6 @@ if ($this->eso->user["memberId"] == $config["rootAdmin"]): ?>
 
 <hr/>
 
-<li><label class='checkbox'><?php echo $language["changeUsername"]; ?><br/><small><?php echo $language["changeUsernameInfo"]; ?></small></label>
-<input type='checkbox' class='checkbox' name='changeUsername' value='1'<?php echo !empty($config["changeUsername"]) ? " checked='checked'" : ""; ?>/></li>
-
 <li><label class='checkbox'><?php echo $language["nonAsciiCharacters"]; ?><br/><small><?php echo $language["nonAsciiInfo"]; ?></small></label>
 <input type='checkbox' class='checkbox' name='nonAsciiCharacters' value='1'<?php echo !empty($config["nonAsciiCharacters"]) ? " checked='checked'" : ""; ?>/></li>
 

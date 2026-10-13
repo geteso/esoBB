@@ -45,7 +45,35 @@ if ($this->eso->user["admin"]):?>
 <li><label class='checkbox'><?php echo $language["Require manual approval"]; ?><br/></label>
 <input type='checkbox' class='checkbox' name='requireManualApproval' value='1'<?php echo !empty($config["requireManualApproval"]) ? " checked='checked'" : ""; ?>/></li>
 
+<li><label><?php echo $language["changeUsername"]; ?><br/></label>
+<select name='changeUsername'><?php
+$changeUsername = $config["changeUsername"] === "changeCaps" ? "changeCaps" : (!empty($config["changeUsername"]) ? "1" : "0");
+foreach (array("1" => "changeUsernameEnabled", "changeCaps" => "changeUsernameCaps", "0" => "changeUsernameDisabled") as $value => $label)
+echo "<option value='$value'" . ($changeUsername === (string)$value ? " selected='selected'" : "") . ">{$language[$label]}</option>";
+?></select></li>
+
 <li><label></label> <span class='button'><input type='submit' name='saveMembersSettings' value='<?php echo $language["Save changes"]; ?>'/></span></li>
+
+</ul>
+
+</form>
+</fieldset>
+
+<fieldset id='defaultPreferences'>
+<legend><?php echo $language["Default preferences"];?></legend>
+
+<form action='<?php echo makeLink("admin", "members"); ?>' method='post'>
+<input type='hidden' name='token' value='<?php echo $_SESSION["token"]; ?>'/>
+
+<ul class='form membersForm'>
+
+<li><label><?php echo $language["Remember me"]; ?></label>
+<select name='rememberMe'><?php
+foreach (array("ask" => "rememberMeAsk", "always" => "rememberMeAlways", "never" => "rememberMeNever") as $value => $label)
+echo "<option value='$value'" . (defaultRememberMe() === $value ? " selected='selected'" : "") . ">{$language[$label]}</option>";
+?></select><br/></li>
+
+<li><label></label> <span class='button'><input type='submit' name='saveDefaultPreferences' value='<?php echo $language["Save changes"]; ?>'/></span></li>
 
 </ul>
 
