@@ -381,18 +381,27 @@ function toggleSmtpConfig() {
 <li><label><?php echo $language["install"]["baseURL"]; ?></label> <input name='baseURL' id='baseURL' type='text' tabindex='24' class='text' autocomplete='off' value='<?php echo isset($_POST["baseURL"]) ? $_POST["baseURL"] : $install->suggestBaseUrl(); ?>'/>
 <div id='baseURL-message'></div></li>
 
-<li><label><?php echo $language["install"]["useFriendlyURLs"]; ?></label> <input name='friendlyURLs' type='checkbox' tabindex='25' class='checkbox' value='1' <?php echo (!empty($_POST["friendlyURLs"]) or $install->suggestFriendlyUrls()) ? "checked" : ""; ?>/></li>
+<?php
+$filledOut = isset($_POST["forumTitle"]);
+$friendlyURLs = $filledOut ? !empty($_POST["friendlyURLs"]) : $install->suggestFriendlyUrls();
+$modRewrite = $filledOut && !empty($_POST["modRewrite"]);
+?>
+<li><label><?php echo $language["install"]["useFriendlyURLs"]; ?></label> <input name='friendlyURLs' id='friendlyURLs' type='checkbox' tabindex='25' class='checkbox' value='1' onchange='Install.updateModRewrite()' <?php echo $friendlyURLs ? "checked" : ""; ?>/></li>
+
+<li><label><?php echo $language["install"]["useModRewrite"]; ?></label> <input name='modRewrite' id='modRewrite' type='checkbox' tabindex='26' class='checkbox' value='1' onchange='Install.hasModRewrite = true' <?php echo $modRewrite ? "checked" : ""; ?><?php echo $friendlyURLs ? "" : " disabled"; ?>/></li>
 </ul>
 </fieldset>
 <script type='text/javascript'>
 Settings.hideFieldset("advancedOptions");
+<?php if (!$filledOut): ?>Install.suggestModRewrite();
+<?php endif; ?>
 (function() {
 	var baseURL = getById("baseURL"), insecure = "http://" + window.location.host + "/";
 	if (window.location.protocol == "https:" && baseURL.value.indexOf(insecure) == 0) baseURL.value = "https://" + baseURL.value.substring(7);
 })();
 </script>
 
-<p id='footer' style='margin:0'><input type='submit' class='button' value='&#139; <?php echo $language["install"]["goBack"]; ?>' name='back'/> <input type='submit' id='installSubmit' tabindex='26' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' class='button'/></p>
+<p id='footer' style='margin:0'><input type='submit' class='button' value='&#139; <?php echo $language["install"]["goBack"]; ?>' name='back'/> <input type='submit' id='installSubmit' tabindex='27' value='<?php echo $language["install"]["nextStep"]; ?> &#155;' class='button'/></p>
 <script type='text/javascript'>
 // <![CDATA[
 Install.fieldsValidated = {

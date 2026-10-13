@@ -23,6 +23,7 @@ var Install = {
 fieldsValidated: {}, // An array of fields and if they've been validated (set by PHP).
 formConfig: null, // Form configuration (set in init)
 hasManualModification: false, // Track if user has manually modified any field
+hasModRewrite: false, // Track if user has modified modRewrite field
 
 // Initialize: set up form validation using Form.
 init: function() {
@@ -199,6 +200,20 @@ changeLanguage: function(language) {
 			}
 		}
 	});
+},
+
+updateModRewrite: function() {
+	getById("modRewrite").disabled = !getById("friendlyURLs").checked;
+},
+
+suggestModRewrite: function() {
+	var request = new XMLHttpRequest();
+	request.onreadystatechange = function() {
+		if (request.readyState != 4 || !request.responseURL) return;
+		if (request.responseURL.split("?")[0] == eso.baseURL + "install/index.php" && !Install.hasModRewrite) getById("modRewrite").checked = true;
+	};
+	request.open("GET", eso.baseURL + Math.random().toString(36).substring(2, 10), true);
+	request.send(null);
 }
 
 };

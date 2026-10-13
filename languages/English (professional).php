@@ -639,6 +639,7 @@ $language["install"] = array(
 "md5LessSecure" => "MD5 (less secure, faster)",
 "baseURL" => "Base URL",
 "useFriendlyURLs" => "Use friendly URLs",
+"useModRewrite" => "Remove <code>index.php</code> from URLs",
 "errorsMustResolve" => "The following errors were found with your forum's setup. They must be resolved before you can continue the installation.",
 "errorsCanContinue" => "The following errors were found with your forum's setup. You can continue the installation without resolving them, but some functionality may be limited.",
 "getHelp" => "If you run into any other problems or just want some help with the installation, feel free to join the <a href='https://forum.geteso.org' class='external' target='_blank'>esoBB support forum</a> where a bunch of friendly people will be happy to help you out.",
