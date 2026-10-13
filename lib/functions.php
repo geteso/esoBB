@@ -965,9 +965,8 @@ function regenerateToken()
 	// Generate a cryptographically secure token using random_bytes (32 hex characters = 128 bits entropy)
 	$_SESSION["token"] = bin2hex(random_bytes(16));
 	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
-	// Update IP address and time to match current request to prevent session validation issues
+	// Update IP address to match current request to prevent session validation issues
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
-	$_SESSION["time"] = time();
 }
 
 ?>

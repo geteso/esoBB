@@ -99,10 +99,9 @@ function initSession($config, $user) {
 	
 	// Set required session fields that the main application expects
 	$_SESSION["ip"] = $_SERVER["REMOTE_ADDR"];
-	$_SESSION["time"] = time();
 	$_SESSION["userAgent"] = md5($_SERVER["HTTP_USER_AGENT"]);
 	
-	// Generate token if needed (regenerateToken() will also update ip/time/userAgent, but that's fine)
+	// Generate token if needed (regenerateToken() will also update ip/userAgent, but that's fine)
 	if (empty($_SESSION["token"])) regenerateToken();
 }
 

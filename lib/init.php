@@ -116,10 +116,10 @@ if (!session_id()) {
 	session_start();
 }
 
-// Only validate session if it has the required fields (prevents issues after session regeneration)
-if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userAgent"])) {
-	$sessionExpired = (time() - $_SESSION["time"] > $config["sessionExpire"]);
+$wipedLoginId = false;
 
+// Only validate session if it has the required fields (prevents issues after session regeneration)
+if (isset($_SESSION["ip"]) && isset($_SESSION["userAgent"])) {
 	// IP validation is optional (disabled by default) as it breaks for users behind proxies/VPNs/load balancers
 	// When enabled, it provides additional security but may cause legitimate users to be logged out
 	$ipMismatch = false;
@@ -131,7 +131,10 @@ if (isset($_SESSION["ip"]) && isset($_SESSION["time"]) && isset($_SESSION["userA
 	$userAgentMismatch = (md5($_SERVER["HTTP_USER_AGENT"]) != $_SESSION["userAgent"]);
 
 	// Clear out the session's data.  It will be set up again below, under a new session ID.
-	if ($sessionExpired or $ipMismatch or $userAgentMismatch) session_unset();
+	if ($ipMismatch or $userAgentMismatch) {
+		if (isset($_SESSION["user"])) $wipedLoginId = (int)@$_SESSION["loginId"];
+		session_unset();
+	}
 }
 
 if (empty($_SESSION["token"])) regenerateToken();

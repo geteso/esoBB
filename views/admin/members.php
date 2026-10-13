@@ -48,7 +48,7 @@ if ($this->eso->user["admin"]):?>
 <li><label><?php echo $language["changeUsername"]; ?><br/></label>
 <select name='changeUsername'><?php
 $changeUsername = $config["changeUsername"] === "changeCaps" ? "changeCaps" : (!empty($config["changeUsername"]) ? "1" : "0");
-foreach (array("1" => "changeUsernameEnabled", "changeCaps" => "changeUsernameCaps", "0" => "changeUsernameDisabled") as $value => $label)
+foreach (array("1" => "Yes", "changeCaps" => "changeUsernameCaps", "0" => "No") as $value => $label)
 echo "<option value='$value'" . ($changeUsername === (string)$value ? " selected='selected'" : "") . ">{$language[$label]}</option>";
 ?></select></li>
 

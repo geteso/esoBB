@@ -750,6 +750,7 @@ activeRequests: 0, // Number of currently running requests.
 beenLoggedOut: false, // Has the user been logged out since we loaded the page? If so, disable ajax until it's resolved.
 disconnected: false, // If we've been disconnected from the server...
 disconnectedRequest: false, // The request to repeat after being disconnected from the server.
+lastResponse: 0, // When (in milliseconds) we last got a response from the server.
 maxSimultaneousRequests: 3, // Maximum number of ajax requests going at the same time.
 queue: [], // A queue of requests waiting to be started or waiting to finish.
 
@@ -816,12 +817,14 @@ doRequest: function(request) {
 			
 			// Check the status code to see if the request went OK (200). If we had problems, alert the user.
 			if (request.http.status == 0) {
+				if (request.quiet) {Ajax.drop(request); return;}
 				setTimeout(function() {Ajax.disconnect(request);}, 1000);
 				return;
 			}
 			// Something other than 200 - disconnect the ajax system.
 			if (request.http.status != 200) {
-				Ajax.disconnect(request);
+				if (request.quiet) Ajax.drop(request);
+				else Ajax.disconnect(request);
 				return false;
 			}
 			// If the ajax system is disconnected but this request was successful, reconnect.
@@ -834,9 +837,11 @@ doRequest: function(request) {
 			// Make the result into a nice JSON array. If there's a syntax error, disconnect the ajax system.
 			try {request.json = JSON.parse(request.http.responseText);}
 			catch (e) {
-				Ajax.disconnect(request);
+				if (request.quiet) Ajax.drop(request);
+				else Ajax.disconnect(request);
 				return false;
 			}
+			Ajax.lastResponse = new Date().getTime();
 			request.result = request.json.result;
 			request.messages = request.json.messages;
 			Ajax.beenLoggedOut = false;
@@ -912,6 +917,14 @@ disconnect: function(request) {
 	this.doNextRequest();
 },
 
+// Give up on a failed request without disconnecting, for a request marked "quiet"
+drop: function(request) {
+	for (var i = this.queue.length - 1; i >= 0; i--) {
+		if (this.queue[i] === request) this.queue.splice(i, 1);
+	}
+	this.doNextRequest();
+},
+
 // Dismiss the "beenLoggedOut" message by pressing cancel or successfully logging in.
 dismissLoggedOut: function(loggedInAs, keep) {
 	this.beenLoggedOut = false;
@@ -922,6 +935,13 @@ dismissLoggedOut: function(loggedInAs, keep) {
 	Messages.hideShadow("beenLoggedOutShadow");
 	// Set the new 'logged in' user.
 	eso.user = loggedInAs ? loggedInAs : "";
+},
+
+// Carry on as a guest after being logged out
+continueAsGuest: function() {
+	this.dismissLoggedOut();
+	if (window.location.href.indexOf("#") != -1) window.location.reload();
+	else window.location.replace(window.location.href);
 },
 
 // Login from the form in the "beenLoggedOut" message.
@@ -967,6 +987,23 @@ Messages.onClose.rememberLogin = function() {rememberLogin(false, true);};
 	};
 	if (document.addEventListener) document.addEventListener("keydown", escape, false);
 	else if (document.attachEvent) document.attachEvent("onkeydown", escape);
+})();
+
+// When the member comes back to the page/browser window, let's make sure they're still logged in, so other pages aren't
+// kept out of the loop.
+(function() {
+	var check = function() {
+		if (document.hidden || typeof eso == "undefined" || !eso.user) return;
+		if (Ajax.beenLoggedOut || Ajax.disconnected || Ajax.queue.length) return;
+		if (new Date().getTime() - Ajax.lastResponse < 30000) return;
+		Ajax.request({"url": eso.baseURL + "ajax.php", "background": true, "quiet": true, "timeout": 30});
+	};
+	// Wait a moment before checking so that a poller catching up on the same event goes first/can skip it...
+	var soon = function() {setTimeout(check, 0);};
+	if (document.addEventListener) {
+		document.addEventListener("visibilitychange", soon, false);
+		window.addEventListener("focus", soon, false);
+	}
 })();
 
 

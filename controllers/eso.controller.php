@@ -75,6 +75,9 @@ function __construct()
 function init()
 {
 	global $language, $config;
+	global $language, $config, $wipedLoginId;
+
+	$sessionEnded = false;
 
 	// Log out if necessary.
 	if (@$_GET["q1"] == "logout") {
@@ -88,6 +91,7 @@ function init()
 		if (!$login or $this->loginExpired($login)) {
 			if ($login) $this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE loginId=?", "i", $loginId);
 			$this->endSession();
+			$sessionEnded = true;
 		}
 		else {
 			$_SESSION["user"]["account"] = $login["account"];
@@ -108,6 +112,13 @@ function init()
 		$this->user["color"] = min($this->user["color"], $this->skin->numberOfColors);
 	}
 
+	if ($wipedLoginId and (int)@$_SESSION["loginId"] != $wipedLoginId) {
+		$this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE loginId=?", "i", $wipedLoginId);
+		$sessionEnded = true;
+	}
+
+	// If this session has been logged out and hasn't just been logged in again (with a 'remember me' cookie), say so.
+	if ($sessionEnded and !$this->user and !defined("AJAX_REQUEST")) $this->message("sessionEnded");
 	if ($this->user and isset($_POST["rememberLogin"]) and !defined("AJAX_REQUEST") and $this->validateToken(@$_POST["token"])) {
 		$this->answerRememberLogin(isset($_POST["rememberLogin"]["yes"]), !empty($_POST["rememberLogin"]["always"]));
 		refresh();
@@ -380,6 +391,11 @@ function startLogin($memberId, $remember = false)
 	elseif (isset($_COOKIE[$config["cookieName"]])) $this->deleteLoginCookie();
 
 	$this->pruneLogins();
+
+	if (($max = (int)$config["maxSessionsPerAccount"]) > 0) {
+		$count = (int)$this->db->fetchOne("SELECT COUNT(*) FROM {$config["tablePrefix"]}logins WHERE memberId=?", "i", (int)$memberId);
+		if ($count > $max) $this->db->queryPrepared("DELETE FROM {$config["tablePrefix"]}logins WHERE memberId=? AND loginId!=? ORDER BY lastTime, loginId LIMIT " . ($count - $max), "ii", (int)$memberId, $_SESSION["loginId"]);
+	}
 }
 
 function resumeLogin($loginId, $cookie)

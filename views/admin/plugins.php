@@ -54,45 +54,45 @@ if (count($this->plugins)): ?>
 
 <script type='text/javascript'>
 // <![CDATA[
-// Toggle whether a plugin is enabled or not.
-function toggleEnabled(id, enabled) {
-	Ajax.request({
-		"url": eso.baseURL + "ajax.php?controller=admin&q2=plugins",
-		"post": "action=toggle&id=" + encodeURIComponent(id) + "&enabled=" + (enabled ? "1" : "0"),
-		"success": function() {
-			if (this.messages) getById("plugin-" + id + "-checkbox").checked = !enabled;
-			else getById("plugin-" + id).className = "plugin" + (enabled ? " enabled" : "");
-			// window.location = window.location;
-		}
-	});
-}
-// Toggle the visibility of a plugin's settings.
 function toggleSettings(id) {
 	for (var i in plugins) {
-		if (plugins[i] != id && getById("plugin-" + plugins[i] + "-settings") && getById("plugin-" + plugins[i] + "-settings").showing)
-			hide(getById("plugin-" + plugins[i] + "-settings"), {animation: "verticalSlide"});
+		var other = getById("plugin-" + plugins[i] + "-settings");
+		if (plugins[i] != id && other && other.showing) {
+			hide(other, {animation: "verticalSlide"});
+			getById("plugin-" + plugins[i] + "-toggle").innerHTML = eso.language["show"];
+		}
 	}
-	toggle(getById("plugin-" + id + "-settings"), {animation: "verticalSlide"});
+	var settings = getById("plugin-" + id + "-settings");
+	toggle(settings, {animation: "verticalSlide"});
+	getById("plugin-" + id + "-toggle").innerHTML = eso.language[settings.showing ? "hide" : "show"];
+	return false;
 }
 var plugins = [];
 // ]]>
 </script>
 
-<ul>
-	
+<ul class='list'>
+
 <?php // Loop through each plugin and output its information.
-foreach ($this->plugins as $k => $plugin): ?>
+foreach ($this->plugins as $k => $plugin):
+
+	$version = htmlspecialchars(json_encode((string)$plugin["version"]), ENT_QUOTES);
+	$controls = array(
+		200 => "<a href='" . makeLink("admin", "plugins", "?toggle=$k", "&token={$_SESSION["token"]}") . "' class='" . ($plugin["loaded"] ? "disable" : "enable") . "'>" . ($plugin["loaded"] ? $language["disable"] : $language["enable"]) . "</a>",
+		"more" => array(100 => "<a href='#' onclick='return copyText($version)'>{$language["copy version"]}</a>")
+	);
+	if (!empty($plugin["settings"])) $controls[100] = "<a href='#' id='plugin-$k-toggle' onclick='return toggleSettings(\"$k\")'>" . (@$_POST["plugin"] == $k ? $language["hide"] : $language["show"]) . "</a>";
+?>
 <li id='plugin-<?php echo $k; ?>' class='plugin<?php if ($plugin["loaded"]): ?> enabled<?php endif; ?>'>
-<div class='controls'>
-<?php if (!empty($plugin["settings"])): ?><a href='javascript:toggleSettings("<?php echo $k; ?>");void(0)'><?php echo $language["settings"]; ?></a><?php endif; ?>
-</div>
-<a href='<?php echo makeLink("admin", "plugins", "?toggle=$k", "&token={$_SESSION["token"]}"); ?>' class='toggle'><?php echo $plugin["loaded"] ? $language["Disable"] : $language["Enable"]; ?></a>	
+<div class='hdr'>
+<div class='controls'><?php echo $this->eso->htmlControls($controls, array("align" => "right")); ?></div>
 <strong><?php echo $plugin["name"]; ?></strong>
 <small><?php printf($language["version"], $plugin["version"]); ?> <?php printf($language["author"], $plugin["author"]); ?></small> <small><?php echo $plugin["description"]; ?></small>
+</div>
 
 <?php // Output plugin settings.
 if (!empty($plugin["settings"])): ?>
-<div id='plugin-<?php echo $k; ?>-settings' class='settings'>
+<div id='plugin-<?php echo $k; ?>-settings' class='details'>
 <form action='<?php echo makeLink("admin", "plugins"); ?>' method='post'>
 <input type='hidden' name='plugin' value='<?php echo $k; ?>'/>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"]; ?>'/>
