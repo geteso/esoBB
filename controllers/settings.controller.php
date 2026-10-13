@@ -592,8 +592,8 @@ function ajax()
 			} else {
 				$defaultMessage = "";
 				if ($formId == "settingsUser" && $fieldId == "name" && empty($value)) {
-					global $language;
-					$defaultMessage = $this->eso->htmlMessage("changeYourName");
+					global $config;
+					$defaultMessage = $this->eso->htmlMessage($config["changeUsername"] === "changeCaps" ? "changeYourNameCaps" : "changeYourName");
 				}
 				return array("validated" => true, "message" => $defaultMessage);
 			}

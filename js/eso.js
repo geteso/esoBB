@@ -3463,6 +3463,9 @@ removeSessions: function(ids) {
 	if (left <= 1) {
 		if (getById("otherSessionsMessage")) hide(getById("otherSessionsMessage"), {animation: "collapse"});
 		if (getById("logOutOtherSessions")) hide(getById("logOutOtherSessions"), {animation: "collapse"});
+		var passwordMsg = getById("newPassword-message");
+		if (this.passwordHint && passwordMsg && passwordMsg.innerHTML == this.passwordHint) hide(passwordMsg.firstChild, {animation: "collapse"});
+		this.passwordHint = "";
 	}
 },
 
@@ -3548,6 +3551,11 @@ checkSettingsChanged: function() {
 
 // Initialize password/email form.
 initPasswordForm: function() {
+initPasswordForm: function(hint) {
+	var div = document.createElement("div");
+	div.innerHTML = hint || "";
+	this.passwordHint = div.innerHTML;
+
 	var formConfig = {
 		formId: "settingsPassword",
 		fields: {
@@ -3579,9 +3587,10 @@ initPasswordForm: function() {
 					if (!isEmpty && otherField && !otherField.value) {
 						formConfig.fieldsValidated[otherFieldId] = true;
 						var otherMsg = getById(otherFieldId + "-message");
-						if (otherMsg) otherMsg.innerHTML = "";
+						if (otherMsg) otherMsg.innerHTML = otherFieldId == "newPassword" ? Settings.passwordHint : "";
 					}
 				}
+				if (field.id == "newPassword" && wasValidated && !field.value) return {message: Settings.passwordHint};
 			},
 			beforeButtonUpdate: function(formConfig) {
 				// Handle current password conditional requirement

@@ -175,6 +175,7 @@ Settings.initSessions();
 </script>
 
 <?php // Output the change my password or email form. ?>
+$passwordHint = count($this->sessions) > 1 ? $this->eso->htmlMessage("changeYourPassword") : "";?>
 <form action='<?php echo makeLink("settings");?>' method='post'>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
 <fieldset id='settingsPassword'>
@@ -183,7 +184,7 @@ Settings.initSessions();
 	
 <li>
 <label><?php echo $language["New password"];?> <small><?php echo $language["optional"];?></small></label> <input id='newPassword' type='password' name='settingsPasswordEmail[new]' class='text' autocomplete='new-password' value='<?php echo @$_POST["settingsPasswordEmail"]["new"];?>'/>
-<div id='newPassword-message'><?php if(!empty($this->messages["new"]))echo $this->eso->htmlMessage($this->messages["new"]);?></div>
+<div id='newPassword-message'><?php if(!empty($this->messages["new"]))echo $this->eso->htmlMessage($this->messages["new"]);else echo $passwordHint;?></div>
 </li>
 
 <li>
@@ -209,7 +210,7 @@ Settings.initSessions();
 
 <script type='text/javascript'>
 // <![CDATA[
-Settings.initPasswordForm();
+Settings.initPasswordForm(<?php echo json($passwordHint);?>);
 // ]]>
 </script>
 

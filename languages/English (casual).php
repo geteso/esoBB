@@ -505,6 +505,7 @@ $messages = array(
 "changesSavedLoggedOutElsewhere" => array("class" => "success", "message" => "Your changes were saved. Since your password changed, you've been logged out everywhere else, just in case."),
 "changeYourName" => array("class" => "info", "message" => "Once you change your name, your old name will become free."),
 "changeYourNameCaps" => array("class" => "info", "message" => "You can change the capitalization of your username, like alex to Alex."),
+"changeYourPassword" => array("class" => "info", "message" => "Once you change your password, you'll be logged out of all other sessions."),
 "conversationDeleted" => array("class" => "success", "message" => "The conversation was deleted. Didn't that feel good?"),
 "downloadLanguagePacks" => array("class" => "info", "message" => "You can download more language packs from the <a href='https://geteso.org/languages/' target='_blank' class='external' onclick='return Conversation.externalLink()'>esoBB website</a>."),
 "downloadPlugins" => array("class" => "info", "message" => "You can download more plugins from the <a href='https://geteso.org/plugins/' target='_blank' class='external' onclick='return Conversation.externalLink()'>esoBB website</a>."),
