@@ -87,22 +87,26 @@ $defaultConfig = array(
 // see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta/name/theme-color for an explanation
 
 // Login and registration settings.
-"changeUsername" => true, // Whether or not accounts can change their usernames.
-"loginsPerMinute" => "10", // Amount of login attempts a user is limited to per minute.
+"changeUsername" => true, // Whether or not accounts can change their usernames: true, "changeCaps" (caps only), or false.
+"loginsPerMinute" => "10", // Amount of failed login/password reset attempts an address is limited to per minute.
+"failedLoginsPerAccount" => 20, // Amount of failed login attempts allowed on an account in failedLoginsWindow seconds.  0 to disable.
+"failedLoginsWindow" => 900, // Amount of time over which failed login attempts on an account are counted. (900 seconds = 15 minutes.)
 "minPasswordLength" => 6,
 "nonAsciiCharacters" => true, // Whether or not usernames may contain non-printable characters (includes things like umlauts).
 "registrationOpen" => true, // Whether or not new accounts can be made on your forum.
 "requireEmailApproval" => true, // Requires sendMail to be true. Whether or not new accounts will be required to have a verified email address before logging in.
 "requireManualApproval" => false, // Whether or not new accounts must be approved by an administrator before logging in.  (They will remain unvalidated.)
 // If manual and email validation are both enabled, the user will have to verify their email address AND be manually validated before being able to log in.
-"registrationsPerMinute" => "5", // Amount of registration attempts a user is limited to per minute.
+"confirmEmailNotice" => true, // Requires sendEmail to be true. Whether users with non-confirmed emails are notified at the top of My settings.
+"registrationsPerMinute" => "5", // Amount of registration attempts/verification emails a user is limited to per minute.
 "reservedNames" => array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "admin", "suspended", "eso", "name", "password", "everyone", "myself"), // Reserved user names which cannot be used.
 
 // Cookie settings.
 "cookieName" => "",
 "cookieDomain" => "", // Sets a custom cookie domain. Set it to .yourdomain.com to have the cookie set across all subdomains. Keep blank to use baseURL.
 "cookieExpire" => 2592000, // Amount of time by which cookies are kept. (2592000 seconds = 30 days.)
-"sessionExpire" => 604800, // Amount of time by which sessions are kept. (604800 seconds = 1 week.)
+"sessionExpire" => 604800, // Amount of time a login without a cookie lasts without being used. (604800 seconds = 1 week.)
+"maxSessionsPerAccount" => 50, // Maximum number of sessions a user can have at once.  0 for no limit.
 "validateSessionIp" => false, // Whether to validate session IP address. Disabled by default as it breaks for users behind proxies/VPNs/load balancers.
 
 // URL settings.
@@ -139,8 +143,8 @@ $defaultConfig = array(
 "avatarAlignment" => "alternate", // Default alignment preference for avatars. Alternate, left, right, or none. Individual users can override this.
 "showAvatarThumbnails" => true, // Whether or not to show avatar thumbnails next to each conversation.
 "emailPrivateAdd" => true, // Email when added to a private conversation?
-"emailStarReply" => true, // Email when someone posts in a private conversation that's starred?
-"rememberMe" => true, // Whether or not the user's login information will be cached (stored as a cookie).
+"emailStarReply" => true, // Email when someone replies to a starred conversation?
+"rememberMe" => "ask", // Whether logins are remembered with a cookie: "ask" (after each login), "always", or "never".
 "showOnline" => true, // Whether or not to display when the user is online.
 
 // Avatar dimensions in pixels.

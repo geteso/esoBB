@@ -74,7 +74,6 @@ function __construct()
 // Initialize: set up the user and initialize the bar and other components of the page.
 function init()
 {
-	global $language, $config;
 	global $language, $config, $wipedLoginId;
 
 	$sessionEnded = false;

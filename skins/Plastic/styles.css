@@ -8,12 +8,48 @@ a.external::after {content:''; height:10px; width:10px; margin-left:3px; backgro
 a.external:hover:after {-webkit-filter:saturate(0) drop-shadow(0 1px 0 #fff); filter:saturate(0) drop-shadow(0 1px 0 #fff)}
 a.external:active:after {-webkit-filter:saturate(0) contrast(25%) drop-shadow(0 1px 0 #fff); filter:saturate(0) contrast(25%) drop-shadow(0 1px 0 #fff)}
 
+/* Dropdown menus */
+.dropdownToggle::after {content:''; height:6px; width:9px; margin-left:4px; background:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCA2Ij48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgOC44IDEuMiIvPjwvc3ZnPg==') no-repeat center; background-size:contain; display:inline-block; -webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
+.dropdownToggle:hover::after {-webkit-filter:saturate(0) drop-shadow(0 1px 0 #fff); filter:saturate(0) drop-shadow(0 1px 0 #fff)}
+.dropdown.open > .dropdownToggle::after {-webkit-transform:rotate(180deg); transform:rotate(180deg); -webkit-filter:drop-shadow(0 -1px 0 #fff); filter:drop-shadow(0 -1px 0 #fff)}
+.dropdown > .dropdownMenu {background:#ddd; border:1px solid #ababab; box-shadow:0 1px 3px 0 #ababab}
+.dropdownMenu a {background:unset!important; border-bottom:1px solid #ababab!important; box-shadow:#fff 0 1px!important; text-shadow:#fff 0 1px!important}
+.dropdownMenu a:hover {background:#fff!important}
+.dropdownMenu a:active {background:#ababab!important}
+.dropdownMenu > a:last-child, .dropdownMenu > .dropdown:last-child > .dropdownToggle {border-bottom:0!important; box-shadow:unset!important}
+#bar .dropdownToggle::after, #ftr .bar .dropdownToggle::after {display:none}
+#bar .dropdownToggle .button::after, #ftr .bar .dropdownToggle .button::after {content:''; height:6px; width:9px; margin-right:5px; background:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCA2Ij48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgOC44IDEuMiIvPjwvc3ZnPg==') no-repeat center; background-size:contain; display:inline-block; -webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
+#bar .dropdown.open > .dropdownToggle .button::after, #ftr .bar .dropdown.open > .dropdownToggle .button::after {-webkit-transform:rotate(180deg); transform:rotate(180deg); -webkit-filter:drop-shadow(0 -1px 0 #fff); filter:drop-shadow(0 -1px 0 #fff)}
+#bar .dropdown > .dropdownMenu, #ftr .bar .dropdown > .dropdownMenu {border:0; box-shadow:0 1px 2px 1px rgba(0 0 0 / 0.25)}
+#bar .dropdownMenu a, #ftr .bar .dropdownMenu a {border-bottom:0!important; box-shadow:unset!important; text-shadow:unset!important}
+#bar .dropdownMenu a:hover, #ftr .bar .dropdownMenu a:hover {background:unset!important}
+.dropdownMenu .button {--button-edge:0 0 0 transparent}
+/* Sub-dropdowns */
+.dropdownMenu .dropdown > .dropdownToggle::after {height:9px; width:6px}
+.dropdownMenu .dropdown:not(.open) > .dropdownToggle::after {float:right; margin:4px 0 0 6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
+.dropdown.alignRight > .dropdownMenu .dropdown:not(.open) > .dropdownToggle::after {float:left; margin:4px 6px 0 0; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNNC44IDEuMiAxIDUgNC44IDguOCIvPjwvc3ZnPg==')}
+.dropdownMenu .dropdown.flyRight > .dropdownToggle::after {float:right; margin:4px 0 0 6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
+.dropdownMenu .dropdown.flyLeft > .dropdownToggle::after {float:left; margin:4px 6px 0 0; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNNC44IDEuMiAxIDUgNC44IDguOCIvPjwvc3ZnPg==')}
+#bar .dropdownMenu .dropdown:not(.open) > .dropdownToggle .button::after, #ftr .bar .dropdownMenu .dropdown:not(.open) > .dropdownToggle .button::after {height:9px; width:6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
+#bar .dropdown.alignRight > .dropdownMenu .dropdown:not(.open) > .dropdownToggle .button::after, #ftr .bar .dropdown.alignRight > .dropdownMenu .dropdown:not(.open) > .dropdownToggle .button::after {background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNNC44IDEuMiAxIDUgNC44IDguOCIvPjwvc3ZnPg==')}
+#bar .dropdownMenu .dropdown.flyRight > .dropdownToggle .button::after, #ftr .bar .dropdownMenu .dropdown.flyRight > .dropdownToggle .button::after {height:9px; width:6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
+#bar .dropdownMenu .dropdown.flyLeft > .dropdownToggle .button::after, #ftr .bar .dropdownMenu .dropdown.flyLeft > .dropdownToggle .button::after {height:9px; width:6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNNC44IDEuMiAxIDUgNC44IDguOCIvPjwvc3ZnPg==')}
+#bar .dropdownMenu .dropdown > .dropdownToggle .button, #ftr .bar .dropdownMenu .dropdown > .dropdownToggle .button {position:relative}
+#bar .dropdownMenu .dropdown > .dropdownToggle .button::after, #ftr .bar .dropdownMenu .dropdown > .dropdownToggle .button::after {position:absolute; right:5px; left:auto; top:50%; margin:-5px 0 0 0}
+#bar .dropdown.alignRight > .dropdownMenu .dropdown > .dropdownToggle .button::after, #ftr .bar .dropdown.alignRight > .dropdownMenu .dropdown > .dropdownToggle .button::after {left:5px; right:auto}
+.dropdownMenu .dropdown > .dropdownMenu {border:1px solid #ababab}
+.dropdownMenu .dropdown.flyLeft > .dropdownMenu {clip-path:inset(-9999px 0 -9999px -9999px)}
+.dropdownMenu .dropdown.flyRight > .dropdownMenu {clip-path:inset(-9999px -9999px -9999px 0)}
+#bar .dropdownMenu .dropdown > .dropdownMenu, #ftr .bar .dropdownMenu .dropdown > .dropdownMenu {margin-top:1px!important}
+#bar .dropdownMenu .dropdown.flyLeft > .dropdownMenu, #ftr .dropdownMenu .dropdown.flyLeft > .dropdownMenu {margin-right:-0.5px!important}
+#bar .dropdownMenu .dropdown.flyRight > .dropdownMenu, #ftr .dropdownMenu .dropdown.flyRight > .dropdownMenu {margin-left:-0.5px!important}
+
 /* Misc */
 small, dt {color:#888}
 small a, dt a {color:#55f}
 #loading {background:#dcff52; border:solid #d4e58f; border-width:0 1px 1px 1px; box-shadow:rgba(0, 0, 0, 0.2) 0 0 3px; -webkit-box-shadow:rgba(0, 0, 0, 0.2) 0 0 3px}
 img.avatar, div.avatar img {-webkit-filter:drop-shadow(0 1px 0 rgba(255,255,255,0.5)); filter:drop-shadow(0 1px 0 rgba(255,255,255,0.5))}
-.enabled, #skins a:hover {background:#ffa}
+.enabled, .list > .current, .list.grid > li > a:hover {background:#ffa}
 .disabled {color:#888}
 .disabled:hover {color:#888; text-decoration:none}
 .highlight {background:yellow}
@@ -143,13 +179,14 @@ a.star0:active, a.star1:active {color:#e4b600}
 .p.l::after {float:left; margin:-2px 0 0 -115px}
 .p.r::after {float:right; margin:-2px -115px 0 0}
 .p .hdr {box-shadow:inset 0 -1px 0 rgba(0,0,0,0.2)}
-.p .hdr, .p .hdr small, .p .hdr a {color:#000; text-shadow:rgba(255,255,255,0.5) 0 1px}
+.p .hdr, .p .hdr small, .p .hdr a, .list .hdr .controls a {color:#000; text-shadow:rgba(255,255,255,0.5) 0 1px}
 .p .hdr a.external::after {filter:saturate(0) drop-shadow(rgba(255,255,255,0.5) 0 1px)}
 .p .hdr select, .p .hdr input.save {border:dashed rgba(0,0,0,0.2); border-width:1px}
 .p .hdr select option {background:#fff}
-.p .hdr .controls a {background:rgba(0,0,0,0.1); box-shadow:rgba(255,255,255,0.5) 0 1px}
-.p .hdr .controls a:hover {background-color:#fff; text-decoration:none}
-.p .hdr .controls a:active {background-color:#888}
+.p .hdr .controls a, .list .hdr .controls a {background:rgba(0,0,0,0.1); box-shadow:rgba(255,255,255,0.5) 0 1px}
+.p .hdr .controls a:hover, .list .hdr .controls a:hover {background-color:#fff; text-decoration:none}
+.p .hdr .controls a:active, .list .hdr .controls a:active {background-color:#888}
+.p .hdr .controls > .dropdown > .dropdownMenu {border-top:0}
 .p .body {text-shadow:#fff 0 1px}
 blockquote {background:rgba(0,0,0,0.05); border:solid rgba(0,0,0,0.1); border-width:1px; box-shadow:#fff 0 1px, inset 0 1px 3px #ccc}
 .p .body .emoticon {-webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
@@ -188,24 +225,27 @@ blockquote cite {border-bottom:1px dashed rgba(0,0,0,0.2)}
 #admin .menu li.active a, #admin .menu li:not(.active) a:hover {margin-right:-1px; background:#fff; border:solid #ccc; border-width:1px 0 1px 1px; color:#000; clip-path:inset(-5px 0px -5px -5px)}
 #admin .menu li:not(.active) a:hover {padding-left:15px}
 #admin .inner {border-left:1px solid #ccc}
-#admin .stats li {border-bottom:1px solid #ddd}
+.form.stats li {border-bottom:1px solid #ddd}
 #admin .settingsForm hr {border-style:solid; border-width:1px 0 0; border-color:#ccc}
 .form.logoForm img {border:1px dashed #bbb}
 .form.iconForm img {border:1px solid #ddd}
 
-/* Plugins */
-#plugins .controls a, #plugins .toggle {background:#cdffba; color:#258500}
-#plugins .controls a, #plugins .enabled .toggle {color:#888; background:#e4e4e4}
-#plugins .toggle:hover {background-color:#a3e18c; text-decoration:none}
-#plugins .toggle:active {background-color:#64b346}
-#plugins .enabled .toggle:hover, #plugins .controls a:hover {background-color:#ccc; text-decoration:none}
-#plugins .enabled .toggle:active, #plugins .controls a:active {background-color:#a4a4a4}
-#plugins li {border-bottom:1px solid #ddd}
-#plugins li .settings {background:#fff}
+/* Lists */
+.list:not(.grid) > li {border-bottom:1px solid #ddd}
+.list .details {background:#fff}
+.list .hdr .controls > a:hover, .list .hdr .controls > .dropdown > a:hover {background-color:rgba(0,0,0,0.2)}
+.list .hdr .controls > a:active, .list .hdr .controls > .dropdown > a:active {background-color:rgba(0,0,0,0.36)}
+.list > .enabled .hdr .controls > a:hover, .list > .enabled .hdr .controls > .dropdown > a:hover, .list > .current .hdr .controls > a:hover, .list > .current .hdr .controls > .dropdown > a:hover {background-color:#fff}
+.list > .enabled .hdr .controls > a:active, .list > .enabled .hdr .controls > .dropdown > a:active, .list > .current .hdr .controls > a:active, .list > .current .hdr .controls > .dropdown > a:active {background-color:#888}
+.list .hdr .controls > a.enable {background-color:#cdffba}
+.list .hdr .controls > a.enable:hover {background-color:#a3e18c}
+.list .hdr .controls > a.enable:active {background-color:#64b346}
+.list.grid > li > a {color:#000}
+.list.grid > li > a:hover {text-decoration:none}
+
+#copied {border:solid #e9c25a; border-width:0 1px 1px 1px; box-shadow:rgba(0, 0, 0, 0.2) 0 0 3px; -webkit-box-shadow:rgba(0, 0, 0, 0.2) 0 0 3px}
 
 /* Skins */
-#skins a {color:#000}
-#skins a:hover {text-decoration:none}
 #skins .preview {background:#eee; border:1px solid #ddd; color:#ddd}
 #skins a:hover .preview, #skins .enabled .preview {border-color:#aaa}
 
@@ -235,10 +275,10 @@ fieldset.hidden legend a {color:#666}
 .button input {color:#fff}
 .button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5),inset 0 1px 0 #eeeeee}
 .button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25),inset 0 1px 0 #eeeeee}
-.buttonSmall, .p .body .button {box-shadow:inset 0 1px 0 #eeeeee, 0 1px 0 #ffffff}
+.buttonSmall, .p .body .button {--button-edge:0 1px 0 #ffffff; box-shadow:inset 0 1px 0 #eeeeee, var(--button-edge)}
 .buttonSmall, .buttonSmall:active, .buttonSmall:hover {background:linear-gradient(#f7f7f7, #d8d9e1); color:#000; text-shadow:#fff 0 1px; border:1px solid #bbb; border-radius:0}
-.buttonSmall:hover, .p .body .button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5), inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}
-.buttonSmall:active, .p .body .button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 #ffffff, 0 1px 0 #ffffff}
+.buttonSmall:hover, .p .body .button:hover {box-shadow:inset 0 0 0 2px rgba(255, 255, 255, 0.5), inset 0 1px 0 #ffffff, var(--button-edge)}
+.buttonSmall:active, .p .body .button:active {box-shadow:inset 0 0 25px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 #ffffff, var(--button-edge)}
 .buttonSmall input, .buttonSmall:active input, .buttonSmall:hover input {color:#000; text-shadow:#fff 0 1px}
 .buttonDisabled, .buttonDisabled:active, .buttonDisabled:hover {background:linear-gradient(#e9ebe8 25%, #d8dad6 50%, #cbceca 50%, #f8faf7 100%); border:1px solid #b2b4b1; box-shadow:inset 0 1px 0 #ffffff}
 .bigDisabled, .bigDisabled:active, .bigDisabled:hover {background:linear-gradient(#e9ebe8 25%, #d8dad6 50%, #cbceca 50%, #f8faf7 100%); border:1px solid #b2b4b1; box-shadow:inset 0 1px 0 #ffffff}
@@ -293,4 +333,6 @@ fieldset.hidden legend a {color:#666}
 @media only screen and (max-width:570px) {
 .p.l::after, .p.r::after {display:none}
 #cPosts .p .hdr .controls {background:#ddd}
+#cPosts .p .hdr .controls > .dropdown > .dropdownMenu {margin-top:-3px!important; border-top:1px solid #ababab}
+#cPosts .p .hdr .controls .dropdown.alignRight > .dropdownMenu .dropdown:not(.open) > .dropdownToggle::after {float:right; margin:4px 0 0 6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
 }
