@@ -970,24 +970,8 @@ function rememberLogin(remember, closed) {
 	return false;
 }
 
-Messages.onShow.rememberLogin = function() {
-	rememberLogin.answered = false;
-	var shownAt = new Date().getTime();
-	Messages.showShadow("rememberLoginShadow").onclick = function() {
-		if (new Date().getTime() - shownAt >= 1000) Messages.close("rememberLogin");
-	};
-};
-Messages.onHide.rememberLogin = function() {Messages.hideShadow("rememberLoginShadow");};
+Messages.onShow.rememberLogin = function() {rememberLogin.answered = false;};
 Messages.onClose.rememberLogin = function() {rememberLogin(false, true);};
-
-(function() {
-	var escape = function(e) {
-		e = e || window.event;
-		if (e.keyCode == 27 && getById("rememberLoginShadow")) Messages.close("rememberLogin");
-	};
-	if (document.addEventListener) document.addEventListener("keydown", escape, false);
-	else if (document.attachEvent) document.attachEvent("onkeydown", escape);
-})();
 
 // When the member comes back to the page/browser window, let's make sure they're still logged in, so other pages aren't
 // kept out of the loop.
