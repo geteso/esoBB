@@ -3550,7 +3550,6 @@ checkSettingsChanged: function() {
 },
 
 // Initialize password/email form.
-initPasswordForm: function() {
 initPasswordForm: function(hint) {
 	var div = document.createElement("div");
 	div.innerHTML = hint || "";

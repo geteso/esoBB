@@ -151,12 +151,14 @@ Settings.initSettingsForm();
 // ]]>
 </script>
 
+<?php // List the member's sessions. ?>
 <form action='<?php echo makeLink("settings");?>' method='post'>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
 <fieldset id='settingsSessions'>
 <legend><a href='#' onclick='Settings.toggleFieldset("settingsSessions");return false'><?php echo $language["Manage my sessions"];?> (<span id='sessionCount'><?php echo count($this->sessions);?></span>)</a></legend>
 <div id='settingsSessionsForm'>
 
+<?php
 if (count($this->sessions) > 1):?><div id='otherSessionsMessage'><?php echo $this->eso->htmlMessage("unrecognizedSessions");?></div><?php endif;?>
 
 <ul class='list'>
@@ -174,7 +176,7 @@ Settings.initSessions();
 // ]]>
 </script>
 
-<?php // Output the change my password or email form. ?>
+<?php // Output the change my password or email form.
 $passwordHint = count($this->sessions) > 1 ? $this->eso->htmlMessage("changeYourPassword") : "";?>
 <form action='<?php echo makeLink("settings");?>' method='post'>
 <input type='hidden' name='token' value='<?php echo $_SESSION["token"];?>'/>
