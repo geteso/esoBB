@@ -91,6 +91,7 @@ a.s5 {font-size:90%}
 #reset {display:block; float:left; height:27px; line-height:24px; overflow:hidden; text-align:center; width:1.5em}
 
 /* Messages */
+#messages {position:relative; z-index:101}
 #messages .msg {margin:0}
 #messages .msg #debugInfo {margin:5px 0 0}
 .msg .close {float:right; padding:0 5px; margin:-2px -4px 0 5px}
