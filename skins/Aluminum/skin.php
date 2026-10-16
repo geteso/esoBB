@@ -37,6 +37,7 @@ var $favicon = "favicon.ico";
 var $avatarLeft = "avatarLeft.svg";
 var $avatarRight = "avatarRight.svg";
 var $avatarThumb = "avatarThumb.svg";
+var $preview = "preview.png";
 
 // Add stylesheets and a favicon to the page header.
 function init()

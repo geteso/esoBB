@@ -127,6 +127,9 @@ var $version;
 var $author;
 var $views;
 
+// Whether to use an iframe to display the preview thumbnail on the skins page, rather than a raster image.
+var $livePreview = true;
+
 function init() {}
 
 // Generate button HTML.

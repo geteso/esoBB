@@ -812,7 +812,8 @@ function skinsInit()
 			// Make sure the skin is valid, and set up its class.
 	        if ($file[0] != "." and is_dir("skins/$file") and file_exists("skins/$file/skin.php") and (include_once "skins/$file/skin.php") and class_exists($file)) {
 	        	$skin = new $file;
-				if (file_exists("skins/$file/preview.jpg")) $preview = "preview.jpg";
+				if (isset($skin->preview) and file_exists("skins/$file/{$skin->preview}")) $preview = $skin->preview;
+				elseif (file_exists("skins/$file/preview.jpg")) $preview = "preview.jpg";
 				elseif (file_exists("skins/$file/preview.png")) $preview = "preview.png";
 				elseif (file_exists("skins/$file/preview.gif")) $preview = "preview.gif";
 				else $preview = "";
@@ -821,7 +822,8 @@ function skinsInit()
 					"name" => $skin->name,
 					"version" => $skin->version,
 					"author" => $skin->author,
-					"preview" => $preview
+					"preview" => $preview,
+					"livePreview" => !isset($skin->livePreview) || $skin->livePreview
 				);
 			}
 			
@@ -846,12 +848,14 @@ function previewSkin($name)
 	if (isset($skin->logo) and file_exists("skins/$name/{$skin->logo}")) $logoFile = $skin->logo;
 	elseif (file_exists("skins/$name/logo.svg")) $logoFile = "logo.svg";
 	elseif (file_exists("skins/$name/logo.png")) $logoFile = "logo.png";
+	$thumbFile = isset($skin->avatarThumb) ? $skin->avatarThumb : "avatarThumb.svg";
 
 	$base = htmlspecialchars($config["baseURL"], ENT_QUOTES);
 	$nameE = htmlspecialchars($name, ENT_QUOTES);
 	$baseCssVer = @filemtime("skins/base.css") ?: 0;
 	$skinCssVer = @filemtime("skins/$name/styles.css") ?: 0;
 	$logoUrl = $logoFile ? $base . "skins/$nameE/" . htmlspecialchars($logoFile, ENT_QUOTES) : "";
+	$thumbUrl = $base . "skins/$nameE/" . htmlspecialchars($thumbFile, ENT_QUOTES);
 
 	while (ob_get_level()) ob_end_clean();
 	header("Content-Type: text/html; charset=UTF-8");
@@ -883,17 +887,18 @@ a{cursor:default}
 </a>
 </h1>
 <p id='stats'>
-<span>3 conversations</span><br/>
 <span>3 posts</span><br/>
-<span>1 member online</span>
+<span>3 conversations</span><br/>
+<span>1 <a href='#'>member online</a></span>
 </p>
 </div>
 <div id='bar'>
 <ul class='fl'>
-<li><strong><a href='#'>Home</a></strong></li>
-<li><a href='#'>My settings</a></li>
-<li><a href='#'>Dashboard</a></li>
-<li><a href='#'>Logout</a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='Home'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='My profile'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='My settings'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='Dashboard'></span></a></li>
+<li><a href='#' id='logout' class='vl'><span class='button buttonSmall'><input type='submit' value='Log out'></span></a></li>
 </ul>
 </div>
 </div>
@@ -950,16 +955,18 @@ a{cursor:default}
 <div id='searchResults'>
 <table cellspacing='0' cellpadding='2' class='c'>
 <thead>
-<tr><th class='star'>&nbsp;</th><th class='conversation'>Conversation</th><th class='posts'>Posts</th></tr>
+<tr><th class='star'>&nbsp;</th><th class='avatar'>&nbsp;</th><th class='conversation'>Conversation</th><th class='posts'>Posts</th></tr>
 </thead>
 <tbody>
-<tr class='c0 starred'>
-<td class='star'><span class='star1'><span>&nbsp;</span></span></td>
+<tr class='c2 starred'>
+<td class='star'><a href='#' class='star1'>*<span>Starred</span></a></td>
+<td class='avatar'><a href='#' style='margin:0'><img src='<?php echo $thumbUrl; ?>' alt='' class='thumb'/></a></td>
 <td class='conversation'><strong><a href='#'>Welcome to esoBB!</a></strong><br/><small class='tags'>introduction, welcome</small></td>
 <td class='posts'><span class='postCount p3'>1</span></td>
 </tr>
-<tr class='c0'>
-<td class='star'><span class='star0'><span>&nbsp;</span></span></td>
+<tr class='c2'>
+<td class='star'><a href='#' class='star0'>*<span>Unstarred</span></a></td>
+<td class='avatar'><a href='#' style='margin:0'><img src='<?php echo $thumbUrl; ?>' alt='' class='thumb'/></a></td>
 <td class='conversation'><strong><a href='#'>How to use your forum</a></strong><br/><small class='tags'>eso, faq, tutorial</small></td>
 <td class='posts'><span class='postCount p3'>1</span></td>
 </tr>

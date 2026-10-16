@@ -36,12 +36,12 @@ foreach ($this->skins as $k => $skin): ?>
 <li<?php if ($skin["selected"]): ?> class='enabled'<?php endif; ?>>
 <a href='<?php echo makeLink("admin", "skins", $k, "?token={$_SESSION["token"]}"); ?>'>
 <span class='preview'>
-<?php if (file_exists("skins/$k/styles.css")): ?><iframe src='<?php echo makeLink("admin", "skins", "?preview=" . urlencode($k)); ?>' title='<?php echo $skin["name"]; ?>' loading='lazy' scrolling='no' tabindex='-1' aria-hidden='true'></iframe>
-<?php elseif ($skin["preview"]): ?><img src='skins/<?php echo $k; ?>/<?php echo $skin["preview"]; ?>' alt='<?php echo $skin["name"]; ?>'/>
+<?php if ($skin["livePreview"] and file_exists("skins/$k/styles.css")): ?><iframe src='<?php echo makeLink("admin", "skins", "?preview=" . urlencode($k)); ?>' title='<?php echo sanitizeHTML($skin["name"]); ?>' loading='lazy' scrolling='no' tabindex='-1' aria-hidden='true'></iframe>
+<?php elseif ($skin["preview"]): ?><img src='skins/<?php echo $k; ?>/<?php echo sanitizeHTML($skin["preview"]); ?>' alt='<?php echo sanitizeHTML($skin["name"]); ?>'/>
 <?php else: ?><span><?php echo $language["No preview"]; ?></span>
 <?php endif; ?>
 </span>
-<span class='hdr'><strong><?php echo $skin["name"]; ?></strong> <small><?php printf($language["version"], $skin["version"]); ?> <?php printf($language["author"], $skin["author"]); ?></small></span>
+<span class='hdr'><strong><?php echo sanitizeHTML($skin["name"]); ?></strong> <small><?php printf($language["version"], sanitizeHTML($skin["version"])); ?> <?php printf($language["author"], sanitizeHTML($skin["author"])); ?></small></span>
 </a>
 </li>
 <?php endforeach; ?>
@@ -79,10 +79,10 @@ else: ?>
 <script>
 // Scale the skin preview iframe: adjust CSS transform value on resize
 (function() {
-	var width = 650; //px
+	var width = 650, height = 390; //px
 	var fit = function(p) {
 		var f = p.querySelector('iframe');
-		if (f) f.style.transform = 'scale(' + (p.clientWidth / width) + ')';
+		if (f) f.style.transform = 'scale(' + (p.clientWidth / width) + ',' + (p.clientHeight / height) + ')';
 	};
 	var element = document.querySelectorAll('#skins .preview');
 	if (window.ResizeObserver) {
