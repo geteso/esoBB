@@ -204,7 +204,7 @@ $language = array(
 
 "Mark all conversations as read" => "Mark all conversations as read",
 "Member" => "Member",
-"member online" => ">member online",
+"member online" => "member online",
 "Member-plural" => "Members",
 "Members allowed to view this conversation" => "Members allowed to view this conversation",
 "members online" => "members online",

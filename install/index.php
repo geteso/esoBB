@@ -309,6 +309,7 @@ case "info": ?>
 </ul>
 
 <a href='#smtpConfig' onclick='toggleSmtpConfig();return false' title='What, you&#39;re too cool for the normal settings?' tabindex='9'><?php echo $language["install"]["smtpMailServer"]; ?></a>
+<hr class='aboveToggle'/>
 <div id='smtpConfig'>
 
 <ul class='form'>
@@ -333,10 +334,7 @@ case "info": ?>
 function toggleSmtpConfig() {
 	toggle(document.getElementById("smtpConfig"), {animation: "verticalSlide"});
 	document.getElementById("showSmtpConfig").value = document.getElementById("smtpConfig").showing ? "1" : "";
-	if (document.getElementById("smtpConfig").showing) {
-		animateScroll(document.getElementById("smtpConfig").offsetTop + document.getElementById("smtpConfig").offsetHeight + getClientDimensions()[1]);
-//		document.getElementById("smtpAuth").focus();
-	}
+	if (document.getElementById("smtpConfig").showing) document.getElementById("smtpAuth").focus({preventScroll: true});
 }
 <?php if (empty($_POST["showSmtpConfig"])): ?>hide(document.getElementById("smtpConfig"));<?php endif; ?>
 // ]]>
