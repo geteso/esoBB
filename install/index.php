@@ -27,6 +27,12 @@ define("IN_ESO", 1);
 // Unset the page execution time limit.
 @set_time_limit(0);
 
+// Only report important errors.
+error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR);
+
+// Make MySQL return false on errors instead of throwing exceptions.
+if (function_exists("mysqli_report")) mysqli_report(MYSQLI_REPORT_OFF);
+
 // Define directory constants.
 if (!defined("PATH_ROOT")) define("PATH_ROOT", realpath(__DIR__ . "/.."));
 if (!defined("PATH_CONFIG")) define("PATH_CONFIG", PATH_ROOT."/config");
@@ -144,12 +150,11 @@ Ajax.request = function(request) {
 	if (request && request.url) {
 		// Fix Form validation URLs
 		if (request.url.indexOf("ajax.php?controller=install") !== -1) {
-			request.url = "/install/ajax.php";
+			request.url = eso.baseURL + "install/ajax.php";
 		}
-		// Fix relative URLs starting with "install/" to be absolute from root
+		// Fix relative URLs starting with "install/" to be absolute from the forum's base URL
 		if (request.url.indexOf("install/") === 0) {
-			// Make it absolute from the document root
-			request.url = "/" + request.url;
+			request.url = eso.baseURL + request.url;
 		}
 	}
 	return originalAjaxRequest.call(this, request);
@@ -200,6 +205,7 @@ case "start": ?>
 <h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["welcomeTitle"]; ?></h1>
 <div class='progress'><span class='step active'></span><span class='step'></span><span class='step'></span></div>
 <p class='lead'><?php echo $language["install"]["welcomeDescription"]; ?></p>
+<?php if (isset($install->errors[1])): ?><div class='warning msg'><?php echo $install->errors[1]; ?></div><?php endif; ?>
 
 <ul class='form'>
 <li><label><?php echo $language["install"]["selectLanguage"]; ?></label> <div><select id='installLanguage' name='language' onchange='Install.changeLanguage(this.value)'>
@@ -254,6 +260,7 @@ case "info": ?>
 <h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["specifySetupInfo"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step active'></span><span class='step'></span></div>
 <p class='lead'><?php echo $language["install"]["setupInfoDescription"]; ?></p>
+<?php if (isset($install->errors[1])): ?><div class='warning msg'><?php echo $install->errors[1]; ?></div><?php endif; ?>
 
 <fieldset id='basicDetails'><legend><?php echo $language["install"]["specifyBasicDetails"]; ?></legend>
 <ul class='form'>
@@ -312,7 +319,8 @@ case "info": ?>
 <li><label><?php echo $language["install"]["smtpHostAddress"]; ?></label> <input id='smtpHost' name='smtpHost' tabindex='11' type='text' class='text' autocomplete='off' value='<?php echo @$_POST["smtpHost"]; ?>'/></li>
 
 <li><label><?php echo $language["install"]["smtpHostPort"]; ?></label> <input id='smtpPort' name='smtpPort' tabindex='12' type='text' class='text' placeholder='25' autocomplete='off' value='<?php echo @$_POST["smtpPort"]; ?>'/>
-<div id='smtpPort-message'></div></li>
+<div id='smtpPort-message'></div>
+<?php if (isset($install->errors["smtpPort"])): ?><div class='warning msg'><?php echo $install->errors["smtpPort"]; ?></div><?php endif; ?></li>
 
 <li><label><?php echo $language["install"]["smtpUsername"]; ?></label> <input id='smtpUser' name='smtpUser' tabindex='13' type='text' class='text' placeholder='simon@example.com' autocomplete='off' value='<?php echo @$_POST["smtpUser"]; ?>'/></li>
 
@@ -368,18 +376,22 @@ function toggleSmtpConfig() {
 <div id='tablePrefix-message'></div></li>
 
 <li><label><?php echo $language["install"]["mysqlCharacterSet"]; ?></label> <input name='characterEncoding' id='characterEncoding' tabindex='21' type='text' class='text' autocomplete='off' value='<?php echo isset($_POST["characterEncoding"]) ? $_POST["characterEncoding"] : "utf8mb4"; ?>'/>
-<div id='characterEncoding-message'></div></li>
+<div id='characterEncoding-message'></div>
+<?php if (isset($install->errors["characterEncoding"])): ?><div class='warning msg'><?php echo $install->errors["characterEncoding"]; ?></div><?php endif; ?></li>
 
 <li><label><?php echo $language["install"]["mysqlStorageEngine"]; ?></label><div><select id='storageEngine' name='storageEngine' tabindex='22'>
 <?php foreach ($install->storageEngines as $k => $v) echo "<option value='$k'" . ((!empty($_POST["storageEngine"]) ? $_POST["storageEngine"] : "InnoDB") == $k ? " selected='selected'" : "") . ">$v</option>"; ?>
-</select></div></li>
+</select></div>
+<?php if (isset($install->errors["storageEngine"])): ?><div class='warning msg'><?php echo $install->errors["storageEngine"]; ?></div><?php endif; ?></li>
 
 <li><label><?php echo $language["install"]["hashingAlgorithm"]; ?></label><div><select id='hashingMethod' name='hashingMethod' tabindex='23'>
 <?php foreach ($install->hashingMethods as $k => $v) echo "<option value='$k'" . ((!empty($_POST["hashingMethod"]) ? $_POST["hashingMethod"] : "bcrypt") == $k ? " selected='selected'" : "") . ">$v</option>"; ?>
-</select></div></li>
+</select></div>
+<?php if (isset($install->errors["hashingMethod"])): ?><div class='warning msg'><?php echo $install->errors["hashingMethod"]; ?></div><?php endif; ?></li>
 
 <li><label><?php echo $language["install"]["baseURL"]; ?></label> <input name='baseURL' id='baseURL' type='text' tabindex='24' class='text' autocomplete='off' value='<?php echo isset($_POST["baseURL"]) ? $_POST["baseURL"] : $install->suggestBaseUrl(); ?>'/>
-<div id='baseURL-message'></div></li>
+<div id='baseURL-message'></div>
+<?php if (isset($install->errors["baseURL"])): ?><div class='warning msg'><?php echo $install->errors["baseURL"]; ?></div><?php endif; ?></li>
 
 <?php
 $filledOut = isset($_POST["forumTitle"]);
@@ -392,7 +404,8 @@ $modRewrite = $filledOut && !empty($_POST["modRewrite"]);
 </ul>
 </fieldset>
 <script type='text/javascript'>
-Settings.hideFieldset("advancedOptions");
+<?php if (empty($_POST["showAdvanced"])): ?>Settings.hideFieldset("advancedOptions");
+<?php endif; ?>
 <?php if (!$filledOut): ?>Install.suggestModRewrite();
 <?php endif; ?>
 (function() {
@@ -463,6 +476,7 @@ case "finish": ?>
 <h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["congratulations"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step'></span><span class='step active'></span></div>
 <p class='lead'><?php echo $language["install"]["forumInstalled"]; ?></p>
+<?php if (isset($install->errors[1])): ?><div class='warning msg'><?php echo $install->errors[1]; ?></div><?php endif; ?>
 
 <a href='javascript:toggleAdvanced()'><?php echo $language["install"]["showAdvancedInformation"]; ?></a>
 <hr class='aboveToggle'/>

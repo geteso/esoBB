@@ -23,6 +23,9 @@
  */
 define("IN_ESO", 1);
 
+// Only report important errors.
+error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR);
+
 // Define directory constants.
 if (!defined("PATH_ROOT")) define("PATH_ROOT", realpath(__DIR__ . "/.."));
 if (!defined("PATH_LIBRARY")) define("PATH_LIBRARY", PATH_ROOT."/lib");

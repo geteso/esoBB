@@ -115,6 +115,10 @@ var $step;
 var $config;
 var $errors = array();
 var $queries = array();
+var $languages = array();
+var $smtpOptions = array();
+var $storageEngines = array();
+var $hashingMethods = array();
 
 // Initialize: perform an action depending on what step the user is at in the installation.
 function init()
@@ -465,6 +469,7 @@ function doInstall()
 	
 	// Connect to the MySQL database.
 	$db = @mysqli_connect($config["mysqlHost"], $config["mysqlUser"], $config["mysqlPass"], $config["mysqlDB"]);
+	if (!$db) return array(1 => "<code>" . sanitizeHTML(mysqli_connect_error()) . "</code>");
 	mysqli_set_charset($db, $config["characterEncoding"]);
 	
 	// Run the queries one by one and halt if there's an error!
@@ -577,13 +582,13 @@ function validateInfo()
 	if (preg_match("/[" . preg_quote("!/%+-", "/") . "]/", $_POST["adminUser"])) $errors["adminUser"] = $language["install"]["nameInvalidCharacters"];
 	
 	// Email must be valid.
-	if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $_POST["adminEmail"])) $errors["adminEmail"] = $language["You must enter a valid email address"];
+	if (!preg_match("/^[A-Z0-9._%-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i", $_POST["adminEmail"])) $errors["adminEmail"] = $language["install"]["emailRequired"];
 	
 	// Password must be at least 6 characters.
-	if (strlen($_POST["adminPass"]) < 6) $errors["adminPass"] = $language["Your password must be at least 6 characters"];
+	if (strlen($_POST["adminPass"]) < 6) $errors["adminPass"] = $language["install"]["passwordTooShort"];
 	
 	// Password confirmation must match.
-	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = $language["Your passwords do not match"];
+	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = $language["install"]["passwordsDoNotMatch"];
 	
 	// Validate table prefix format and length.
 	if (!preg_match("/^[a-zA-Z0-9_]+$/", $_POST["tablePrefix"])) {
@@ -625,8 +630,8 @@ function validateInfo()
 	}
 	
 	// Try and connect to the database.
-	$db = @mysqli_connect($_POST["mysqlHost"], $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
-	if (!$db) $errors["mysql"] = $language["install"]["mysqlConnectionError"] . "<br/> " . mysqli_connect_error();
+	$db = @mysqli_connect(desanitize($_POST["mysqlHost"]), desanitize($_POST["mysqlUser"]), desanitize($_POST["mysqlPass"]), desanitize($_POST["mysqlDB"]));
+	if (!$db) $errors["mysql"] = $language["install"]["mysqlConnectionError"] . "<br/> " . sanitizeHTML(mysqli_connect_error());
 	
 	// Check to see if there are any conflicting tables already in the database.
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
@@ -638,10 +643,12 @@ function validateInfo()
 		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
 		$conflictingTables = array_intersect($ourTables, $theirTables);
 		if (count($conflictingTables)) {
-			$_POST["showAdvanced"] = true;
 			$errors["tablePrefix"] = sprintf($language["install"]["tablePrefixConflictError"], implode(", ", $conflictingTables), $_POST["tablePrefix"]);
 		}
 	}
+	
+	if (array_intersect_key($errors, array_flip(array("tablePrefix", "characterEncoding", "storageEngine", "hashingMethod", "baseURL")))) $_POST["showAdvanced"] = true;
+	if (isset($errors["smtpPort"])) $_POST["showSmtpConfig"] = "1";
 	
 	if (count($errors)) return $errors;
 }
@@ -676,7 +683,7 @@ function fatalChecks()
 	
 	// Check file permissions.
 	$fileErrors = array();
-	$filesToCheck = array("", "avatars/", "plugins/", "skins/", "config/", "install/", "upgrade/");
+	$filesToCheck = array("", "avatars/", "plugins/", "sessions/", "skins/", "config/", "install/", "upgrade/");
 	foreach ($filesToCheck as $file) {
 		if ((!file_exists("../$file") and !@mkdir("../$file")) or (!is_writable("../$file") and !@chmod("../$file", 0777))) {
 			$realPath = realpath("../$file");
