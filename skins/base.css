@@ -343,8 +343,9 @@ blockquote p {margin-bottom:.75em}
 /* Skins */
 #skins .preview {display:block; position:relative; height:0; padding-bottom:60%; font-size:20px; margin-bottom:5px; overflow:hidden; text-align:center}
 #skins .preview span {position:absolute; top:50%; left:0; width:100%; line-height:24px; margin-top:-12px}
-#skins .preview img {position:absolute; top:0; left:0; width:100%; height:100%}
-#skins .preview iframe {position:absolute; top:0; left:0; width:650px; height:390px; border:0; transform-origin:top left; pointer-events:none}
+#skins .preview img {position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; object-position:left top}
+#skins .preview iframe {position:absolute; top:0; left:0; width:650px; height:390px; border:0; background:#fff; opacity:0; transform-origin:top left; pointer-events:none}
+#skins .preview.loaded iframe {opacity:1}
 
 /* Profile */
 .profile .body {padding:10px 10px}

@@ -838,7 +838,7 @@ function skinsInit()
 
 function previewSkin($name)
 {
-	global $config;
+	global $config, $language;
 
 	@include_once "skins/$name/skin.php";
 	if (!class_exists($name)) return;
@@ -857,14 +857,49 @@ function previewSkin($name)
 	$logoUrl = $logoFile ? $base . "skins/$nameE/" . htmlspecialchars($logoFile, ENT_QUOTES) : "";
 	$thumbUrl = $base . "skins/$nameE/" . htmlspecialchars($thumbFile, ENT_QUOTES);
 
+	$forumTitle = "e.g. Simon's Krav Maga Forum";
+
+	$tags = $language["install"]["defaultTags"];
+	$welcomeTags = array($tags["introduction"], $tags["welcome"]);
+	$howToUseTags = array($tags["esobb"], $tags["faq"], $tags["howto"], $tags["tutorial"]);
+	sort($welcomeTags);
+	sort($howToUseTags);
+	$tagCloud = array_merge($welcomeTags, $howToUseTags);
+	sort($tagCloud);
+
+	$gambits = array(
+		$language["gambits"]["active last ? hours"] => "s4",
+		$language["gambits"]["active last ? days"] => "s5",
+		$language["gambits"]["active today"] => "s2",
+		$language["gambits"]["author:"] . $language["gambits"]["member"] => "s5",
+		$language["gambits"]["contributor:"] . $language["gambits"]["member"] => "s5",
+		$language["gambits"]["dead"] => "s4",
+		$language["gambits"]["has replies"] => "s2",
+		$language["gambits"]["has &gt;10 posts"] => "s4",
+		$language["gambits"]["limit:"] . $language["gambits"]["100"] => "s2",
+		$language["gambits"]["locked"] => "s4 lockedText",
+		$language["gambits"]["order by newest"] => "s4",
+		$language["gambits"]["order by posts"] => "s2",
+		$language["gambits"]["random"] => "s5",
+		$language["gambits"]["reverse"] => "s4",
+		$language["gambits"]["sticky"] => "s2 stickyText",
+		$language["gambits"]["contributor:"] . $language["gambits"]["myself"] => "s4",
+		$language["gambits"]["author:"] . $language["gambits"]["myself"] => "s2",
+		$language["gambits"]["draft"] => "s1 draftText",
+		$language["gambits"]["private"] => "s1 privateText",
+		$language["gambits"]["starred"] => "s1 starredText",
+		$language["gambits"]["unread"] => "s1"
+	);
+	ksort($gambits);
+
 	while (ob_get_level()) ob_end_clean();
-	header("Content-Type: text/html; charset=UTF-8");
+	header("Content-Type: text/html; charset={$language["charset"]}");
 	header("X-Frame-Options: SAMEORIGIN");
 ?>
 <!DOCTYPE html>
 <html lang='en'>
 <head>
-<meta charset='utf-8'/>
+<meta charset='<?php echo $language["charset"]; ?>'/>
 <meta name='viewport' content='width=1100, initial-scale=1'/>
 <title>Skin preview: <?php echo $nameE; ?></title>
 <link rel='stylesheet' href='<?php echo $base; ?>skins/base.css?v=<?php echo $baseCssVer; ?>'/>
@@ -883,22 +918,22 @@ a{cursor:default}
 <h1 id='hasForumDescription'>
 <a href='#'>
 <?php if ($logoUrl): ?><img src='<?php echo $logoUrl; ?>' alt=''/><?php endif; ?>
-<span id='forumTitle'>e.g. Simon's Krav Maga Forum<small id='forumDescription'>e.g. some short forum description</small></span>
+<span id='forumTitle'><?php echo $forumTitle; ?><small id='forumDescription'>e.g. Learn about Krav Maga.</small></span>
 </a>
 </h1>
 <p id='stats'>
-<span>3 posts</span><br/>
-<span>3 conversations</span><br/>
-<span>1 <a href='#'>member online</a></span>
+<span>3 <?php echo $language["posts"]; ?></span><br/>
+<span>3 <?php echo $language["conversations"]; ?></span><br/>
+<span>1 <a href='#'><?php echo $language["member online"]; ?></a></span>
 </p>
 </div>
 <div id='bar'>
 <ul class='fl'>
-<li><a href='#'><span class='button buttonSmall'><input type='submit' value='Home'></span></a></li>
-<li><a href='#'><span class='button buttonSmall'><input type='submit' value='My profile'></span></a></li>
-<li><a href='#'><span class='button buttonSmall'><input type='submit' value='My settings'></span></a></li>
-<li><a href='#'><span class='button buttonSmall'><input type='submit' value='Dashboard'></span></a></li>
-<li><a href='#' id='logout' class='vl'><span class='button buttonSmall'><input type='submit' value='Log out'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='<?php echo $language["Home"]; ?>'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='<?php echo $language["My profile"]; ?>'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='<?php echo $language["My settings"]; ?>'></span></a></li>
+<li><a href='#'><span class='button buttonSmall'><input type='submit' value='<?php echo $language["Dashboard"]; ?>'></span></a></li>
+<li><a href='#' id='logout' class='vl'><span class='button buttonSmall'><input type='submit' value='<?php echo $language["Log out"]; ?>'></span></a></li>
 </ul>
 </div>
 </div>
@@ -908,36 +943,10 @@ a{cursor:default}
 
 <div id='tagArea'>
 <p id='tags'>
-<a href='#' class='s2'>administration</a>
-<a href='#' class='s2'>customization</a>
-<a href='#' class='s2'>eso</a>
-<a href='#' class='s2'>faq</a>
-<a href='#' class='s2'>howto</a>
-<a href='#' class='s2'>introduction</a>
-<a href='#' class='s2'>tutorial</a>
-<a href='#' class='s2'>welcome</a>
+<?php foreach ($tagCloud as $i => $tag): ?><a href='#' class='s<?php echo ceil(($i + 1) * 5 / count($tagCloud)); ?>'><?php echo str_replace(" ", "&nbsp;", $tag); ?></a> <?php endforeach; ?>
 </p>
 <p id='gambits'>
-<a href='#'>active last 7 days</a>
-<a href='#'>active last 1 hour</a>
-<a href='#'>active today</a>
-<a href='#'>author</a>
-<a href='#'>author/myself</a>
-<a href='#'>contributor</a>
-<a href='#'>contributor/myself</a>
-<a href='#'>dead</a>
-<a href='#' class='draftText'>draft</a>
-<a href='#'>has &gt;10 posts</a>
-<a href='#'>has replies</a>
-<a href='#'>most recent</a>
-<a href='#'>order by newest</a>
-<a href='#'>order by oldest</a>
-<a href='#' class='privateText'>private</a>
-<a href='#'>random</a>
-<a href='#'>reverse</a>
-<a href='#' class='starredText'>starred</a>
-<a href='#' class='stickyText'>sticky</a>
-<a href='#'>unread</a>
+<?php foreach ($gambits as $gambit => $class): ?><a href='#' class='<?php echo $class; ?>'><?php echo str_replace(" ", "&nbsp;", $gambit); ?></a> <?php endforeach; ?>
 </p>
 </div>
 
@@ -946,8 +955,8 @@ a{cursor:default}
 <input id='searchText' type='text' class='text' value='' spellcheck='false'/>
 <div class='fr'>
 <a id='reset' href='#'>x</a>
-<span class='button big' id='submit'><input type='submit' value='Search!'/></span>
-<span class='button big' id='new'><input type='submit' value='Start a conversation'/></span>
+<span class='button big' id='submit'><input type='submit' value='<?php echo $language["Search"]; ?>'/></span>
+<span class='button big' id='new'><input type='submit' value='<?php echo $language["Start a conversation"]; ?>'/></span>
 </div>
 </div>
 </form>
@@ -955,19 +964,19 @@ a{cursor:default}
 <div id='searchResults'>
 <table cellspacing='0' cellpadding='2' class='c'>
 <thead>
-<tr><th class='star'>&nbsp;</th><th class='avatar'>&nbsp;</th><th class='conversation'>Conversation</th><th class='posts'>Posts</th></tr>
+<tr><th class='star'>&nbsp;</th><th class='avatar'>&nbsp;</th><th class='conversation'><?php echo $language["Conversation"]; ?></th><th class='posts'><?php echo $language["Posts"]; ?></th></tr>
 </thead>
 <tbody>
 <tr class='c2 starred'>
-<td class='star'><a href='#' class='star1'>*<span>Starred</span></a></td>
+<td class='star'><a href='#' class='star1'><?php echo $language["*"]; ?><span><?php echo $language["Starred"]; ?></span></a></td>
 <td class='avatar'><a href='#' style='margin:0'><img src='<?php echo $thumbUrl; ?>' alt='' class='thumb'/></a></td>
-<td class='conversation'><strong><a href='#'>Welcome to esoBB!</a></strong><br/><small class='tags'>introduction, welcome</small></td>
+<td class='conversation'><span class='labels'><span class='label sticky'><?php echo $language["labels"]["sticky"]; ?></span> </span><strong><a href='#'><?php echo sprintf($language["install"]["defaultWelcomeTitle"], $forumTitle); ?></a></strong><br/><small class='tags'><?php echo implode(", ", $welcomeTags); ?></small></td>
 <td class='posts'><span class='postCount p3'>1</span></td>
 </tr>
 <tr class='c2'>
-<td class='star'><a href='#' class='star0'>*<span>Unstarred</span></a></td>
+<td class='star'><a href='#' class='star0'><?php echo $language["*"]; ?><span><?php echo $language["Unstarred"]; ?></span></a></td>
 <td class='avatar'><a href='#' style='margin:0'><img src='<?php echo $thumbUrl; ?>' alt='' class='thumb'/></a></td>
-<td class='conversation'><strong><a href='#'>How to use your forum</a></strong><br/><small class='tags'>eso, faq, tutorial</small></td>
+<td class='conversation'><span class='labels'><span class='label sticky'><?php echo $language["labels"]["sticky"]; ?></span> </span><strong><a href='#'><?php echo $language["install"]["conversationHowToUse"]; ?></a></strong><br/><small class='tags'><?php echo implode(", ", $howToUseTags); ?></small></td>
 <td class='posts'><span class='postCount p3'>1</span></td>
 </tr>
 </tbody>
@@ -979,7 +988,7 @@ a{cursor:default}
 
 <div id='ftr'>
 <div id='ftr-content'>
-<p id='copyright'>Powered by <a href='#'>esoBB</a></p>
+<p id='copyright'><?php echo $language["Powered by"]; ?> <a href='#'>esoBB</a></p>
 </div>
 </div>
 
