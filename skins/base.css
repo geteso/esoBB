@@ -40,7 +40,7 @@ h3 {font-size:120%; font-weight:bold}
 #forumTitle, #forumDescription {overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
 #wrapper:not(.small) #forumTitle {position:absolute; max-width:calc(100% - 160px)}
 #wrapper:not(.small) h1:not(#hasForumDescription) #forumTitle {line-height:35px}
-#forumDescription {font-size:12px; display:block}
+#forumDescription {font-size:12px; line-height:1.5; display:block}
 h1#hasForumDescription #forumTitle {font-size:20px}
 
 /* User bar */

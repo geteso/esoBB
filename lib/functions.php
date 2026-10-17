@@ -162,7 +162,7 @@ function json($array)
 {
 	// Use PHP's built-in json_encode for strict JSON compliance (required for JSON.parse() in JavaScript)
 	// This replaces the old JavaScript object notation output with proper JSON
-	return json_encode($array, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES);
+	return json_encode($array, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
 }
 
 // Function to quickly translate a string by using the $language variable.

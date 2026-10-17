@@ -407,15 +407,22 @@ class PreparedStatement {
 	// Get a string representation of the query for hooks/debugging.
 	protected function getQueryString()
 	{
-		$query = $this->query;
-		if (!empty($this->params)) {
-			foreach ($this->params as $param) {
-				// Replace first ? with escaped parameter
-				$escaped = is_null($param) ? "NULL" : (is_int($param) ? $param : "'" . $this->db->escape($param) . "'");
-				$query = preg_replace('/\?/', $escaped, $query, 1);
-			}
-		}
+		if (empty($this->params)) return $this->query;
+		$params = array_values($this->params);
+		$parts = explode("?", $this->query);
+		$query = array_shift($parts);
+		foreach ($parts as $i => $part)
+			$query .= (array_key_exists($i, $params) ? $this->formatParam($params[$i]) : "?") . $part;
 		return $query;
+	}
+
+	// Format a parameter for getQueryString.
+	protected function formatParam($param)
+	{
+		if (is_null($param)) return "NULL";
+		if (is_int($param)) return (string)$param;
+		if (!preg_match("//u", (string)$param)) return "0x" . bin2hex($param);
+		return "'" . $this->db->escape($param) . "'";
 	}
 	
 	// Fetch an associative array from the result.
