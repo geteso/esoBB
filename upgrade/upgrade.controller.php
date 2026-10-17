@@ -104,7 +104,7 @@ function init()
 	}
 	
 	// Try to remove the install directory in case the new version brought it back.
-	removeInstaller();
+	removeInstall();
 
 	// Now, prepare a success message to be displayed!
 	$messageHead = "<script type='text/javascript' src='js/eso.js'></script>";	

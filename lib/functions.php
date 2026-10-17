@@ -800,6 +800,33 @@ function writeFile($file, $contents)
 	return true;
 }
 
+// Delete a directory and everything in it.  Returns false if anything couldn't be deleted.
+function deleteDir($dir)
+{
+	try {
+		$items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+		foreach ($items as $item) {
+			$deleted = ($item->isDir() and !$item->isLink()) ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+			if (!$deleted) return false;
+		}
+	} catch (Exception $e) {
+		return false;
+	}
+	return @rmdir($dir);
+}
+
+// Attempt to rename and then delete the install directory.
+function removeInstall()
+{
+	$dir = PATH_ROOT."/install";
+
+	if (is_link($dir) or !is_dir($dir)) return;
+
+	$removed = PATH_ROOT."/.install-" . bin2hex(random_bytes(8));
+	if (!@rename($dir, $removed)) return;
+	if (!deleteDirectory($removed)) @rename($removed, $dir);
+}
+
 // Validate a remote URL to prevent SSRF attacks.
 // Returns the validated URL if safe, or false if unsafe.
 function validateRemoteUrl($url)

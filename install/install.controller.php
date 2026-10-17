@@ -305,7 +305,7 @@ function init()
 			session_write_close();
 			
 			// The installer isn't needed anymore, so try to remove it.
-			removeInstaller();
+			removeInstall();
 			
 			header("Location: ../");
 			exit;
