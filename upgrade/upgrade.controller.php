@@ -103,6 +103,9 @@ function init()
 		writeConfigFile("../config/versions.php", '$versions', $versions);
 	}
 	
+	// Try to remove the install directory in case the new version brought it back.
+	removeInstaller();
+
 	// Now, prepare a success message to be displayed!
 	$messageHead = "<script type='text/javascript' src='js/eso.js'></script>";	
 	$messageTitle = "You're good to go!";
@@ -212,6 +215,9 @@ function upgrade_100e1()
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD INDEX members_lastSeen (lastSeen)");
 	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}conversations WHERE Key_name='conversations_private_posts'"))
 		$this->query("ALTER TABLE {$config["tablePrefix"]}conversations ADD INDEX conversations_private_posts (private, posts)");
+
+	// Lock the installer from outside of the install directory.
+	if (!file_exists("../config/lock.php")) writeConfigFile("../config/lock.php", '$installed', time());
 
 	// Enable the Feed plugin so that RSS functionality doesn't break.
 	if (file_exists("../config/plugins.php")) {

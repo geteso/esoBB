@@ -142,6 +142,12 @@ function init()
 				"validate" => "validateRememberMe",
 				"required" => true
 			),
+			275 => array(
+				"id" => "showOnline",
+				"html" => "<label for='showOnline' class='checkbox'>{$language["showOnline"]}</label> <input id='showOnline' type='checkbox' class='checkbox' name='showOnline' value='1' " . ($this->eso->user["showOnline"] ? "checked='checked' " : "") . "/>",
+				"databaseField" => "showOnline",
+				"checkbox" => true
+			),
 			300 => array(
 				"id" => "emailOnPrivateAdd",
 				"html" => "<label for='emailOnPrivateAdd' class='checkbox'>{$language["emailOnPrivateAdd"]} <span class='label private'>{$language["labels"]["private"]}</span></label> <input id='emailOnPrivateAdd' type='checkbox' class='checkbox' name='emailOnPrivateAdd' value='1' " . ($this->eso->user["emailOnPrivateAdd"] ? "checked='checked' " : "") . ($canEmail ? "" : "disabled") . "/>",
@@ -165,13 +171,7 @@ function init()
 				"html" => "<label for='disableLinkAlerts' class='checkbox'>{$language["disableLinkAlerts"]}</label> <input id='disableLinkAlerts' type='checkbox' class='checkbox' name='disableLinkAlerts' value='1' " .  (!empty($this->eso->user["disableLinkAlerts"]) ? "checked='checked' " : "") . "/>",
 				"databaseField" => "disableLinkAlerts",
 				"checkbox" => true
-			),//use 550 to avoid breaking plugins
-			560 => array(
-				"id" => "showOnline",
-				"html" => "<label for='showOnline' class='checkbox'>{$language["showOnline"]}</label> <input id='showOnline' type='checkbox' class='checkbox' name='showOnline' value='1' " . ($this->eso->user["showOnline"] ? "checked='checked' " : "") . "/>",
-				"databaseField" => "showOnline",
-				"checkbox" => true
-			)
+			)//use 550 to avoid breaking plugins
 		)
 	
 	);

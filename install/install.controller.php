@@ -276,6 +276,7 @@ function init()
 			
 			// Log queries to the session and proceed to the final step.
 			$_SESSION["queries"] = $this->queries;
+			$_SESSION["installComplete"] = true;
 			$this->step("finish");
 			break;
 			
@@ -303,24 +304,12 @@ function init()
 			// Write session data before redirecting
 			session_write_close();
 			
+			// The installer isn't needed anymore, so try to remove it.
+			removeInstaller();
+			
 			header("Location: ../");
 			exit;
 		}
-			// Lock the installer using atomic file operation.
-			global $language;
-			if (($handle = @fopen("lock", "c")) === false) {
-				$this->errors[1] = $language["install"]["cannotLockInstaller"];
-			} else {
-				// Use exclusive lock to prevent race conditions.
-				if (!flock($handle, LOCK_EX | LOCK_NB)) {
-					fclose($handle);
-					$this->errors[1] = $language["install"]["installerLocked"];
-				} else {
-					fwrite($handle, time() . "\n" . $_SERVER["REMOTE_ADDR"]);
-					fflush($handle);
-					// Keep handle open to maintain lock (will be closed when script ends).
-				}
-			}
 	}
 
 }
@@ -498,6 +487,9 @@ function doInstall()
 	// Write the $config variable to config.php.
 	writeConfigFile("../config/config.php", '$config', $config);
 	
+	// Lock the installer.
+	writeConfigFile(PATH_CONFIG."/lock.php", '$installed', time());
+
 	// Write the plugins.php file, which contains plugins enabled by default.
 	$enabledPlugins = array("Emoticons", "Feeds");
 	if ((extension_loaded("gd") or extension_loaded("gd2")) and function_exists("imagettftext"))
@@ -665,16 +657,12 @@ function fatalChecks()
 {
 	$errors = array();
 	
-	// Make sure the installer is not locked.
+	// Make sure the forum isn't already installed.
 	global $language;
-	if (@$_GET["step"] != "finish" && file_exists("lock")) {
-		// Try to read lock file to verify it's valid.
-		$lockContent = @file_get_contents("lock");
-		if ($lockContent !== false) {
-			$errors[] = $language["install"]["forumAlreadyInstalled"];
-		}
-	}
-	
+	if ((file_exists(PATH_CONFIG."/config.php") or file_exists(PATH_CONFIG."/lock.php"))
+		and !(@$_GET["step"] == "finish" and !empty($_SESSION["installComplete"])))
+		return array($language["install"]["forumAlreadyInstalled"]);
+
 	// Check the PHP version.
 	if (!version_compare(PHP_VERSION, "7.2.0", ">=")) $errors[] = $language["install"]["phpVersionError"];
 	

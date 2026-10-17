@@ -474,7 +474,6 @@ case "finish": ?>
 <h1><img src='logo.svg' alt='esoBB logo'/><?php echo $language["install"]["congratulations"]; ?></h1>
 <div class='progress'><span class='step'></span><span class='step'></span><span class='step active'></span></div>
 <p class='lead'><?php echo $language["install"]["forumInstalled"]; ?></p>
-<?php if (isset($install->errors[1])): ?><div class='warning msg'><?php echo $install->errors[1]; ?></div><?php endif; ?>
 
 <a href='javascript:toggleAdvanced()'><?php echo $language["install"]["showAdvancedInformation"]; ?></a>
 <hr class='aboveToggle'/>

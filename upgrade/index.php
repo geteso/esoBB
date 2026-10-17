@@ -28,6 +28,9 @@ define("IN_ESO", 1);
 // No timeout.
 @set_time_limit(0);
 
+// Define the forum's root directory.
+if (!defined("PATH_ROOT")) define("PATH_ROOT", realpath(__DIR__ . "/.."));
+
 // Get the new version and the current version, and compare them.  If we don't need to upgrade, home we go!
 require "../config.default.php";
 require "../config/versions.php";

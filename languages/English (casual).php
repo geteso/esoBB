@@ -560,7 +560,7 @@ $messages = array(
 "reenterInformation" => array("class" => "info", "message" => "Please reenter this information."),
 "registrationClosed" => array("class" => "info", "message" => "Sorry, but user registration has been disabled on this forum. Maybe you should check again some other time!"),
 "rememberLogin" => array("class" => "info", "message" => "Would you like to <strong>remember your session</strong>? This will help keep you logged in.<br><div class='gap'></div>%s"),
-"removeDirectoryWarning" => array("class" => "warning", "message" => "Hey! Looks like you haven't deleted the <code>%s</code> directory like we told you to! You probably should, as it'll make your forum a bit more secure."),
+"removeDirectoryWarning" => array("class" => "warning", "message" => "Hey! The installer was unable to delete the <code>%s</code> directory. You probably should, as it'll make your forum a bit more secure."),
 "sendEmailDisabled" => array("class" => "warning", "message" => "Sadly, email sending is disabled on this forum. I mean, you can always ask the forum administrator to configure it."),
 "setNewPassword" => array("class" => "info", "message" => "Alright! Now, what do you want your new password to be?"),
 "skinAdded" => array("class" => "success", "message" => "The skin was successfully added!"),
@@ -652,7 +652,7 @@ $language["install"] = array(
 "getHelpTip" => "<li><strong>Get help.</strong> Go on the <a href='https://forum.geteso.org' class='external' target='_blank'>esoBB support forum</a> to see if anyone else is having the same problem as you are. If not, open a new issue, including the error details below.</li>",
 "showErrorInformation" => "Show error information",
 "congratulations" => "Congratulations!",
-"forumInstalled" => "Your forum has been installed, and it should be ready to go. It's highly recommended that you <strong>remove the <code>install</code> folder</strong> to secure your forum.",
+"forumInstalled" => "Your forum has been installed, and it should be ready to go. When you head to your forum, the installer will try to remove the <code>install</code> folder.",
 "showAdvancedInformation" => "Show advanced information",
 "queriesRun" => "Queries run",
 	
@@ -677,9 +677,7 @@ $language["install"] = array(
 "tablePrefixConflict" => "The installer has detected that there is another installation of the software in the same MySQL database with the same table prefix. The conflicting tables are:",
 "tablePrefixOverwrite" => "To overwrite this installation, click 'Next step' again. <strong>All data will be lost.</strong>",
 "tablePrefixChange" => "If you wish to create another installation alongside the existing one, <strong>change the table prefix</strong>.",
-"forumAlreadyInstalled" => "<strong>Your forum is already installed.</strong><br/><small>To reinstall your forum, you must remove <strong>install/lock</strong>.</small>",
-"cannotLockInstaller" => "Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable.",
-"installerLocked" => "Installer is locked by another process.",
+"forumAlreadyInstalled" => "<strong>Your forum is already installed.</strong><br/><small>To reinstall your forum, you must remove <strong>config/config.php</strong> and <strong>config/lock.php</strong>.</small>",
 "invalidSecurityToken" => "Invalid security token. Please refresh the page and try again.",
 
 // Fatal error messages

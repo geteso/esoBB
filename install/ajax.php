@@ -30,6 +30,9 @@ error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERRO
 if (!defined("PATH_ROOT")) define("PATH_ROOT", realpath(__DIR__ . "/.."));
 if (!defined("PATH_LIBRARY")) define("PATH_LIBRARY", PATH_ROOT."/lib");
 
+// If the forum is already installed, the installer has nothing to do.
+if (file_exists(PATH_ROOT."/config/config.php") or file_exists(PATH_ROOT."/config/lock.php")) exit;
+
 // Require essential files.
 require PATH_LIBRARY."/functions.php";
 
