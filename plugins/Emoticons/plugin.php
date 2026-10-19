@@ -96,6 +96,15 @@ function upgrade($oldVersion)
 	}
 }
 
+function uninstall()
+{
+	global $config;
+
+	if ($this->eso->db->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'emoticons'")) {
+		$this->eso->db->query("ALTER TABLE {$config["tablePrefix"]}members DROP COLUMN emoticons");
+	}
+}
+
 }
 
 class Formatter_Emoticons {

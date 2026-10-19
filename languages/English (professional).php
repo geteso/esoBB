@@ -352,6 +352,11 @@ $language = array(
 "Copied" => "Copied",
 "copy text" => "copy text",
 "copy version" => "copy version",
+"Delete plugin" => "Delete plugin",
+"delete plugin" => "delete plugin",
+"Delete skin" => "Delete skin",
+"delete skin" => "delete skin",
+"deletePluginData" => "Also delete this plugin's data",
 "disable" => "disable",
 "enable" => "enable",
 "Expires" => "Expires",
@@ -581,6 +586,9 @@ $messages=array(
 "sessionLoggedOut" => array("class" => "success","message" => "The session has been logged out."),
 "sessionEnded" => array("class" => "warning","message" => "You have been logged out. This session was ended from another device or has expired."),
 "unrecognizedSessions" => array("class" => "info","message" => "If you don't recognize one of these sessions, you should <a href='#settingsPassword' onclick='return Settings.showFieldset(\"settingsPassword\", \"newPassword\")'>change your password</a>."),
+"deletePlugin" => array("class" => "warning","message" => "Are you sure you want to <strong>delete the %s plugin</strong>? It will be removed from the forum.<br><div class='gap'></div>%s"),
+"deleteSkin" => array("class" => "warning","message" => "Are you sure you want to <strong>delete the %s skin</strong>? It will be removed from the forum.<br><div class='gap'></div>%s"),
+"pluginCannotBeDeleted" => array("class" => "warning","message" => "The plugin <em>%s</em> cannot be deleted: %s"),
 
 );
 

@@ -328,8 +328,7 @@ blockquote p {margin-bottom:.75em}
 .list .hdr > small {margin-left:10px; line-height:1.5}
 .list .hdr .controls a {margin-bottom:0}
 .list .details {padding:5px 20px; margin-top:5px}
-.list.grid > li {float:left; width:50%; max-width:375px; padding:0}
-.list.grid > li > a {display:block; padding:10px}
+.list.grid > li {float:left; width:50%; max-width:375px; padding:10px 10px 5px; box-sizing:border-box}
 .list.grid .hdr > strong {margin-left:0}
 @media only screen and (max-width:400px) {
 .list.grid > li {width:100%}

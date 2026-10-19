@@ -28,20 +28,62 @@ if (!defined("IN_ESO")) exit;
 if (count($this->skins)): ?>
 
 <fieldset id='skins'>
-<legend><?php echo $language["Installed skins"]; ?></legend>
+<legend><?php echo $language["Installed skins"]; ?> (<span id='skinCount'><?php echo count($this->skins); ?></span>)</legend>
+
+<script type='text/javascript'>
+// <![CDATA[
+// Message to confirm whether to delete a skin.
+var skinPrompts = {};
+function confirmDeleteSkin(id) {
+	Dropdown.closeAll();
+	Messages.showMessage("deleteSkin", "<?php echo $messages["deleteSkin"]["class"]; ?>", skinPrompts[id]);
+	return false;
+}
+
+// Delete a skin, and take it off the list.
+function deleteSkin(id) {
+	Messages.hideMessage("deleteSkin");
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=admin&section=skins",
+		"post": "action=delete&id=" + encodeURIComponent(id),
+		"success": function() {
+			if (this.messages || !this.result) return;
+			hide(getById("skin-" + id), {animation: "fade"});
+			var count = getById("skinCount");
+			count.innerHTML = parseInt(count.innerHTML) - 1;
+		}
+	});
+	return false;
+}
+// ]]>
+</script>
+
 <ul class='list grid'>
 
 <?php // Loop through each skin and output its preview/information.
-foreach ($this->skins as $k => $skin): ?>
-<li<?php if ($skin["selected"]): ?> class='enabled'<?php endif; ?>>
-<a href='<?php echo makeLink("admin", "skins", $k, "?token={$_SESSION["token"]}"); ?>'>
+foreach ($this->skins as $k => $skin):
+
+	// Controls
+	$version = htmlspecialchars(json_encode((string)$skin["version"]), ENT_QUOTES);
+	$menu = array(100 => "<a href='#' onclick='return copyText($version)'>{$language["copy version"]}</a>");
+	if ($skin["deletable"]) $menu[200] = "<a href='#' onclick='return confirmDeleteSkin(\"$k\")'>{$language["delete skin"]}</a>";
+	if ($skin["selected"]) $controls = array("actions" => $menu);
+	else $controls = array(100 => "<a href='" . makeLink("admin", "skins", $k, "?token={$_SESSION["token"]}") . "' class='enable'>{$language["enable"]}</a>", "more" => $menu);
+?>
+<li id='skin-<?php echo $k; ?>'<?php if ($skin["selected"]): ?> class='enabled'<?php endif; ?>>
 <span class='preview'<?php if ($skin["livePreview"] and file_exists("skins/$k/styles.css")): ?> data-src='<?php echo makeLink("admin", "skins", "?preview=" . urlencode($k)); ?>' data-title='<?php echo sanitizeHTML($skin["name"]); ?>'<?php endif; ?>>
 <?php if ($skin["preview"]): ?><img src='skins/<?php echo $k; ?>/<?php echo sanitizeHTML($skin["preview"]); ?>' alt='<?php echo sanitizeHTML($skin["name"]); ?>'/>
 <?php else: ?><span><?php echo $language["No preview"]; ?></span>
 <?php endif; ?>
 </span>
-<span class='hdr'><strong><?php echo sanitizeHTML($skin["name"]); ?></strong> <small><?php printf($language["version"], sanitizeHTML($skin["version"])); ?> <?php printf($language["author"], sanitizeHTML($skin["author"])); ?></small></span>
-</a>
+<div class='hdr'>
+<div class='controls'><?php echo $this->eso->htmlControls($controls, array("align" => "right")); ?></div>
+<strong><?php echo sanitizeHTML($skin["name"]); ?></strong> <small><?php printf($language["version"], sanitizeHTML($skin["version"])); ?> <?php printf($language["author"], sanitizeHTML($skin["author"])); ?></small>
+</div>
+<?php if ($skin["deletable"]):
+	$prompt = sprintf($messages["deleteSkin"]["message"], sanitizeHTML($skin["name"]), "<input type='button' value='{$language["Delete skin"]}' onclick='return deleteSkin(\"$k\")'/> <input type='button' value='{$language["Cancel"]}' onclick='Messages.hideMessage(\"deleteSkin\")'/>");
+?><script type='text/javascript'>skinPrompts["<?php echo $k; ?>"] = "<?php echo escapeDoubleQuotes($prompt); ?>";</script>
+<?php endif; ?>
 </li>
 <?php endforeach; ?>
 

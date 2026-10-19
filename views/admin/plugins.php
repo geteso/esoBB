@@ -50,7 +50,7 @@ else: ?>
 if (count($this->plugins)): ?>
 
 <fieldset id='plugins'>
-<legend><?php echo $language["Installed plugins"]; ?></legend>
+<legend><?php echo $language["Installed plugins"]; ?> (<span id='pluginCount'><?php echo count($this->plugins); ?></span>)</legend>
 
 <script type='text/javascript'>
 // <![CDATA[
@@ -68,6 +68,32 @@ function toggleSettings(id) {
 	return false;
 }
 var plugins = [];
+
+// Message to confirm whether to delete a plugin.
+var pluginPrompts = {};
+function confirmDeletePlugin(id) {
+	Dropdown.closeAll();
+	Messages.showMessage("deletePlugin", "<?php echo $messages["deletePlugin"]["class"]; ?>", pluginPrompts[id]);
+	return false;
+}
+
+// Delete a plugin, and take it off the list.
+function deletePlugin(id) {
+	var deleteData = getById("deletePluginData") && getById("deletePluginData").checked;
+	Messages.hideMessage("deletePlugin");
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=admin&section=plugins",
+		"post": "action=delete&id=" + encodeURIComponent(id) + "&deleteData=" + (deleteData ? 1 : 0),
+		"success": function() {
+			if (this.messages || !this.result) return;
+			hide(getById("plugin-" + id), {animation: "collapse"});
+			var count = getById("pluginCount");
+			count.innerHTML = parseInt(count.innerHTML) - 1;
+			if (count.innerHTML == "0") hide(getById("plugins"), {animation: "collapse"});
+		}
+	});
+	return false;
+}
 // ]]>
 </script>
 
@@ -81,6 +107,7 @@ foreach ($this->plugins as $k => $plugin):
 		200 => "<a href='" . makeLink("admin", "plugins", "?toggle=$k", "&token={$_SESSION["token"]}") . "' class='" . ($plugin["loaded"] ? "disable" : "enable") . "'>" . ($plugin["loaded"] ? $language["disable"] : $language["enable"]) . "</a>",
 		"more" => array(100 => "<a href='#' onclick='return copyText($version)'>{$language["copy version"]}</a>")
 	);
+	if ($plugin["deletable"]) $controls["more"][200] = "<a href='#' onclick='return confirmDeletePlugin(\"$k\")'>{$language["delete plugin"]}</a>";
 	if (!empty($plugin["settings"])) $controls[100] = "<a href='#' id='plugin-$k-toggle' onclick='return toggleSettings(\"$k\")'>" . (@$_POST["plugin"] == $k ? $language["hide"] : $language["show"]) . "</a>";
 ?>
 <li id='plugin-<?php echo $k; ?>' class='plugin<?php if ($plugin["loaded"]): ?> enabled<?php endif; ?>'>
@@ -102,6 +129,12 @@ if (!empty($plugin["settings"])): ?>
 <?php endif; ?>
 <script type='text/javascript'>// <![CDATA[
 plugins.push("<?php echo $k; ?>");
+<?php // Confirm whether to delete, and show a checkbox if there is one.
+if ($plugin["deletable"]):
+	$checkbox = ($plugin["deleteSettings"] or $plugin["deleteData"]) ? " <label for='deletePluginData'><input type='checkbox' class='checkbox' id='deletePluginData'/> {$language["deletePluginData"]}</label>" : "";
+	$prompt = sprintf($messages["deletePlugin"]["message"], sanitizeHTML($plugin["name"]), "<input type='button' value='{$language["Delete plugin"]}' onclick='return deletePlugin(\"$k\")'/> <input type='button' value='{$language["Cancel"]}' onclick='Messages.hideMessage(\"deletePlugin\")'/>$checkbox");
+?>pluginPrompts["<?php echo $k; ?>"] = "<?php echo escapeDoubleQuotes($prompt); ?>";
+<?php endif; ?>
 <?php if (!empty($plugin["settings"])):
 	if (@$_POST["plugin"] != $k): ?>hide(getById("plugin-<?php echo $k; ?>-settings"));<?php
 	else: ?>getById("plugin-<?php echo $k; ?>-settings").showing = true;<?php endif;

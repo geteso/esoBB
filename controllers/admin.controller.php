@@ -43,8 +43,8 @@ function init()
 		$this->addSection("settings", $language["Forum settings"], array($this, "settingsInit"));
 		$this->addSection("languages", $language["Languages"], array($this, "languagesInit"));
 		$this->addSection("members", $language["Member-plural"], array($this, "membersInit"));
-		$this->addSection("plugins", $language["Plugins"], array($this, "pluginsInit"));
-		$this->addSection("skins", $language["Skins"], array($this, "skinsInit"));
+		$this->addSection("plugins", $language["Plugins"], array($this, "pluginsInit"), array($this, "pluginsAjax"));
+		$this->addSection("skins", $language["Skins"], array($this, "skinsInit"), array($this, "skinsAjax"));
 	// If the user is a moderator, add a limited array of sections to the menu.
 	} elseif ($this->eso->user["moderator"]) {
 		$this->defaultSections = array("dashboard", "members");
@@ -591,18 +591,21 @@ function pluginsInit(&$adminController)
 	    closedir($handle);
 	}
 	ksort($this->plugins);
-	
-	if (defined("AJAX_REQUEST")) {
-		switch ($_POST["action"]) {
 
-			// Toggle a plugin.
-			case "toggle":
-				if (!$this->eso->validateToken(@$_POST["token"])) return;
-				$this->togglePlugin(@$_POST["id"]);
-		}
-		
-		return;
+	// Work out which plugins can be deleted.
+	global $versions;
+	$required = array();
+	foreach ($this->plugins as $plugin) foreach (class_parents($plugin["plugin"]) as $parent) $required[$parent] = true;
+	foreach ($this->plugins as $id => $plugin) {
+		$dir = get_class($plugin["plugin"]);
+		$uninstall = new ReflectionMethod($plugin["plugin"], "uninstall");
+		$this->plugins[$id]["dir"] = $dir;
+		$this->plugins[$id]["deletable"] = !$plugin["loaded"] && !empty($config["uploadPackages"]) && !is_link("plugins/$dir") && !isset($required[$dir]);
+		$this->plugins[$id]["deleteSettings"] = file_exists("config/" . sanitizeFileName($id) . ".php");
+		$this->plugins[$id]["deleteData"] = isset($versions[$id]) && $uninstall->getDeclaringClass()->getName() != "Plugin";
 	}
+
+	if (defined("AJAX_REQUEST")) return;
 	
 	// Toggle a plugin if necessary.
 	if (!empty($_GET["toggle"]) and $this->eso->validateToken(@$_GET["token"]) and $this->togglePlugin($_GET["toggle"]))
@@ -611,6 +614,56 @@ function pluginsInit(&$adminController)
 	$this->eso->addLanguageToJS("show", "hide", "Copied");
 }
 
+
+// Handle the plugins section's AJAX requests.
+function pluginsAjax(&$adminController)
+{
+	switch (@$_POST["action"]) {
+
+		// Delete a plugin (and its settings if desired).
+		case "delete":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			return $this->deletePlugin(@$_POST["id"], !empty($_POST["deleteData"]));
+	}
+}
+
+// Delete a plugin's files.  If $deleteData is true, the plugin's settings file and database changes will also be deleted.
+// Returns true if the plugin was deleted.
+function deletePlugin($id, $deleteData = false)
+{
+	if (!is_string($id) or !array_key_exists($id, $this->plugins) or !$this->plugins[$id]["deletable"]) return false;
+	global $versions, $messages;
+	$plugin = $this->plugins[$id];
+	$dir = "plugins/{$plugin["dir"]}";
+	$deleteSettings = $deleteData && $plugin["deleteSettings"];
+	$deleteData = $deleteData && $plugin["deleteData"];
+
+	// Make sure everything can be deleted before deleting anything.
+	foreach (array($dir => canDeleteDir($dir), "config/" => !($deleteSettings || $deleteData) || is_writable("config")) as $path => $ok) {
+		if (!$ok) {
+			$this->eso->message("notWritable", false, $path);
+			return false;
+		}
+	}
+
+	// Undo any changes to the database first.
+	if ($deleteData) {
+		if ($msg = $plugin["plugin"]->uninstall()) {
+			$this->eso->message("pluginCannotBeDeleted", false, array($plugin["name"], $messages[$msg]["message"]));
+			return false;
+		}
+		unset($versions[$id]);
+		writeConfigFile("config/versions.php", '$versions', $versions);
+	}
+	if ($deleteSettings) @unlink("config/" . sanitizeFileName($id) . ".php");
+
+	// Delete the files.
+	if (!deleteDir($dir)) {
+		$this->eso->message("notWritable", false, $dir);
+		return false;
+	}
+	return true;
+}
 
 // Toggle a plugin.
 function togglePlugin($plugin)
@@ -823,7 +876,8 @@ function skinsInit()
 					"version" => $skin->version,
 					"author" => $skin->author,
 					"preview" => $preview,
-					"livePreview" => !isset($skin->livePreview) || $skin->livePreview
+					"livePreview" => !isset($skin->livePreview) || $skin->livePreview,
+					"parents" => class_parents($skin)
 				);
 			}
 			
@@ -831,6 +885,12 @@ function skinsInit()
 	    closedir($handle);
 	}
 	ksort($this->skins);
+
+	// Work out which skins can be deleted.
+	$required = array();
+	foreach ($this->skins as $skin) foreach ($skin["parents"] as $parent) $required[$parent] = true;
+	foreach ($this->skins as $k => $skin)
+		$this->skins[$k]["deletable"] = !$skin["selected"] && !empty($config["uploadPackages"]) && !is_link("skins/$k") && !isset($required[$k]);
 	
 	// Activate a skin in necessary.
 	if (!empty($_GET["q3"]) and $this->eso->validateToken(@$_GET["token"])) $this->changeSkin($_GET["q3"]);
@@ -998,7 +1058,29 @@ a{cursor:default}
 <?php
 }
 
-// Change the skin.
+// Handle the skins section's AJAX requests.
+function skinsAjax(&$adminController)
+{
+	switch (@$_POST["action"]) {
+
+		// Delete a skin.
+		case "delete":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			return $this->deleteSkin(@$_POST["id"]);
+	}
+}
+
+// Delete a skin's files.  Returns true if the skin was deleted.
+function deleteSkin($skin)
+{
+	if (!is_string($skin) or !array_key_exists($skin, $this->skins) or !$this->skins[$skin]["deletable"]) return false;
+	if (!deleteDir("skins/$skin")) {
+		$this->eso->message("notWritable", false, "skins/$skin");
+		return false;
+	}
+	return true;
+}
+
 function changeSkin($skin)
 {
 	// Make sure the skin we're trying to change to exists!

@@ -116,6 +116,9 @@ function saveSettings() {}
 function upgrade($oldVersion) {}
 function enable() {}
 
+// Reverses what upgrade() does to the database for when plugin data is deleted.
+function uninstall() {}
+
 }
 
 // Defines a skin.

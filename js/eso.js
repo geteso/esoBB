@@ -243,7 +243,8 @@ function animate(element, options) {
 
 		case "fade":
 			element.style.display = "";
-			var initOpacity = typeof element.style.opacity != "undefined" ? parseFloat(element.style.opacity) : 1;
+			var initOpacity = parseFloat(element.style.opacity);
+			if (isNaN(initOpacity)) initOpacity = element.showing ? 0 : 1;
 			if (element.animation) element.animation.stop();
 			element.animation = new Animation(function(opacity, final) {
 				element.style.opacity = opacity;
@@ -441,7 +442,12 @@ open: function(wrapper, menu, link) {
 	// A menu in a control row hangs off the bottom edge of that row.
 	else {
 		left = alignRight ? t.right - w : t.left;
-		top = (row.bottom + h > vh && row.top - h >= 0) ? row.top - h : row.bottom;
+		var bottom = row.bottom;
+		if (clipper) {
+			var gap = parseFloat(this.style(clipper, "paddingBottom")) || 0;
+			if (row.bottom - t.bottom > gap + t.height / 2) bottom = t.bottom + gap;
+		}
+		top = (bottom + h > vh && row.top - h >= 0) ? row.top - h : bottom;
 	}
 
 	left = Math.max(0, Math.min(left, vw - w));

@@ -800,31 +800,48 @@ function writeFile($file, $contents)
 	return true;
 }
 
-// Delete a directory and everything in it.  Returns false if anything couldn't be deleted.
-function deleteDir($dir)
+// Work out whether a directory and everything in it can be deleted.
+function canDeleteDir($dir)
 {
+	if (!is_writable(dirname($dir)) or !is_writable($dir)) return false;
 	try {
-		$items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+		$items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
 		foreach ($items as $item) {
-			$deleted = ($item->isDir() and !$item->isLink()) ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
-			if (!$deleted) return false;
+			if ($item->isDir() and !$item->isLink() and !$item->isWritable()) return false;
 		}
 	} catch (Exception $e) {
 		return false;
 	}
-	return @rmdir($dir);
+	return true;
+}
+
+// Safely delete a directory and everything in it.  Returns true if the directory was deleted.
+function deleteDir($dir)
+{
+	if (is_link($dir) or !is_dir($dir) or !canDeleteDir($dir)) return false;
+
+	$hidden = dirname($dir) . "/." . basename($dir) . "-" . bin2hex(random_bytes(8));
+	if (!@rename($dir, $hidden)) return false;
+
+	$deleted = true;
+	try {
+		$items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($hidden, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+		foreach ($items as $item) {
+			$deleted = ($item->isDir() and !$item->isLink()) ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+			if (!$deleted) break;
+		}
+	} catch (Exception $e) {
+		$deleted = false;
+	}
+	if ($deleted and @rmdir($hidden)) return true;
+	@rename($hidden, $dir);
+	return false;
 }
 
 // Attempt to rename and then delete the install directory.
 function removeInstall()
 {
-	$dir = PATH_ROOT."/install";
-
-	if (is_link($dir) or !is_dir($dir)) return;
-
-	$removed = PATH_ROOT."/.install-" . bin2hex(random_bytes(8));
-	if (!@rename($dir, $removed)) return;
-	if (!deleteDirectory($removed)) @rename($removed, $dir);
+	deleteDir(PATH_ROOT."/install");
 }
 
 // Validate a remote URL to prevent SSRF attacks.
