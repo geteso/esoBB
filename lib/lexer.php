@@ -62,24 +62,28 @@ class ParallelRegex {
 
     /**
      *    Attempts to match all patterns at once against
-     *    a string.
+     *    a string. Matching starts at an offset rather than
+     *    on a substring, so that ^ and lookbehinds still
+     *    see the text before it.
      *    @param string $subject      String to match against.
      *    @param string $match        First matched portion of
      *                                subject.
+     *    @param integer $offset      Byte offset to start at.
+     *    @param integer $position    Byte offset of the match.
      *    @return boolean             True on success.
      *    @access public
      */
-    function match($subject, &$match) {
+    function match($subject, &$match, $offset = 0, &$position = null) {
         if (count($this->patterns) == 0) {
             return false;
         }
-        if (!preg_match($this->getCompoundedRegex(), $subject, $matches)) {
+        if (!preg_match($this->getCompoundedRegex(), $subject, $matches, PREG_OFFSET_CAPTURE, $offset)) {
             $match = '';
             return false;
         }
-        $match = $matches[0];
+        list($match, $position) = $matches[0];
         for ($i = 1; $i < count($matches); $i++) {
-            if ($matches[$i]) {
+            if ($matches[$i][0]) {
                 return $this->labels[$i - 1];
             }
         }
@@ -185,6 +189,7 @@ class SimpleLexer {
     private $mode;
     private $mode_handlers;
     private $mode_functions;
+    private $line_start_modes;
     private $case;
 
     /**
@@ -203,6 +208,7 @@ class SimpleLexer {
         $this->mode = new SimpleStateStack($start);
         $this->mode_handlers = array($start => $start);
 		$this->mode_functions = array();
+		$this->line_start_modes = array();
     }
 
     /**
@@ -304,6 +310,18 @@ class SimpleLexer {
     }
 
     /**
+     *    Marks a mode whose entry and exit tokens end
+     *    the current line, so that patterns anchored
+     *    with ^ can match straight after them. Elsewhere
+     *    ^ only matches at the start of a real line.
+     *    @param string $mode         Mode to mark.
+     *    @access public
+     */
+    function addLineStartMode($mode) {
+        $this->line_start_modes[$mode] = true;
+    }
+
+    /**
      *    Splits the page text into tokens. Will fail
      *    if the handlers report an error or if no
      *    content is consumed. If successful then each
@@ -318,23 +336,26 @@ class SimpleLexer {
             return false;
         }
         $length = strlen($raw);
-        while (is_array($parsed = $this->reduce($raw))) {
-            list($raw, $unmatched, $matched, $mode) = $parsed;
+        $offset = 0;
+        $line_start = false;
+        while (is_array($parsed = $this->reduce($raw, $offset, $line_start))) {
+            list($next, $unmatched, $matched, $mode) = $parsed;
+            $line_start = $this->isLineStartToken($mode);
             if (! $this->dispatchTokens($unmatched, $matched, $mode)) {
                 return false;
             }
-            if ($raw === '') {
+            if ($next == $length) {
                 return true;
             }
-            if (strlen($raw) == $length) {
+            if ($next == $offset) {
                 return false;
             }
-            $length = strlen($raw);
+            $offset = $next;
         }
         if (! $parsed) {
             return false;
         }
-        return $this->invokeParser($raw, LEXER_UNMATCHED);
+        return $this->invokeParser(substr($raw, $offset), LEXER_UNMATCHED);
     }
 
     /**
@@ -409,6 +430,22 @@ class SimpleLexer {
     }
 
     /**
+     *    Tests to see if a token enters or leaves a line
+     *    start mode, so that the text after it begins a
+     *    new line. Must be called before the token is
+     *    dispatched, while the mode it leaves is current.
+     *    @param string $mode    Mode after match.
+     *    @return boolean        True if a new line follows.
+     *    @access private
+     */
+    protected function isLineStartToken($mode) {
+        if ($this->isModeEnd($mode)) {
+            $mode = $this->mode->getCurrent();
+        }
+        return is_string($mode) && isset($this->line_start_modes[$mode]);
+    }
+
+    /**
      *    Calls the parser method named after the current
      *    mode. Empty content will be ignored. The lexer
      *    has a parser handler for each mode in the lexer.
@@ -429,25 +466,38 @@ class SimpleLexer {
     }
 
     /**
-     *    Tries to match a chunk of text and if successful
-     *    removes the recognised chunk and any leading
-     *    unparsed data. Empty strings will not be matched.
-     *    @param string $raw         The subject to parse. This is the
-     *                               content that will be eaten.
-     *    @return array/boolean      Three item list of unparsed
-     *                               content followed by the
-     *                               recognised token and finally the
-     *                               action the parser is to take.
+     *    Tries to match a chunk of text from an offset and
+     *    if successful steps over the recognised chunk and
+     *    any leading unparsed data. Empty strings will not
+     *    be matched.
+     *    @param string $raw         The subject to parse.
+     *    @param integer $offset     Byte offset of the content
+     *                               still to be eaten.
+     *    @param boolean $line_start True if the content starts a
+     *                               new line, even though the text
+     *                               before it does not end one.
+     *    @return array/boolean      Offset after the recognised
+     *                               token, followed by unparsed
+     *                               content, the recognised token
+     *                               and finally the action the
+     *                               parser is to take.
      *                               True if no match, false if there
      *                               is a parsing error.
      *    @access private
      */
-    protected function reduce($raw) {
-        if ($action = $this->regexes[$this->mode->getCurrent()]->match($raw, $match)) {
-            $unparsed_character_count = strpos($raw, $match);
-            $unparsed = substr($raw, 0, $unparsed_character_count);
-            $raw = substr($raw, $unparsed_character_count + strlen($match));
-            return array($raw, $unparsed, $match, $action);
+    protected function reduce($raw, $offset, $line_start) {
+        $regex = $this->regexes[$this->mode->getCurrent()];
+        if ($line_start) {
+            // Match the content on its own, so that ^ matches at its start.
+            if ($action = $regex->match(substr($raw, $offset), $match, 0, $position)) {
+                $position += $offset;
+            }
+        } else {
+            $action = $regex->match($raw, $match, $offset, $position);
+        }
+        if ($action) {
+            $unparsed = substr($raw, $offset, $position - $offset);
+            return array($position + strlen($match), $unparsed, $match, $action);
         }
         return true;
     }

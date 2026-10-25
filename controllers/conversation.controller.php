@@ -1020,7 +1020,8 @@ function getEditControls($id)
 		1000 => "<span class='formattingCheckbox'><input type='checkbox' id='$id-previewCheckbox' class='checkbox' onclick='Conversation.togglePreview(\"$id\",this.checked)' accesskey='p'/> <label for='$id-previewCheckbox'>{$language["Preview"]}</label></span>",
 	);
 	
-	$this->callHook("getEditControls", array(&$controls));
+	$this->callHook("getEditControls", array(&$controls, $id));
+	ksort($controls);
 	
 	return $controls;
 }

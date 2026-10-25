@@ -415,6 +415,8 @@ function format()
 	$this->formatter->lexer->mapHandler("heading_bbcode", "heading");
 	$this->formatter->lexer->mapHandler("heading_wiki", "heading");
 
+	foreach ($this->modes as $mode) $this->formatter->lexer->addLineStartMode($mode);
+
 	// Add these heading modes to the lexer - they are allowed in block-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["block"]);
 	foreach ($allowedModes as $mode) {
@@ -466,6 +468,9 @@ function format()
 	$this->formatter->lexer->mapFunction("cite", array($this, "cite"));
 	$this->formatter->lexer->mapHandler("quote_html", "quote");
 	$this->formatter->lexer->mapHandler("quote_bbcode", "quote");
+
+	foreach ($this->modes as $mode) $this->formatter->lexer->addLineStartMode($mode);
+	$this->formatter->lexer->addLineStartMode("cite");
 
 	// Add these quote modes to the lexer - they are allowed in block-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["block"]);
@@ -524,6 +529,8 @@ function format()
 	$this->formatter->lexer->mapHandler("pre_html_block", "fixedBlock");
 	$this->formatter->lexer->mapHandler("code_html_block", "fixedBlock");
 	$this->formatter->lexer->mapHandler("code_bbcode_block", "fixedBlock");
+
+	foreach ($this->modes as $mode) $this->formatter->lexer->addLineStartMode($mode);
 
 	// Add these fixed block modes to the lexer - they are allowed in block-level modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["block"]);
@@ -663,15 +670,16 @@ function format()
 	$this->formatter->lexer->mapHandler("link_wiki", "link");
 	
 	// Add these link modes to the lexer - they are allowed in practically all modes.
+	// \G lets a URL or email start straight after another token, e.g. inside <b>.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["inline"], "link");
 	foreach ($allowedModes as $mode) {
-		$this->formatter->lexer->addSpecialPattern('(?<=[\s>(]|^)(?:(?:https?|ftp|feed):\/\/)?(?:[\w\-]+\.)+(?:[a-z][a-z]+)(?:[^\w\s]\S*?)??(?=[\.,?!]*(?:\s|$)|&#39;|&lt;|\[)', $mode, "url");
+		$this->formatter->lexer->addSpecialPattern('(?<=[\s>(]|\G)(?:(?:https?|ftp|feed):\/\/)?(?:[\w\-]+\.)+(?:[a-z][a-z]+)(?:[^\w\s]\S*?)??(?=[\.,?!]*(?:\s|$)|&#39;|&lt;|\[)', $mode, "url");
 		$this->formatter->lexer->addEntryPattern('&lt;a.+?&gt;(?=.*&lt;\/a&gt;)', $mode, "link_html");
 		$this->formatter->lexer->addEntryPattern('\[url=(?:(?:https?|ftp|feed):\/\/|mailto:|).+?](?=.*\[\/url])', $mode, "link_bbcode");
 		$this->formatter->lexer->addEntryPattern('\[(?:(?:https?|ftp|feed):\/\/|mailto:)\S+\s+(?=.*])', $mode, "link_wiki");
 		$this->formatter->lexer->addEntryPattern('\[post:\d+\s*(?=.*])', $mode, "postLink");
 		$this->formatter->lexer->addEntryPattern('\[conversation:\d+\s+(?=.*])', $mode, "conversationLink");
-		$this->formatter->lexer->addSpecialPattern('(?<=[\s>(]|^)[\w\-\.]+@(?:[\w\-]+\.)+[\w\-]{2,4}', $mode, "email");
+		$this->formatter->lexer->addSpecialPattern('(?<=[\s>(]|\G)[\w\-\.]+@(?:[\w\-]+\.)+[\w\-]{2,4}', $mode, "email");
 	}
 	$this->formatter->lexer->addExitPattern('&lt;\/a&gt;', "link_html");
 	$this->formatter->lexer->addExitPattern('\[\/url]', "link_bbcode");

@@ -1323,6 +1323,8 @@ initReply: function() {
 			return false;
 		}
 	}
+
+	Conversation.initEditArea("reply");
 },
 
 // Reload the conversation post display, starting from a specific post.
@@ -1929,7 +1931,7 @@ addReply: function() {
 			
 			// Hide the draft label, clear the textarea, and initialize the reply area again.
 			hide(getElementsByClassName(getById("cLabels"), "draft")[0]);
-			getById("reply-textarea").value = "";
+			Conversation.setContent("reply", "");
 			Conversation.togglePreview("reply", false);
 			Conversation.initReply();
 				
@@ -2049,7 +2051,7 @@ discardDraft: function() {
 			
 			// Hide the draft label and reinitialize the reply area.
 			hide(getElementsByClassName(getById("cLabels"), "draft")[0]);
-			getById("reply-textarea").value = "";
+			Conversation.setContent("reply", "");
 			Conversation.togglePreview("reply", false);
 			Conversation.initReply();
 		}
@@ -2345,6 +2347,8 @@ editPost: function(postId) {
 					return false;
 				}
 			}
+
+			Conversation.initEditArea("p" + postId);
 		}
 	});
 },
@@ -2386,7 +2390,8 @@ saveEditPost: function(postId, content) {
 cancelEdit: function(postId) {
 	Conversation.editingPosts--;
 	getById("p" + postId).editing = false;
-	
+	Conversation.unregisterEditor("p" + postId);
+
 	// Change the post control and body HTML back to what it was before.
 	var controls = getElementsByClassName(getById("p" + postId), "controls")[0];
 	var body = getElementsByClassName(getById("p" + postId), "body")[0];
@@ -2501,19 +2506,57 @@ changeMemberGroup: function(memberId, group) {
 	});
 },
 
+// Text editors that use the existing post textarea, indexed by the area's id ("reply", or "p" + postId).
+//   element - shown in place of the textarea.
+//   format(format) - apply formatting (e.g. "bold"); default false
+//   insertText(text) - add formatting code to the end of the content; default false
+//   setValue(value) - replace content with formatting code when changed from outside editor
+//   destroy() - clean up after editor is unregistered
+editors: {},
+
+// Register an editor for an area.
+registerEditor: function(id, editor) {
+	Conversation.unregisterEditor(id);
+	Conversation.editors[id] = editor;
+},
+
+// Unregister an editor for an area, if it has one.
+unregisterEditor: function(id) {
+	var editor = Conversation.editors[id];
+	if (!editor) return;
+	delete Conversation.editors[id];
+	editor.destroy();
+},
+
+// Called when an area has been set up so plugins can extend it.
+initEditArea: function(id) {},
+
+// Set the content of an area to formatting code.
+setContent: function(id, value) {
+	getById(id + "-textarea").value = value;
+	if (Conversation.editors[id]) Conversation.editors[id].setValue(value);
+},
+
+// Apply formatting to an area.
+format: function(id, format, tagStart, tagEnd, selectArgument, defaultArgumentValue) {
+	var editor = Conversation.editors[id];
+	if (editor && editor.format(format) !== false) return;
+	Conversation.wrapText(getById(id + "-textarea"), tagStart, tagEnd, selectArgument, defaultArgumentValue);
+},
+
 // Formatting buttons.
-bold: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<b>", "</b>");},
-italic: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<i>", "</i>");},
-strikethrough: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<s>", "</s>");},
-header: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<h1>", "</h1>");},
-link: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<a href='https://example.com'>", "</a>", "https://example.com", "link text");},
-image: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<img src='", "'>", "", "https://example.com/image.jpg");},
-video: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<video src='", "'>", "", "https://example.com/video.mp4");},
-fixed: function(id) {Conversation.wrapText(getById(id + "-textarea"), "<pre>", "</pre>");},
+bold: function(id) {Conversation.format(id, "bold", "<b>", "</b>");},
+italic: function(id) {Conversation.format(id, "italic", "<i>", "</i>");},
+strikethrough: function(id) {Conversation.format(id, "strikethrough", "<s>", "</s>");},
+header: function(id) {Conversation.format(id, "header", "<h1>", "</h1>");},
+link: function(id) {Conversation.format(id, "link", "<a href='https://example.com'>", "</a>", "https://example.com", "link text");},
+image: function(id) {Conversation.format(id, "image", "<img src='", "'>", "", "https://example.com/image.jpg");},
+video: function(id) {Conversation.format(id, "video", "<video src='", "'>", "", "https://example.com/video.mp4");},
+fixed: function(id) {Conversation.format(id, "fixed", "<pre>", "</pre>");},
 
 // Quotes.
 quote: function(id, name, quote) {
-	Conversation.wrapText(getById(id + "-textarea"), "<blockquote><cite>" + (name ? name : "Name") + "</cite> " + (quote ? quote : ""), "</blockquote>", (!name ? "Name" : null));
+	Conversation.format(id, "quote", "<blockquote><cite>" + (name ? name : "Name") + "</cite> " + (quote ? quote : ""), "</blockquote>", (!name ? "Name" : null));
 },
 // Quote a post.
 quotePost: function(postId) {
@@ -2533,11 +2576,13 @@ quotePost: function(postId) {
 
 // Add text to the reply area at the very end, and move the cursor to the very end.
 insertText: function(textarea, text) {
+	var editor = Conversation.editors[textarea.id.replace(/-textarea$/, "")];
+	if (editor && editor.insertText(text) !== false) return;
 	textarea.focus();
 	textarea.value += text;
 	textarea.focus();
 	// Trigger the textarea's keyup to emulate typing.
-	getById("reply-textarea").onkeyup();
+	if (textarea.onkeyup) textarea.onkeyup();
 },
 
 // Add text to the reply area, with the options of wrapping it around a selection and selecting a part of it when it's
@@ -2606,7 +2651,7 @@ wrapText: function(textarea, tagStart, tagEnd, selectArgument, defaultArgumentVa
 	}
 
 	// Trigger the textarea's keyup to emulate typing.
-	getById("reply-textarea").onkeyup();
+	if (textarea.onkeyup) textarea.onkeyup();
 },
 
 // Toggle preview on an editing area.
@@ -2617,13 +2662,14 @@ togglePreview: function(id, preview) {
 		
 		var preview = getById(id + "-preview");
 		var textarea = getById(id + "-textarea");
+		var field = Conversation.editors[id] ? Conversation.editors[id].element : textarea;
 
 		// Keep the minimum height - won't work in IE. :(
-		preview.style.minHeight = textarea.offsetHeight + "px";
+		preview.style.minHeight = field.offsetHeight + "px";
 		preview.innerHTML = "";
 		// Hide the formatting buttons.
 		hide(getElementsByClassName(getById(id), "formattingButtons")[0]);
-		hide(textarea);
+		hide(field);
 		show(preview);
 
 		// Get the formatted post and show it.
@@ -2638,9 +2684,9 @@ togglePreview: function(id, preview) {
 	
 	// The preview box isn't checked...
 	else {
-		// Show the formatting buttons and the textarea; hide the preview area.
+		// Show the formatting buttons and the textarea (or its editor); hide the preview area.
 		show(getElementsByClassName(getById(id), "formattingButtons")[0]);
-		show(getById(id + "-textarea"));
+		show(Conversation.editors[id] ? Conversation.editors[id].element : getById(id + "-textarea"));
 		hide(getById(id + "-preview"));
 	}
 }

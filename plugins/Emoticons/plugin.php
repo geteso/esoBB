@@ -211,7 +211,7 @@ function format()
 	// Add the emoticon mode to the lexer - emoticons are allowed in all modes.
 	$allowedModes = $this->formatter->getModes($this->formatter->allowedModes["inline"]);
 	foreach ($allowedModes as $mode) {
-		$this->formatter->lexer->addSpecialPattern('(?<=^|[\s.,!<>])(?:' . implode("|", $patterns) . ')(?=[\s.,!<>)]|$)', $mode, "emoticon");
+		$this->formatter->lexer->addSpecialPattern('(?<=\G|[\s.,!<>])(?:' . implode("|", $patterns) . ')(?=[\s.,!<>)]|$)', $mode, "emoticon");
 	}
 }
 
