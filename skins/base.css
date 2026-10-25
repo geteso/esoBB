@@ -222,7 +222,7 @@ hr {display:none}
 #reply .hdr {min-height:16.6px}
 
 /* Formatting buttons */
-.p .controls {margin:-1px 0 -3px 0}
+.p .controls, .list .controls {margin:-1px 0 -3px 0}
 .p .controls .formattingButtons {overflow:hidden; display:block; float:left; margin-left:5px; margin-right:5px}
 .p .controls .formattingButtons a span {margin-left:0}
 .p .hdr .formattingButtons a:last-child {margin-right:0}

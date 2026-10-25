@@ -81,7 +81,7 @@ function init()
 			// Past this point, the user is allowed to view the conversation.
 			// Set the title, link, description, etc.
 			$title = desanitize($conversation["title"]);
-			$this->title = $title . " - " . $config["forumTitle"];
+			$this->title = $title . " - " . desanitize($config["forumTitle"]);
 			$this->link = $config["baseURL"] . makeLink($conversation["id"], $conversation["slug"]);
 			$this->subtitle = desanitize($conversation["tags"]);
 			$this->id = $config["baseURL"] . makeLink("feed", "conversation", $conversation["id"]);
@@ -123,7 +123,7 @@ function init()
 			}
 			
 			// Set the title, link, description, etc.
-			$this->title = "{$language["Recent posts"]} - {$config["forumTitle"]}";
+			$this->title = $language["Recent posts"] . " - " . desanitize($config["forumTitle"]);
 			$this->link = $config["baseURL"];
 			$this->id = $config["baseURL"] . makeLink("feed");
 			$this->updated = !empty($this->items[0]) ? $this->items[0]["updated"] : gmdate("Y-m-d\TH:i:s\Z");

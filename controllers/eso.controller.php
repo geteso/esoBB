@@ -163,7 +163,7 @@ function init()
 
 		// Set up some default JavaScript files and language definitions.
 		$this->addScript("js/eso.js", -1);
-		$this->addLanguageToJS("ajaxRequestPending", "ajaxDisconnected", "confirmExternalLink");
+		$this->addLanguageToJS("ajaxRequestPending", "ajaxDisconnected", "confirmExternalLink", "Copied");
 		
 	}
 	

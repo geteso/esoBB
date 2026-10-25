@@ -611,7 +611,7 @@ function pluginsInit(&$adminController)
 	if (!empty($_GET["toggle"]) and $this->eso->validateToken(@$_GET["token"]) and $this->togglePlugin($_GET["toggle"]))
  		redirect("admin", "plugins");
 
-	$this->eso->addLanguageToJS("show", "hide", "Copied");
+	$this->eso->addLanguageToJS("show", "hide");
 }
 
 

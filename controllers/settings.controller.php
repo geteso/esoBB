@@ -87,7 +87,7 @@ function init()
 
 	if (!defined("AJAX_REQUEST")) {
 		$this->sessions = $this->eso->getLogins($this->eso->user["memberId"]);
-		$this->eso->addLanguageToJS("show", "hide", "Copied", "confirmLogOutOtherSessions");
+		$this->eso->addLanguageToJS("show", "hide", "confirmLogOutOtherSessions");
 	}
 
 	// Loop through the languages directory to create a string of options to go in the language <select> tag.
