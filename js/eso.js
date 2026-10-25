@@ -446,6 +446,7 @@ open: function(wrapper, menu, link) {
 		if (clipper) {
 			var gap = parseFloat(this.style(clipper, "paddingBottom")) || 0;
 			if (row.bottom - t.bottom > gap + t.height / 2) bottom = t.bottom + gap;
+			else bottom -= Math.max(0, (parseFloat(this.style(menu, "borderTopWidth")) || 0) - (parseFloat(this.style(clipper.parentNode, "borderBottomWidth")) || 0));
 		}
 		top = (bottom + h > vh && row.top - h >= 0) ? row.top - h : bottom;
 	}

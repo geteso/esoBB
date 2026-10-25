@@ -18,6 +18,7 @@ a.external:active:after {-webkit-filter:saturate(0) contrast(25%) drop-shadow(0 
 .dropdown > .dropdownMenu > a {background:rgba(0,0,0,0.1); box-shadow:rgba(255,255,255,0.5) 0 1px}
 .dropdown > .dropdownMenu > a:hover {background-color:#fff; text-decoration:none}
 .dropdown > .dropdownMenu > a:active {background-color:#888}
+.dropdown > .dropdownMenu > a:last-child {box-shadow:none}
 #bar .dropdownToggle::after, #ftr .bar .dropdownToggle::after {display:none}
 #bar .dropdownToggle .button::after, #ftr .bar .dropdownToggle .button::after {content:''; height:6px; width:9px; margin-right:5px; background:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCA2Ij48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgOC44IDEuMiIvPjwvc3ZnPg==') no-repeat center; background-size:contain; display:inline-block; -webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
 #bar .dropdown.open > .dropdownToggle .button::after, #ftr .bar .dropdown.open > .dropdownToggle .button::after {-webkit-transform:rotate(180deg); transform:rotate(180deg)}
@@ -178,6 +179,7 @@ tr.starred td {background:#d7e3f4; border-color:#5f8dd3; border-top:1px solid #5
 .p .hdr .controls a, .list .hdr .controls a {background:rgba(0,0,0,0.1)}
 .p .hdr .controls a:hover, .list .hdr .controls a:hover {background-color:#fff; text-decoration:none}
 .p .hdr .controls a:active, .list .hdr .controls a:active {background-color:#888}
+.p .hdr .controls > .dropdown > .dropdownMenu {border-top:0}
 .p .body video {background:#d6dce5}
 .deleted, .deleted .hdr, .deleted .hdr a {color:#888}
 .deleted {background:#eee; border-color:#eee}
@@ -334,6 +336,6 @@ fieldset.hidden legend a {color:#666}
 /* Formatting controls */
 @media only screen and (max-width:570px) {
 #cPosts .p .hdr .controls {background:#ddd}
-#cPosts .p .hdr .controls > .dropdown > .dropdownMenu {margin-top:-3px!important; border-top:1px solid #ababab}
+#cPosts .p .hdr .controls > .dropdown > .dropdownMenu {margin-top:-2px!important; border-top:1px solid #ababab}
 #cPosts .p .hdr .controls .dropdown.alignRight > .dropdownMenu .dropdown:not(.open) > .dropdownToggle::after {float:right; margin:4px 0 0 6px; background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDEwIj48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS13aWR0aD0iMS40IiBkPSJNMS4yIDEuMiA1IDUgMS4yIDguOCIvPjwvc3ZnPg==')}
 }
