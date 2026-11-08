@@ -243,6 +243,10 @@ function upgrade_100e1()
 		$this->query("ALTER TABLE {$config["tablePrefix"]}logins MODIFY COLUMN userAgent varchar(255) default NULL");
 		$this->query("UPDATE {$config["tablePrefix"]}logins SET userAgent=NULL");
 	}
+
+	// Add a column for hidden posts.
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}status LIKE 'hiddenPosts'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}status ADD COLUMN hiddenPosts text AFTER draft");
 }
 
 // 1.0.0 delta 2 -> 1.0.0 delta 3

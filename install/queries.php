@@ -90,6 +90,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}status (
 	starred tinyint(1) NOT NULL default '0',
 	lastRead smallint unsigned NOT NULL default '0',
 	draft text,
+	hiddenPosts text,
 	PRIMARY KEY  (conversationId, memberId)
 ) ENGINE={$config["storageEngine"]} DEFAULT CHARSET={$config["characterEncoding"]}";
 

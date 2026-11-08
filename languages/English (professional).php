@@ -162,6 +162,7 @@ $language = array(
 "go to this post" => "go to this post",
 
 "Header" => "Header",
+"hidden" => "hidden",
 "hide" => "hide",
 "Home" => "Home",
 "Hooked functions" => "Hooked functions",
