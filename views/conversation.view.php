@@ -165,10 +165,20 @@ $deleteLink="<a href='".makeLink($this->conversation["id"], $this->conversation[
 $restoreLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?restorePost=%s",$this->startFrom?"&start=$this->startFrom":"","&token=%t")."' onclick='Conversation.restorePost(%s);return false'>{$language["restore"]}</a>";
 $showDeletedLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?showDeletedPost=%s",$this->startFrom?"&start=$this->startFrom":"")."' onclick='Conversation.showDeletedPost(%s);return false'>{$language["show"]}</a>";
 $hideDeletedLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?start=$this->startFrom")."' onclick='Conversation.hideDeletedPost(%s);return false'>{$language["hide"]}</a>";$lastAction="(<abbr title='%s'>{$language["online"]}</abbr>)";$permalink=makeLink("post","%s");
-$deleteForeverLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?deletePostForever=%s",$this->startFrom?"&start=$this->startFrom":"","&token=%t")."' onclick='Conversation.deletePostForever(%s);return false'>{$language["delete forever"]}</a>";?>
+$deleteForeverLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?deletePostForever=%s",$this->startFrom?"&start=$this->startFrom":"","&token=%t")."' onclick='Conversation.deletePostForever(%s);return false'>{$language["delete forever"]}</a>";
+$hiddenBy="(%s)";
+$hideLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?hidePost=%s",$this->startFrom?"&start=$this->startFrom":"","&token=%t")."' class='hideLink' title='{$language["hide"]}' onclick='Conversation.hidePost(%s);return false'></a>";
+$unhideLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?unhidePost=%s",$this->startFrom?"&start=$this->startFrom":"","&token=%t")."' class='showLink' title='{$language["show"]}' onclick='Conversation.unhidePost(%s);return false'></a>";
+$showHiddenLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?showHiddenPost=%s",$this->startFrom?"&start=$this->startFrom":"")."' class='showLink' title='{$language["show"]}' onclick='Conversation.showHiddenPost(%s);return false'></a>";
+$hideHiddenLink="<a href='".makeLink($this->conversation["id"], $this->conversation["slug"],"?start=$this->startFrom")."' class='hideLink' title='{$language["hide"]}' onclick='Conversation.hideHiddenPost(%s);return false'></a>";?>
 function makeMemberLink(memberId, member) {return "<?php echo $memberLink;?>".replace("%d", memberId).replace("%s", member);}
 function makeEditedBy(member, time) {return "<?php echo $editedBy;?>".replace("%s", member).replace("%s", time);}
 function makeDeletedBy(member) {return "<?php echo $deletedBy;?>".replace("%s", member);}
+function makeHiddenBy(reason) {return "<?php echo $hiddenBy;?>".replace("%s", reason);}
+function makeHideLink(postId) {return "<?php echo $hideLink;?>".replace(/%s/g, postId).replace("%t", eso.token);}
+function makeUnhideLink(postId) {return "<?php echo $unhideLink;?>".replace(/%s/g, postId).replace("%t", eso.token);}
+function makeShowHiddenLink(postId) {return "<?php echo $showHiddenLink;?>".replace(/%s/g, postId);}
+function makeHideHiddenLink(postId) {return "<?php echo $hideHiddenLink;?>".replace(/%s/g, postId);}
 function makeQuoteLink(postId) {return "<?php echo $quoteLink;?>".replace(/%s/g, postId);}
 function makeEditLink(postId) {return "<?php echo $editLink;?>".replace(/%s/g, postId).replace("%t", eso.token);}
 function makeDeleteLink(postId) {return "<?php echo $deleteLink;?>".replace(/%s/g, postId).replace("%t", eso.token);}
@@ -192,8 +202,18 @@ switch(!empty($this->eso->user["avatarAlignment"])?$this->eso->user["avatarAlign
 	case "none":break;
 	default:$side=$this->startFrom%2?"l":"r";$alternateAvatars=true;
 }
+// Deleted and hidden posts are shown collapsed, outside of any post 'group'.
+$collapsed=function($post){return !empty($post["deleteMember"]) or !empty($post["hidden"]);};
+// Work out which side each post's avatar goes on as if hidden posts were shown.
+$sides=array();
+foreach($this->conversation["posts"] as $k=>$post){
+	if(!empty($post["deleteMember"]))continue;
+	$sides[$k]=$side;
+	if($alternateAvatars and isset($this->conversation["posts"][$k+1]["memberId"]) and empty($this->conversation["posts"][$k+1]["deleteMember"]) and $this->conversation["posts"][$k+1]["memberId"]!=$post["memberId"])$side=$side=="r"?"l":"r";
+}
 foreach($this->conversation["posts"] as $k=>$post):
 $singlePost=false;
+if(isset($sides[$k]))$side=$sides[$k];
 
 // If this post is deleted...
 if(!empty($post["deleteMember"])):?>
@@ -210,10 +230,26 @@ if(!empty($post["deleteMember"])):?>
 </div>
 <?php continue;endif;
 
+// If this post is hidden from the user.
+if(!empty($post["hidden"])):
+$joinAbove=(isset($this->conversation["posts"][$k-1]["memberId"]) and $this->conversation["posts"][$k-1]["memberId"]==$post["memberId"] and !$collapsed($this->conversation["posts"][$k-1]));
+$joinBelow=(isset($this->conversation["posts"][$k+1]["memberId"]) and $this->conversation["posts"][$k+1]["memberId"]==$post["memberId"] and empty($this->conversation["posts"][$k+1]["deleteMember"]));
+$toggle="<div class='showHide ".($side!="l"?"onLeft":"onRight")."'>".str_replace(array("%s","%t"),array($post["id"],$_SESSION["token"]),!empty($post["hiddenByUser"])?$unhideLink:(!empty($post["body"])?$hideHiddenLink:$showHiddenLink))."</div>";?>
+<hr/><div class='p hiddenPost<?php if($joinAbove)echo " joinAbove";if($joinBelow)echo " joinBelow";?>' id='p<?php echo $post["id"];?>'><div class='hdr'>
+<?php echo $toggle;?><div class='pInfo'>
+<h3><?php echo $post["name"];?></h3>
+<span title='<?php echo $post["date"];?>' class='pTime'><a href='<?php echo str_replace("%s",$post["id"],$permalink);?>'><?php echo relativeTime($post["time"]);?></a></span>
+<span><?php printf($hiddenBy,$post["hidden"]);?></span>
+</div>
+</div>
+<?php if(!empty($post["body"])):?><div class='body'><?php echo $this->displayPost($post["body"]);?></div><?php endif;?>
+</div>
+<?php continue;endif;
+
 // If the post before this one is by a different member to this one, start a new post 'group'.
-if(!isset($this->conversation["posts"][$k-1]["memberId"]) or $this->conversation["posts"][$k-1]["memberId"]!=$post["memberId"] or !empty($this->conversation["posts"][$k-1]["deleteMember"])):?>
+if(!isset($this->conversation["posts"][$k-1]["memberId"]) or $this->conversation["posts"][$k-1]["memberId"]!=$post["memberId"] or $collapsed($this->conversation["posts"][$k-1])):?>
 <hr/><div class='p <?php if($side)echo $side;?> c<?php echo $post["color"];?>'<?php
-	if(!isset($this->conversation["posts"][$k+1]["memberId"]) or $this->conversation["posts"][$k+1]["memberId"]!=$post["memberId"] or !empty($this->conversation["posts"][$k+1]["deleteMember"])):$singlePost=true;?> id='p<?php echo $post["id"];?>'<?php
+	if(!isset($this->conversation["posts"][$k+1]["memberId"]) or $this->conversation["posts"][$k+1]["memberId"]!=$post["memberId"] or $collapsed($this->conversation["posts"][$k+1])):$singlePost=true;?> id='p<?php echo $post["id"];?>'<?php
 	endif;?>>
 <div class='parts'>
 <?php endif;
@@ -222,6 +258,9 @@ if(!isset($this->conversation["posts"][$k-1]["memberId"]) or $this->conversation
 <div<?php if(!$singlePost):?> id='p<?php echo $post["id"];?>'<?php endif;?>>
 <div class='hdr'>
 <?php if($side): ?><div class='thumb'><?php echo str_replace(array("%d","%s"),array($post["memberId"],"<img src='" . ($post["thumb"] ? $post["thumb"] : "skins/{$config["skin"]}/" . (isset($this->eso->skin->avatarThumb) ? $this->eso->skin->avatarThumb : "avatarThumb.svg")) . "' alt=''/>"),$memberLink);?></div>
+<?php endif;
+// Hide goes in first bar opposite the avatar (on left if none) apart from controls.
+if($this->eso->user):?><div class='showHide <?php echo $side!="l"?"onLeft":"onRight";?>'><?php echo str_replace(array("%s","%t"),array($post["id"],$_SESSION["token"]),$hideLink);?></div>
 <?php endif;?>
 <div class='pInfo'>
 <h3><?php echo str_replace(array("%d","%s"),array($post["memberId"],$post["name"]),$memberLink);?></h3>
@@ -243,16 +282,13 @@ if(!isset($this->conversation["posts"][$k-1]["memberId"]) or $this->conversation
 <?php
 
 // If the post after this one is by a different member to this one, end the post 'group'.
-if(!isset($this->conversation["posts"][$k+1]["memberId"]) or $this->conversation["posts"][$k+1]["memberId"]!=$post["memberId"] or !empty($this->conversation["posts"][$k+1]["deleteMember"])):?>
+if(!isset($this->conversation["posts"][$k+1]["memberId"]) or $this->conversation["posts"][$k+1]["memberId"]!=$post["memberId"] or $collapsed($this->conversation["posts"][$k+1])):?>
 </div>
 <?php if($side):?><div class='avatar'><?php echo str_replace(array("%d","%s"),array($post["memberId"],"<img src='".($post["avatar"]?$post["avatar"]:("skins/{$config["skin"]}/" . ($side == "l" ? (isset($this->eso->skin->avatarLeft) ? $this->eso->skin->avatarLeft : "avatarLeft.svg") : (isset($this->eso->skin->avatarRight) ? $this->eso->skin->avatarRight : "avatarRight.svg"))))."' alt=''/>"),$memberLink);?></div><?php endif;?>
 <div class='clear'></div>
 </div>
 
-<?php
-// Switch sides now that we're at the end of the group.
-if($alternateAvatars and isset($this->conversation["posts"][$k+1]["memberId"]) and empty($this->conversation["posts"][$k+1]["deleteMember"]))$side=$side=="r"?"l":"r";
-endif;
+<?php endif;
 endforeach;
 endif;
 ?>

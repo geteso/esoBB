@@ -183,18 +183,24 @@ a.star0:active, a.star1:active {color:#e4b600}
 .p .hdr a.external::after {filter:saturate(0) drop-shadow(rgba(255,255,255,0.5) 0 1px)}
 .p .hdr select, .p .hdr input.save {border:dashed rgba(0,0,0,0.2); border-width:1px}
 .p .hdr select option {background:#fff}
-.p .hdr .controls a, .list .hdr .controls a {background:rgba(0,0,0,0.1); box-shadow:rgba(255,255,255,0.5) 0 1px}
-.p .hdr .controls a:hover, .list .hdr .controls a:hover {background-color:#fff; text-decoration:none}
-.p .hdr .controls a:active, .list .hdr .controls a:active {background-color:#888}
+.p .hdr .controls a, .p .hdr .showHide a, .list .hdr .controls a {background:rgba(0,0,0,0.1); box-shadow:rgba(255,255,255,0.5) 0 1px}
+.p .hdr .controls a:hover, .p .hdr .showHide a:hover, .list .hdr .controls a:hover {background-color:#fff; text-decoration:none}
+.p .hdr .controls a:active, .p .hdr .showHide a:active, .list .hdr .controls a:active {background-color:#888}
 .p .hdr .controls > .dropdown > .dropdownMenu {border-top:0}
 .p .body {text-shadow:#fff 0 1px}
 blockquote {background:rgba(0,0,0,0.05); border:solid rgba(0,0,0,0.1); border-width:1px; box-shadow:#fff 0 1px, inset 0 1px 3px #ccc}
 .p .body .emoticon {-webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
 .p div.avatar {padding:5px 0 6px 0}
 /* Deleted posts */
-.deleted, .deleted .hdr, .deleted .hdr a {color:#888}
-.p.deleted {background:#eee; border-color:#eee; box-shadow:none}
-.p.deleted .hdr, .p.deleted .body {box-shadow:inset 0 -1px 0 rgba(0,0,0,0.1)}
+.deleted, .deleted .hdr, .deleted .hdr a, .hiddenPost, .hiddenPost .hdr, .hiddenPost .hdr a {color:#888}
+.p.deleted, .p.hiddenPost {background:#eee; border-color:#eee; box-shadow:none}
+.p.deleted .hdr, .p.deleted .body, .p.hiddenPost .hdr, .p.hiddenPost .body {box-shadow:inset 0 -1px 0 rgba(0,0,0,0.1)}
+/* Show/hide links */
+.p .hdr a.showLink::before, .p .hdr a.hideLink::before {content:''; height:9px; width:9px; vertical-align:-1px; background:no-repeat center; background-size:contain; display:inline-block; -webkit-filter:drop-shadow(0 1px 0 #fff); filter:drop-shadow(0 1px 0 #fff)}
+.p .hdr a.showLink::before {background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2Utd2lkdGg9IjEuNCIgZD0iTTEuMiA1SDguOE01IDEuMlY4LjgiLz48L3N2Zz4=')}
+.p .hdr a.hideLink::before {background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2Utd2lkdGg9IjEuNCIgZD0iTTEuMiA1SDguOCIvPjwvc3ZnPg==')}
+.deleted .hdr a.showLink::before, .hiddenPost .hdr a.showLink::before {background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjODg4IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2Utd2lkdGg9IjEuNCIgZD0iTTEuMiA1SDguOE01IDEuMlY4LjgiLz48L3N2Zz4=')}
+.deleted .hdr a.hideLink::before, .hiddenPost .hdr a.hideLink::before {background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMCAxMCI+PHBhdGggZmlsbD0ibm9uZSIgc3Ryb2tlPSIjODg4IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2Utd2lkdGg9IjEuNCIgZD0iTTEuMiA1SDguOCIvPjwvc3ZnPg==')}
 
 /* Reply to a conversation */
 .p .body input.text, .p .body textarea {box-shadow:inset 0 1px 3px #cccccc, 0 1px 0 #ffffff}

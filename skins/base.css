@@ -191,7 +191,7 @@ hr {display:none}
 .p .hdr .pInfo .thumb img {border-top-color:transparent; border-top-style:solid; border-top-width:3px; box-sizing:border-box} */
 .p .hdr .controls, .list .hdr .controls {float:right; padding-top:1px}
 .p .hdr .controls:empty, .p .hdr .controls:blank {display:none}
-.p .hdr .controls a, .list .hdr .controls a {font-size:90%; line-height:1.5; margin:0 0 3px 0; padding:0 5px; text-align:center; display:inline-block}
+.p .hdr .controls a, .p .hdr .showHide a, .list .hdr .controls a {font-size:90%; line-height:1.5; margin:0 0 3px 0; padding:0 5px; text-align:center; display:inline-block}
 .p .hdr .controls span {font-size:100%}
 .p .hdr a.button {padding:1px 4px}
 .p .body {line-height:1.3; overflow:auto; padding:10px 10px 0}
@@ -205,8 +205,18 @@ hr {display:none}
 .p.l .parts {float:right}
 #cPosts p {word-wrap:break-word; text-align:justify}
 #cPosts p:empty {display:none}
-.deleted .hdr {margin:0}
-.p.deleted .hdr {box-shadow:none}
+.deleted .hdr, .hiddenPost .hdr {margin:0}
+.p.deleted .hdr, .p.hiddenPost .hdr {box-shadow:none}
+.p.hiddenPost.joinAbove {margin-top:-10px}
+.p.hiddenPost.joinBelow {margin-bottom:0}
+.p .hdr .showHide {padding-top:1px; margin-top:-1px; margin-bottom:-3px}
+.p .hdr .showHide.onLeft {float:left; margin-right:7px}
+.p .hdr .showHide.onRight {float:right; margin-left:.28em}
+#cPosts .p .hdr, #reply .hdr {padding-right:5px}
+#cPosts .p.r .hdr, #reply.r .hdr {padding-right:0}
+#cPosts .p .hdr .showHide.onLeft {margin-left:-5px}
+.p .hdr .controls .formattingCheckbox:last-child {padding-right:5px}
+#cPosts .p.r .hdr .controls .formattingCheckbox:last-child, #reply.r .hdr .controls .formattingCheckbox:last-child {padding-right:10px}
 .deleted .controls span, .deleted .controls span:nth-child(n+2) > a {margin-left:0}
 
 /* Reply to a conversation */
@@ -454,7 +464,7 @@ td.author, td.lastPost {max-width:95px; overflow:hidden; text-overflow:ellipsis;
 }
 
 @media print {
-#hdr, #bar, .pg .left, .pg .right, #reply, .avatar, .p .controls {display:none}
+#hdr, #bar, .pg .left, .pg .right, #reply, .avatar, .p .controls, .p .showHide {display:none}
 .pg {padding:0}
 hr {display:block}
 .p.l, p.r {border:0}
@@ -516,11 +526,13 @@ ul.fl, ul.fr {white-space:nowrap}
 #searchResults table.c {margin-top:0}
 #ftr {padding:0 10px 10px}
 #sconvo .pInfo {display:none}
-.p.deleted {margin-bottom:10px}
+.p.deleted, .p.hiddenPost {margin-bottom:10px}
 .p.l {border-left-width:0}
 .p.r {border-right-width:0}
 .p.l div.avatar, .p.r div.avatar {display:none}
 .p.l .hdr .thumb, .p.r .hdr .thumb {display:initial}
+#cPosts .p.r .hdr, #reply.r .hdr {padding-right:5px}
+#cPosts .p.r .hdr .thumb {margin-right:-5px}
 #allowed {margin-block-start:0; margin-bottom:0}
 #settingsOtherForm input {left:26px}
 .profile .form li, #report {padding-left:0}
@@ -528,19 +540,21 @@ ul.fl, ul.fr {white-space:nowrap}
 /* Formatting controls */
 #sconvo .hdr {min-height:16px}
 .p .controls .formattingButtons {white-space:normal}
-#cPosts .p .hdr .controls:not(:empty) {float:none; clear:left; position:relative; overflow:overlay; margin:5px -10px -7px -10px; padding-top:4px; padding-bottom:4px}
-#cPosts .p .hdr .controls > a:first-child, #cPosts .deleted .hdr .controls span:first-child {margin-left:10px}
+#cPosts .p .hdr .controls:not(:empty) {float:none; clear:left; position:relative; overflow:overlay; margin:5px -5px -7px -10px; padding-top:4px; padding-bottom:4px}
+#cPosts .p .hdr .controls > a:first-child, #cPosts .deleted .hdr .controls span:first-child {margin-left:5px}
 #cPosts .p .hdr .controls .dropdown.alignRight > .dropdownMenu {text-align:left}
 #cPosts .p .hdr .controls .dropdown.alignRight > .dropdownMenu .button {-webkit-box-pack:start; -ms-flex-pack:start; justify-content:flex-start}
-#cPosts .p .hdr .controls .formattingButtons {margin-left:10px; margin-right:10px}
+#cPosts .p .hdr .controls .formattingButtons {margin-left:5px; margin-right:5px}
 #cPosts .p .hdr .controls .formattingButtons a:first-child {margin-left:0}
 #reply .controls {float:none; clear:none; overflow:overlay; margin:-1px 0 -3px 0; padding:0; background:inherit; box-shadow:none}
 .p .hdr .pInfo {float:none}
 .p .hdr .pInfo::-webkit-scrollbar, #reply .controls::-webkit-scrollbar {display:none}
 #reply .formattingButtons {margin:0}
-.formattingCheckbox {clear:left; float:left; width:-webkit-fill-available; margin-bottom:3px}
-#cPosts .p .hdr .controls .formattingCheckbox {padding-left:10px}
-.p.deleted .body {margin-top:5px}
+.formattingCheckbox {clear:left; float:left; margin-bottom:3px}
+.formattingCheckbox + .formattingCheckbox {clear:none; margin-left:12px!important}
+#cPosts .p .hdr .controls .formattingCheckbox {padding-left:5px}
+#cPosts .p .hdr .controls .formattingCheckbox + .formattingCheckbox {padding-left:0}
+.p.deleted .body, .p.hiddenPost .body {margin-top:5px}
 }
 
 @media only screen and (max-width:500px) {
