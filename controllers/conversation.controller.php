@@ -28,6 +28,7 @@ class conversation extends Controller {
 var $view = "conversation.view.php";
 var $editingPost = false; // Are we editing a post (specified in $_GET["editPost"])?
 var $showingDeletedPost = false; // Are we showing a delete post (specified in $_GET["showDeletedPost"])?
+var $showingHiddenPost = false; // Are we showing a hidden post (specified in $_GET["showHiddenPost"])?
 var $conversation = array(); // An array of conversation details.
 var $startFrom = 0; // Which post to start viewing from.
 
@@ -52,7 +53,7 @@ function init()
 	$this->conversation["membersAllowed"] =& $this->getMembersAllowed();
 
 	// Add essential variables and language definitions to be accessible through JavaScript. 
-	$this->eso->addLanguageToJS("Starred", "Unstarred", "Lock", "Unlock", "Sticky", "Unsticky", "Moderator", "Moderator-plural", "Administrator", "Administrator-plural", "Member", "Member-plural", "Suspended", "Unvalidated", "confirmLeave", "confirmDiscard", "confirmDeleteConversation", "confirmDeletePost", "Never", "Just now", "year ago", "years ago", "month ago", "months ago", "week ago", "weeks ago", "day ago", "days ago", "hour ago", "hours ago", "minute ago", "minutes ago", "second ago", "seconds ago");
+	$this->eso->addLanguageToJS("Starred", "Unstarred", "Lock", "Unlock", "Sticky", "Unsticky", "Moderator", "Moderator-plural", "Administrator", "Administrator-plural", "Member", "Member-plural", "Suspended", "Unvalidated", "confirmLeave", "confirmDiscard", "confirmDeleteConversation", "confirmDeletePost", "Never", "Just now", "year ago", "years ago", "month ago", "months ago", "week ago", "weeks ago", "day ago", "days ago", "hour ago", "hours ago", "minute ago", "minutes ago", "second ago", "seconds ago", "hidden");
 	$this->eso->addVarToJS("postsPerPage", $config["postsPerPage"]);
 	$this->eso->addVarToJS("autoReloadIntervalStart", $config["autoReloadIntervalStart"]);
 	$this->eso->addVarToJS("autoReloadIntervalMultiplier", $config["autoReloadIntervalMultiplier"]);	
@@ -205,6 +206,21 @@ function init()
 		
 		// Show a deleted post: set the $this->showingDeletedPost variable so that the post body is outputted later on.
 		if (isset($_GET["showDeletedPost"])) $this->showingDeletedPost = (int)$_GET["showDeletedPost"];
+
+		// Hide a post from the user.
+		if (isset($_GET["hidePost"]) and $this->eso->validateToken(@$_GET["token"])) {
+			$this->hidePost((int)$_GET["hidePost"]);
+			redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom");
+		}
+
+		// Unhide a post from the user.
+		if (isset($_GET["unhidePost"]) and $this->eso->validateToken(@$_GET["token"])) {
+			$this->unhidePost((int)$_GET["unhidePost"]);
+			redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom");
+		}
+
+		// Show a hidden post.
+		if (isset($_GET["showHiddenPost"])) $this->showingHiddenPost = (int)$_GET["showHiddenPost"];
 
 		// Permanently delete a post.
 		if (isset($_GET["deletePostForever"]) and $this->eso->validateToken(@$_GET["token"])) {
@@ -444,7 +460,7 @@ function ajax()
 			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
 			
 			// After restoring the post, return its details from the database.
-			if ($this->restorePost($postId)) return $this->getPosts(array("postIds" => $postId));
+			if ($this->restorePost($postId)) return $this->getPosts(array("postIds" => $postId), true);
 			break;
 
 		// Permanently delete a post.
@@ -509,6 +525,38 @@ function ajax()
 				if (($message = $this->canEditPost($postId, $memberId, $account, $deleteMember)) !== true) $this->eso->message($message);
 				else return $this->displayPost($content);
 			}
+			break;
+
+		// Hide a post from the user.
+		case "hidePost":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			$postId = (int)@$_POST["postId"];
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
+			$this->hidePost($postId);
+			break;
+
+		// Unhide a post from the user.
+		case "unhidePost":
+			if (!$this->eso->validateToken(@$_POST["token"])) return;
+			$postId = (int)@$_POST["postId"];
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
+
+			// After unhiding the post, return its details from the database.
+			if ($this->unhidePost($postId)) return $this->getPosts(array("postIds" => $postId), true);
+			break;
+
+		// Show a hidden post's content without unhiding it.
+		case "showHiddenPost":
+			$postId = (int)@$_POST["postId"];
+			$conversationId = $this->eso->db->fetchOne("SELECT conversationId FROM {$config["tablePrefix"]}posts WHERE postId=?", "i", $postId);
+			if (!$conversationId || !$this->conversation = $this->getConversation($conversationId)) return;
+
+			$this->showingHiddenPost = $postId;
+			$posts = $this->getPosts(array("postIds" => $postId), true);
+			$post = reset($posts);
+			if ($post and isset($post["body"])) return $post["body"];
 			break;
 
 		// Get the unformatted content of a post for inserting into the reply textarea as a quote.
@@ -608,7 +656,7 @@ function getConversation($id = false)
 	if ($id !== false) {
 
 		// Begin constructing the query components.
-		$select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.locked AS locked", "c.startMember AS startMember", "sm.name AS startMemberName", "c.posts AS postCount", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "c.private AS private", "s.lastRead AS lastRead", "s.draft AS draft", "s.starred AS starred", "IF(c.lastActionTime IS NULL,0,c.lastActionTime) AS lastActionTime");
+		$select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.locked AS locked", "c.startMember AS startMember", "sm.name AS startMemberName", "c.posts AS postCount", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "c.private AS private", "s.lastRead AS lastRead", "s.draft AS draft", "s.starred AS starred", "s.hidePosts AS hidePosts","IF(c.lastActionTime IS NULL,0,c.lastActionTime) AS lastActionTime");
 		
 		// Add labels to the 'select' part of the query, only if we're loading the page from scratch (not ajax).
 		// The eso labels array contains SQL conditions that must be satisfied for that label to be 'active'.
@@ -772,6 +820,9 @@ function getPosts($criteria = array(), $display = false)
 	$posts = array();
 	$i = $startFrom;
 
+	// The posts the user has hidden in this conversation.
+	$hidePosts = $this->eso->user ? array_filter(explode(",", (string)@$this->conversation["hidePosts"])) : array();
+
 	// Loop through the posts and compile them into an array.
 	while ($post = $this->eso->db->fetchAssoc($result)) {
 		
@@ -807,7 +858,9 @@ function getPosts($criteria = array(), $display = false)
 			"avatar" => $this->eso->getAvatar($post["memberId"], $post["avatarFormat"]),
 			"thumb" => $this->eso->getAvatar($post["memberId"], $post["avatarFormat"], "thumb"),
 			"editMember" => $post["editMember"],
-			"lastAction" => strip_tags(translateLastAction($post["lastAction"]))
+			"lastAction" => strip_tags(translateLastAction($post["lastAction"])),
+			"hidden" => in_array($post["id"], $hidePosts) ? $language["hidden"] : false,
+			"hiddenByUser" => in_array($post["id"], $hidePosts)
 		// Extra information if the post *has* been deleted.
 		) : array("deleteMember" => $post["deleteMember"]));
 		
@@ -816,6 +869,8 @@ function getPosts($criteria = array(), $display = false)
 		
 		$this->callHook("getPost", array(&$posts[$k], $post));
 		
+		if (!empty($posts[$k]["hidden"]) and $this->showingHiddenPost != $post["id"]) $posts[$k]["body"] = "";
+
 		$i++;
 	}
 
@@ -1169,7 +1224,60 @@ function restorePost($postId)
 	}
 	
 	$this->callHook("restorePost", array($postId));
-	
+
+	return true;
+}
+
+// Hide a post from the user.
+function hidePost($postId)
+{
+	if (!$this->eso->user) {
+		$this->eso->message("noPermission");
+		return false;
+	}
+
+	global $config;
+	$postId = (int)$postId;
+	$conversationId = (int)$this->conversation["id"];
+	if (!$this->eso->db->fetchOne("SELECT postId FROM {$config["tablePrefix"]}posts WHERE postId=? AND conversationId=?", "ii", $postId, $conversationId)) {
+		$this->eso->message("noPermission");
+		return false;
+	}
+
+	// Add it to the user's list of hidden posts in this conversation.
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, hidePosts)
+		VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE hidePosts=IF(FIND_IN_SET(?, hidePosts), hidePosts, CONCAT_WS(',', hidePosts, ?))", "iiiii", $conversationId, $memberId, $postId, $postId, $postId);
+	$hidePosts = array_filter(explode(",", (string)@$this->conversation["hidePosts"]));
+	if (!in_array($postId, $hidePosts)) $hidePosts[] = $postId;
+	$this->conversation["hidePosts"] = implode(",", $hidePosts);
+
+	$this->callHook("hidePost", array($postId));
+
+	return true;
+}
+
+// Unhide a post from the user.
+function unhidePost($postId)
+{
+	if (!$this->eso->user) {
+		$this->eso->message("noPermission");
+		return false;
+	}
+
+	// Take it out of the user's list of hidden posts in this conversation.
+	global $config;
+	$postId = (int)$postId;
+	$conversationId = (int)$this->conversation["id"];
+	$memberId = (int)$this->eso->user["memberId"];
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}status
+		SET hidePosts=NULLIF(TRIM(BOTH ',' FROM REPLACE(CONCAT(',', hidePosts, ','), CONCAT(',', ?, ','), ',')), '')
+		WHERE conversationId=? AND memberId=?", "iii", $postId, $conversationId, $memberId);
+	$this->conversation["hidePosts"] = implode(",", array_diff(array_filter(explode(",", (string)@$this->conversation["hidePosts"])), array($postId)));
+
+	$this->callHook("unhidePost", array($postId));
+
 	return true;
 }
 
@@ -1226,6 +1334,11 @@ function deletePostForever($postId)
 		$this->eso->message("noPermission");
 		return false;
 	}
+
+	// Take it out of any member's list of hidden posts.
+	$this->eso->db->queryPrepared("UPDATE {$config["tablePrefix"]}status
+		SET hidePosts=NULLIF(TRIM(BOTH ',' FROM REPLACE(CONCAT(',', hidePosts, ','), CONCAT(',', ?, ','), ',')), '')
+		WHERE conversationId=? AND FIND_IN_SET(?, hidePosts)", "iii", $postId, $conversationId, $postId);
 
 	$this->callHook("permanentDeletePost", array($postId));
 	

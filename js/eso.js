@@ -1490,6 +1490,11 @@ showNewPosts: function(result) {
 	return newPosts > 0;
 },
 
+// Deleted and hidden posts are shown collapsed, outside of any post 'group'.
+isCollapsed: function(post) {
+	return post.deleteMember || post.hidden;
+},
+
 // Update the post area with new post HTML.
 displayPosts: function(scrollTo) {
 	
@@ -1502,6 +1507,15 @@ displayPosts: function(scrollTo) {
 		case "left": side = "l"; break;
 	}
 	var html = [];
+
+	// Work out which side each post's avatar goes on as if hidden posts were shown.
+	var sides = {};
+	for (var k = Conversation.startFrom; k < max; k++) {
+		var post = Conversation.posts[k], next = Conversation.posts[k + 1];
+		if (typeof post == "undefined" || post.deleteMember) continue;
+		sides[k] = side;
+		if (eso.avatarAlignment == "alternate" && typeof next != "undefined" && !next.deleteMember && next.name != post.name) side = side == "r" ? "l" : "r";
+	}
 	
 	// Loop through all the posts we are displaying and add their HTML.
 	for (var k = Conversation.startFrom; k < max; k++) {
@@ -1532,12 +1546,33 @@ displayPosts: function(scrollTo) {
 			continue;
 		}
 
+		side = sides[k];
+
+		// If this post is hidden from the user...
+		if (post.hidden) {
+			var prev = k != Conversation.startFrom ? Conversation.posts[k - 1] : undefined, next = k != max - 1 ? Conversation.posts[k + 1] : undefined;
+			var joinAbove = typeof prev != "undefined" && prev.name == post.name && !Conversation.isCollapsed(prev);
+			var joinBelow = typeof next != "undefined" && next.name == post.name && !next.deleteMember;
+			var toggle = "<div class='showHide " + (side != "l" ? "onLeft" : "onRight") + "'>" + (post.hiddenByUser ? makeUnhideLink(post.id) : window[!post.body ? "makeShowHiddenLink" : "makeHideHiddenLink"](post.id)) + "</div>";
+			html.push("<hr/><div class='p hiddenPost", joinAbove ? " joinAbove" : "", joinBelow ? " joinBelow" : "", "' id='p", post.id, "'><div class='hdr'>",
+				toggle,
+				"<div class='pInfo'>",
+				"<h3>" + post.name + "</h3> ",
+				"<span title='", post.date, "' class='pTime'><a href='", makePermalink(post.id), "'>", relativeTime(post.time), "</a></span> ",
+				"<span>", makeHiddenBy(post.hidden), "</span> ",
+				"</div>",
+				"</div>");
+			if (post.body) html.push("<div class='body'>", post.body, "</div>");
+			html.push("</div>");
+			continue;
+		}
+
 		// If the post before this one is by a different member to this one, start a new post 'group'.
-		if (k == Conversation.startFrom || typeof Conversation.posts[k - 1] == "undefined" || Conversation.posts[k - 1]["name"] != post.name || Conversation.posts[k - 1]["deleteMember"]) {
+		if (k == Conversation.startFrom || typeof Conversation.posts[k - 1] == "undefined" || Conversation.posts[k - 1]["name"] != post.name || Conversation.isCollapsed(Conversation.posts[k - 1])) {
 			html.push("<hr/><div class='p "); if (side) html.push(side); html.push(" c", post.color, "'");
 			
 			// If this post is in its own group, assign the ID to the whole post (not just the post 'part').
-			if (typeof Conversation.posts[k + 1] == "undefined" || Conversation.posts[k + 1]["name"] != post.name || Conversation.posts[k + 1]["deleteMember"]) {
+			if (typeof Conversation.posts[k + 1] == "undefined" || Conversation.posts[k + 1]["name"] != post.name || Conversation.isCollapsed(Conversation.posts[k + 1])) {
 				singlePost = true;
 				html.push(" id='p", post.id, "'");
 			}
@@ -1549,6 +1584,7 @@ displayPosts: function(scrollTo) {
 		html.push("<div", (!singlePost ? " id='p" + post.id + "'" : ""), ">",
 			"<div class='hdr'>");
 		if (side) html.push("<div class='thumb'>", makeMemberLink(post.memberId, "<img src='" + (post.thumb || ("skins/" +  eso.skin + "/" + eso.avatarThumb)) + "' alt=''/>"), "</div>");
+		if (eso.user) html.push("<div class='showHide ", side != "l" ? "onLeft" : "onRight", "'>", makeHideLink(post.id), "</div>");
 		html.push("<div class='pInfo'>");
 		html.push("<h3>", makeMemberLink(post.memberId, post.name), "</h3> ",
 			"<span title='", post.date, "' class='pTime'><a href='", makePermalink(post.id), "'>", relativeTime(post.time), "</a></span> ");
@@ -1574,12 +1610,9 @@ displayPosts: function(scrollTo) {
 		html.push("</div></div><div class='body'>", post.body, "</div></div>");
 
 		// If the post after this one is by a different member to this one, end the post 'group'.
-		if (k == max - 1 || typeof Conversation.posts[k + 1] == "undefined" || Conversation.posts[k + 1]["name"] != post.name || Conversation.posts[k + 1]["deleteMember"]) {
+		if (k == max - 1 || typeof Conversation.posts[k + 1] == "undefined" || Conversation.posts[k + 1]["name"] != post.name || Conversation.isCollapsed(Conversation.posts[k + 1])) {
 			html.push("</div>"); if (side) html.push("<div class='avatar'>", makeMemberLink(post.memberId, "<img src='" + (post.avatar || ("skins/" + eso.skin + "/" + (side == "l" ? eso.avatarLeft : eso.avatarRight))) + "' alt=''/>"), "</div>");
 			html.push("<div class='clear'></div></div>");
-			
-			// Switch sides now that we're at the end of the group - only if the next post is not deleted!
-			if (eso.avatarAlignment == "alternate" && typeof Conversation.posts[k + 1] != "undefined" && !Conversation.posts[k + 1]["deleteMember"]) side = side == "r" ? "l" : "r";
 		}
 	}
 
@@ -2159,6 +2192,90 @@ hideDeletedPost: function(postId) {
 			break;
 		}
 	}
+},
+
+// Hide a post from the user until they show it again.
+hidePost: function(postId) {
+
+	// Confirm if we're editing any posts.
+	if (Conversation.editingPosts > 0 && !confirm(Conversation.beforeUnload())) return false;
+	else Conversation.editingPosts = 0;
+
+	Conversation.reloadPosts(Conversation.startFrom, null, true);
+
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=conversation",
+		"post": "action=hidePost&postId=" + postId,
+		"success": function() {
+			if (this.messages) return;
+
+			// Mark it as hidden by the user, then redisplay the posts.
+			for (var i in Conversation.posts) {
+				if (Conversation.posts[i].id == postId) {
+					Conversation.posts[i].hidden = eso.language["hidden"];
+					Conversation.posts[i].hiddenByUser = true;
+					Conversation.posts[i].body = "";
+					var oldHeight = getById("p" + postId).offsetHeight;
+					Conversation.displayPosts();
+					Conversation.animateDeletePost(getById("p" + postId), oldHeight);
+					break;
+				}
+			}
+		}
+	});
+},
+
+// Unhide a post from the user.
+unhidePost: function(postId) {
+
+	// Confirm if we're editing any posts.
+	if (Conversation.editingPosts > 0 && !confirm(Conversation.beforeUnload())) return false;
+	else Conversation.editingPosts = 0;
+
+	Conversation.reloadPosts(Conversation.startFrom, null, true);
+
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=conversation",
+		"post": "action=unhidePost&postId=" + postId,
+		"success": function() {
+			if (this.messages) return;
+
+			// Update the post's details and redisplay.
+			for (var i in this.result) Conversation.posts[i] = this.result[i];
+			Conversation.displayPosts();
+			Conversation.animateNewPost(getById("p" + postId));
+		}
+	});
+},
+
+// Show the contents of a hidden post without unhiding it.
+showHiddenPost: function(postId) {
+
+	Conversation.reloadPosts(Conversation.startFrom, null, true);
+
+	Ajax.request({
+		"url": eso.baseURL + "ajax.php?controller=conversation",
+		"post": "action=showHiddenPost&postId=" + postId,
+		"success": function() {
+			if (this.messages) return;
+
+			// Update the post's details and redisplay.
+			for (var i in Conversation.posts) {
+				if (Conversation.posts[i].id == postId) {
+					Conversation.posts[i].body = this.result;
+					var oldHeight = getById("p" + postId).offsetHeight;
+					Conversation.displayPosts();
+					Conversation.animateDeletePost(getById("p" + postId), oldHeight);
+					break;
+				}
+			}
+		}
+	});
+},
+
+// Collapse a post that has been hidden.
+hideHiddenPost: function(postId) {
+	Conversation.hideDeletedPost(postId);
 },
 
 // Delete a post forever.
