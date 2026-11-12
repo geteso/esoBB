@@ -114,6 +114,7 @@ $queries[] = "CREATE TABLE {$config["tablePrefix"]}members (
 	disableLinkAlerts tinyint(1) NOT NULL default '1',
 	showOnline tinyint(1) NOT NULL default '1',
 	rememberMe enum('ask','always','never') NOT NULL default 'ask',
+	rememberHidePosts tinyint(1) NOT NULL default '1',
 	markedAsRead int unsigned default NULL,
 	lastSeen int unsigned default NULL,
 	lastAction varchar(191) default NULL,

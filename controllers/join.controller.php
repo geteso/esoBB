@@ -221,6 +221,7 @@ function addMember()
 	$insertData["emailOnPrivateAdd"] = $config["emailPrivateAdd"] ? 1 : 0;
 	$insertData["emailOnStar"] = $config["emailStarReply"] ? 1 : 0;
 	$insertData["rememberMe"] = "'" . defaultRememberMe() . "'";
+	$insertData["rememberHidePosts"] = $config["rememberHidePosts"] ? 1 : 0;
 
 	$this->callHook("beforeAddMember", array(&$insertData));
 	

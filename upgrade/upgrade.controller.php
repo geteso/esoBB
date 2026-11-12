@@ -209,6 +209,8 @@ function upgrade_100e1()
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN rememberMe enum('ask','always','never') NOT NULL default 'ask' AFTER showOnline");
 		$this->query("UPDATE {$config["tablePrefix"]}members SET rememberMe='" . defaultRememberMe() . "'");
 	}
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'rememberHidePosts'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN rememberHidePosts tinyint(1) NOT NULL default '1' AFTER rememberMe");
 
 	// Add indexes if they don't exist.
 	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}members WHERE Key_name='members_lastSeen'"))

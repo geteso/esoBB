@@ -142,6 +142,12 @@ function init()
 				"validate" => "validateRememberMe",
 				"required" => true
 			),
+			260 => array(
+				"id" => "rememberHidePosts",
+				"html" => "<label for='rememberHidePosts' class='checkbox'>{$language["rememberHidePosts"]}</label> <input id='rememberHidePosts' type='checkbox' class='checkbox' name='rememberHidePosts' value='1' " . ((!array_key_exists("rememberHidePosts", $this->eso->user) or $this->eso->user["rememberHidePosts"]) ? "checked='checked' " : "") . "/>",
+				"databaseField" => "rememberHidePosts",
+				"checkbox" => true
+			),
 			275 => array(
 				"id" => "showOnline",
 				"html" => "<label for='showOnline' class='checkbox'>{$language["showOnline"]}</label> <input id='showOnline' type='checkbox' class='checkbox' name='showOnline' value='1' " . ($this->eso->user["showOnline"] ? "checked='checked' " : "") . "/>",

@@ -274,6 +274,7 @@ $language = array(
 "registrationEmail" => "by email verification",
 "registrationManual" => "by manual approval",
 "Remember me" => "Remember me",
+"rememberHidePosts" => "Remember when I hide a post",
 "rememberMe" => "Remember my session",
 "rememberMeAlways" => "all the time",
 "rememberMeAsk" => "only after asking",
