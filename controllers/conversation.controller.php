@@ -821,7 +821,7 @@ function getPosts($criteria = array(), $display = false)
 	$i = $startFrom;
 
 	// The posts the user has hidden in this conversation.
-	$hidePosts = $this->eso->user ? array_filter(explode(",", (string)@$this->conversation["hidePosts"])) : array();
+	$hidePosts = $this->rememberHidePosts() ? array_filter(explode(",", (string)@$this->conversation["hidePosts"])) : array();
 
 	// Loop through the posts and compile them into an array.
 	while ($post = $this->eso->db->fetchAssoc($result)) {
@@ -1228,6 +1228,12 @@ function restorePost($postId)
 	return true;
 }
 
+// Whether the user wants the posts they hide remembered.
+function rememberHidePosts()
+{
+	return $this->eso->user and (!array_key_exists("rememberHidePosts", $this->eso->user) or $this->eso->user["rememberHidePosts"]);
+}
+
 // Hide a post from the user.
 function hidePost($postId)
 {
@@ -1245,13 +1251,15 @@ function hidePost($postId)
 	}
 
 	// Add it to the user's list of hidden posts in this conversation.
-	$memberId = (int)$this->eso->user["memberId"];
-	$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, hidePosts)
-		VALUES (?, ?, ?)
-		ON DUPLICATE KEY UPDATE hidePosts=IF(FIND_IN_SET(?, hidePosts), hidePosts, CONCAT_WS(',', hidePosts, ?))", "iiiii", $conversationId, $memberId, $postId, $postId, $postId);
-	$hidePosts = array_filter(explode(",", (string)@$this->conversation["hidePosts"]));
-	if (!in_array($postId, $hidePosts)) $hidePosts[] = $postId;
-	$this->conversation["hidePosts"] = implode(",", $hidePosts);
+	if ($this->rememberHidePosts()) {
+		$memberId = (int)$this->eso->user["memberId"];
+		$this->eso->db->queryPrepared("INSERT INTO {$config["tablePrefix"]}status (conversationId, memberId, hidePosts)
+			VALUES (?, ?, ?)
+			ON DUPLICATE KEY UPDATE hidePosts=IF(FIND_IN_SET(?, hidePosts), hidePosts, CONCAT_WS(',', hidePosts, ?))", "iiiii", $conversationId, $memberId, $postId, $postId, $postId);
+		$hidePosts = array_filter(explode(",", (string)@$this->conversation["hidePosts"]));
+		if (!in_array($postId, $hidePosts)) $hidePosts[] = $postId;
+		$this->conversation["hidePosts"] = implode(",", $hidePosts);
+	}
 
 	$this->callHook("hidePost", array($postId));
 

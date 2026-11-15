@@ -146,6 +146,7 @@ $defaultConfig = array(
 "emailStarReply" => true, // Email when someone replies to a starred conversation?
 "rememberMe" => "ask", // Whether logins are remembered with a cookie: "ask" (after each login), "always", or "never".
 "showOnline" => true, // Whether or not to display when the user is online.
+"rememberHidePosts" => true, // Whether or not posts the user hides stay hidden after they log out.
 
 // Avatar dimensions in pixels.
 "avatarMaxWidth" => 200,
