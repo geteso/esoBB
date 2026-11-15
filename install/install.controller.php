@@ -552,7 +552,8 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 		"disableJSEffects" => false,
 		"disableLinkAlerts" => false,
 		"showOnline" => true,
-		"rememberMe" => "ask"
+		"rememberMe" => "ask",
+		"pageScroll" => "bar"
 	);
 }
 

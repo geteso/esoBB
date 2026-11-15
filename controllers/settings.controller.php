@@ -109,6 +109,12 @@ function init()
 	foreach ($align as $k => $v)
 		$avatarAlignmentOptions .= "<option value='$k'" . ($this->eso->user["avatarAlignment"] == $k ? " selected='selected'" : "") . ">$v</option>";
 
+	// Create a string of options to go in the scrollbar <select> tag.
+	$pageScrollOptions = "";
+	$pageScroll = $this->eso->pageScroll();
+	foreach (array("bar" => "on the top and bottom", "pages" => "on the top and bottom, as pages", "left" => "on the left", "right" => "on the right") as $k => $v)
+		$pageScrollOptions .= "<option value='$k'" . ($pageScroll == $k ? " selected='selected'" : "") . ">{$language[$v]}</option>";
+
 	// Create a string of options to go in the 'remember me' <select> tag.
 	$rememberMeOptions = "";
 	foreach (array("ask" => "rememberMeAsk", "always" => "rememberMeAlways", "never" => "rememberMeNever") as $k => $v)
@@ -133,6 +139,13 @@ function init()
 				"html" => "<label>{$language["Display avatars"]}</label> <select id='avatarAlignment' name='avatarAlignment'>$avatarAlignmentOptions</select>",
 				"databaseField" => "avatarAlignment",
 				"validate" => array("Settings", "validateAvatarAlignment"),
+				"required" => true
+			),
+			210 => array(
+				"id" => "pageScroll",
+				"html" => "<label>{$language["Display the scrollbar"]}</label> <select id='pageScroll' name='pageScroll'>$pageScrollOptions</select>",
+				"databaseField" => "pageScroll",
+				"validate" => array("Settings", "validatepageScroll"),
 				"required" => true
 			),
 			250 => array(
@@ -675,6 +688,12 @@ function addFieldset($fieldset, $legend, $position = false)
 function validateAvatarAlignment(&$alignment)
 {
 	if (!in_array($alignment, array("alternate", "right", "left", "none"))) $alignment = "alternate";
+}
+
+// Validate the scrollbar field: make sure it's one of the options.
+function validatepageScroll(&$nav)
+{
+	if (!in_array($nav, array("bar", "pages", "left", "right"))) $nav = "bar";
 }
 
 // Validate the language field: make sure the selected language actually exists.

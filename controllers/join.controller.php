@@ -222,6 +222,7 @@ function addMember()
 	$insertData["emailOnStar"] = $config["emailStarReply"] ? 1 : 0;
 	$insertData["rememberMe"] = "'" . defaultRememberMe() . "'";
 	$insertData["rememberHidePosts"] = $config["rememberHidePosts"] ? 1 : 0;
+	$insertData["pageScroll"] = "'" . $this->eso->pageScroll() . "'";
 
 	$this->callHook("beforeAddMember", array(&$insertData));
 	

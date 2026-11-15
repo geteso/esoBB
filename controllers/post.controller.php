@@ -27,9 +27,6 @@ class post extends Controller {
 
 function init()
 {
-	// Permanently redirected to the conversation.
-	header("HTTP/1.1 301 Moved Permanently");
-	
 	if (!empty($_GET["q2"]) and $postId = (int)$_GET["q2"]) {
 		
 		global $config;
@@ -41,7 +38,10 @@ function init()
 			WHERE p.postId=$postId");
 		if (!$this->eso->db->numRows($result)) redirect("");
 		list($conversationId, $slug, $startFrom) = $this->eso->db->fetchRow($result);
-		$startFrom = max(0, floor($startFrom - $config["postsPerPage"] / 2));
+		$nav = $this->eso->pageScroll();
+		if ($nav == "pages") $startFrom = (int)floor($startFrom / $config["postsPerPage"]) * $config["postsPerPage"];
+		elseif ($nav == "left" or $nav == "right") $startFrom = (int)$startFrom;
+		else $startFrom = max(0, floor($startFrom - $config["postsPerPage"] / 2));
 					
 		// Redirect.
 		redirect($conversationId, $slug, "?start=$startFrom", "#p$postId");
