@@ -147,6 +147,7 @@ $defaultConfig = array(
 "rememberMe" => "ask", // Whether logins are remembered with a cookie: "ask" (after each login), "always", or "never".
 "showOnline" => true, // Whether or not to display when the user is online.
 "rememberHidePosts" => true, // Whether or not posts the user hides stay hidden after they log out.
+"pageScroll" => "bar", // How conversations handle post scrubbing: "bar" (on the top and bottom, as a scrollbar), "pages" (on the top and bottom, as pages), or "left" or "right" (a vertical bar with infinite scroll). Individual users can override this.
 
 // Avatar dimensions in pixels.
 "avatarMaxWidth" => 200,

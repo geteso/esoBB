@@ -870,6 +870,15 @@ function getAvatar($memberId, $avatarFormat, $type = false)
 	}
 }
 
+// How conversations render the page scrollbar.
+function pageScroll()
+{
+	global $config;
+	$navs = array("bar", "pages", "left", "right");
+	if (!empty($this->user["pageScroll"]) and in_array($this->user["pageScroll"], $navs)) return $this->user["pageScroll"];
+	return in_array(@$config["pageScroll"], $navs) ? $config["pageScroll"] : "bar";
+}
+
 // Update the user's last action.
 function updateLastAction($action)
 {

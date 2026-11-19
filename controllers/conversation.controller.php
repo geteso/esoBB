@@ -53,7 +53,7 @@ function init()
 	$this->conversation["membersAllowed"] =& $this->getMembersAllowed();
 
 	// Add essential variables and language definitions to be accessible through JavaScript. 
-	$this->eso->addLanguageToJS("Starred", "Unstarred", "Lock", "Unlock", "Sticky", "Unsticky", "Moderator", "Moderator-plural", "Administrator", "Administrator-plural", "Member", "Member-plural", "Suspended", "Unvalidated", "confirmLeave", "confirmDiscard", "confirmDeleteConversation", "confirmDeletePost", "Never", "Just now", "year ago", "years ago", "month ago", "months ago", "week ago", "weeks ago", "day ago", "days ago", "hour ago", "hours ago", "minute ago", "minutes ago", "second ago", "seconds ago", "hidden");
+	$this->eso->addLanguageToJS("Starred", "Unstarred", "Lock", "Unlock", "Sticky", "Unsticky", "Moderator", "Moderator-plural", "Administrator", "Administrator-plural", "Member", "Member-plural", "Suspended", "Unvalidated", "confirmLeave", "confirmDiscard", "confirmDeleteConversation", "confirmDeletePost", "Never", "Just now", "year ago", "years ago", "month ago", "months ago", "week ago", "weeks ago", "day ago", "days ago", "hour ago", "hours ago", "minute ago", "minutes ago", "second ago", "seconds ago", "hidden", "back", "backTitle", "viewingPost", "viewingPosts", "First", "Last", "replyWaiting");
 	$this->eso->addVarToJS("postsPerPage", $config["postsPerPage"]);
 	$this->eso->addVarToJS("autoReloadIntervalStart", $config["autoReloadIntervalStart"]);
 	$this->eso->addVarToJS("autoReloadIntervalMultiplier", $config["autoReloadIntervalMultiplier"]);	
@@ -101,7 +101,7 @@ function init()
 			if (!$id) $this->conversation["draft"] = $_POST["content"];
 			
 			// Otherwise, redirect so that the new reply is visible.
-			else redirect($this->conversation["id"], $this->conversation["slug"], "?start=" . max(0, $this->conversation["postCount"] - $config["postsPerPage"]), "#p$id");
+			else redirect($this->conversation["id"], $this->conversation["slug"], "?start=" . $this->viewStart(max(0, $this->conversation["postCount"] - $config["postsPerPage"]), $this->conversation["postCount"] - 1), "#p$id");
 		}
 	}
 
@@ -141,7 +141,7 @@ function init()
 
 				// Unread: get the user's lastRead from the database, and redirect to start from there.
 				case "unread":
-					$this->startFrom = max(0, min($this->conversation["lastRead"], $this->conversation["postCount"] - $config["postsPerPage"]));
+					$this->startFrom = $this->viewStart(max(0, min($this->conversation["lastRead"], $this->conversation["postCount"] - $config["postsPerPage"])), $this->conversation["lastRead"]);
 					$limit = (int)$this->conversation["lastRead"];
 					$conversationId = (int)$this->conversation["id"];
 					$postId = $this->eso->db->fetchOne("SELECT postId FROM {$config["tablePrefix"]}posts WHERE conversationId=? ORDER BY time ASC LIMIT ?, 1", "ii", $conversationId, $limit);
@@ -150,15 +150,15 @@ function init()
 
 				// Last: redirect to the last post in the conversation.
 				case "last":
-					$this->startFrom = max(0, $this->conversation["postCount"] - $config["postsPerPage"]);
+					$this->startFrom = $this->viewStart(max(0, $this->conversation["postCount"] - $config["postsPerPage"]), $this->conversation["postCount"] - 1);
 					$conversationId = (int)$this->conversation["id"];
 					$postId = $this->eso->db->fetchOne("SELECT MAX(postId) FROM {$config["tablePrefix"]}posts WHERE conversationId=?", "i", $conversationId);
 					redirect($this->conversation["id"], $this->conversation["slug"], "?start=$this->startFrom", "#p$postId");
 					break;
 
-				// With any luck, we can just use the start number in the URL.
+				// With any luck, we can just use the start number in the URL. (As pages, the page it's on.)
 				default:
-					$this->startFrom = (int)$_GET["start"];
+					$this->startFrom = $this->viewStart((int)$_GET["start"], (int)$_GET["start"]);
 			}
 		}
 		
@@ -293,7 +293,10 @@ function init()
 			"id" => $this->conversation["id"],
 			"postCount" => $this->conversation["postCount"],
 			"startFrom" => $this->startFrom,
+			"startLink" => makeLink($this->conversation["id"], $this->conversation["slug"], "?start=%d"),
 			"lastActionTime" => $this->conversation["lastActionTime"],
+			"startTime" => (int)@$this->conversation["startTime"],
+			"lastPostTime" => (int)@$this->conversation["lastPostTime"],
 			"lastRead" => ($this->eso->user and $this->conversation["id"])
 				? max(0, min($this->conversation["postCount"], $this->conversation["lastRead"]))
 				: $this->conversation["postCount"]
@@ -656,7 +659,7 @@ function getConversation($id = false)
 	if ($id !== false) {
 
 		// Begin constructing the query components.
-		$select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.locked AS locked", "c.startMember AS startMember", "sm.name AS startMemberName", "c.posts AS postCount", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "c.private AS private", "s.lastRead AS lastRead", "s.draft AS draft", "s.starred AS starred", "s.hidePosts AS hidePosts","IF(c.lastActionTime IS NULL,0,c.lastActionTime) AS lastActionTime");
+		$select = array("c.conversationId AS id", "c.title AS title", "c.slug AS slug", "c.locked AS locked", "c.startMember AS startMember", "sm.name AS startMemberName", "c.posts AS postCount", "GROUP_CONCAT(t.tag ORDER BY t.tag ASC SEPARATOR ', ') AS tags", "c.private AS private", "s.lastRead AS lastRead", "s.draft AS draft", "s.starred AS starred", "s.hidePosts AS hidePosts","IF(c.lastActionTime IS NULL,0,c.lastActionTime) AS lastActionTime", "c.startTime AS startTime", "c.lastPostTime AS lastPostTime");
 		
 		// Add labels to the 'select' part of the query, only if we're loading the page from scratch (not ajax).
 		// The eso labels array contains SQL conditions that must be satisfied for that label to be 'active'.
@@ -1232,6 +1235,16 @@ function restorePost($postId)
 function rememberHidePosts()
 {
 	return $this->eso->user and (!array_key_exists("rememberHidePosts", $this->eso->user) or $this->eso->user["rememberHidePosts"]);
+}
+
+// Where a view that shows the post at $index should start. Shown as pages, views start at the top of a the page that
+// post is on. Otherwise they can start anywhere, so it's $start.
+function viewStart($start, $index)
+{
+	global $config;
+	if ($this->eso->pageScroll() != "pages") return $start;
+	$index = max(0, min((int)$index, $this->conversation["postCount"] - 1));
+	return (int)floor($index / $config["postsPerPage"]) * $config["postsPerPage"];
 }
 
 // Hide a post from the user.

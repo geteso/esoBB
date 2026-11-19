@@ -211,6 +211,8 @@ function upgrade_100e1()
 	}
 	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'rememberHidePosts'"))
 		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN rememberHidePosts tinyint(1) NOT NULL default '1' AFTER rememberMe");
+	if (!$this->numRows("SHOW COLUMNS FROM {$config["tablePrefix"]}members LIKE 'pageScroll'"))
+		$this->query("ALTER TABLE {$config["tablePrefix"]}members ADD COLUMN pageScroll enum('bar','pages','left','right') NOT NULL default 'bar' AFTER rememberHidePosts");
 
 	// Add indexes if they don't exist.
 	if (!$this->numRows("SHOW INDEX FROM {$config["tablePrefix"]}members WHERE Key_name='members_lastSeen'"))
